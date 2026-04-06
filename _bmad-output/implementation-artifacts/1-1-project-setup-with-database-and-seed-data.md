@@ -1,6 +1,6 @@
 # Story 1.1: Project Setup with Database and Seed Data
 
-Status: review
+Status: done
 
 ## Story
 
@@ -308,6 +308,18 @@ Claude Opus 4.6 (1M context)
 - ActionResult<T> type defined
 - 14 unit tests passing: schema CRUD, seed idempotency, config, formatting stubs, ActionResult type
 - ESLint passes cleanly
+
+### Review Findings
+
+- [x] [Review][Decision] `.env` (bare) no longer gitignored — fixed: added `.env` to `.gitignore`
+- [x] [Review][Patch] Seed script DELETE+INSERT not wrapped in a transaction — fixed: wrapped in `db.transaction()` [src/server/db/seed.ts]
+- [x] [Review][Patch] `data/` directory missing from git — fixed: added `data/.gitkeep` [data/.gitkeep]
+- [x] [Review][Defer] No unique constraint on `market_data (symbol, type, date)` — deferred, pre-existing design decision for future stories
+- [x] [Review][Defer] No WAL mode or `busy_timeout` configured on SQLite connection — deferred, production hardening not in scope
+- [x] [Review][Defer] DB connection singleton has no graceful shutdown hook — deferred, relevant at deployment time
+- [x] [Review][Defer] `quantity`/`price`/`fees` columns accept negative values with no CHECK constraint — deferred, validation for future stories
+- [x] [Review][Defer] `date` TEXT column has no ISO 8601 format enforcement at DB level — deferred, convention-only
+- [x] [Review][Defer] `fee` rows have `quantity: 0, price: 0` creating downstream division-by-zero risk — deferred, computation engine (Story 1.2) must handle
 
 ### Change Log
 
