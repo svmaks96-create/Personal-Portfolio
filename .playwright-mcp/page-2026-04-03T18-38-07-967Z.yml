@@ -1,0 +1,232 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Design Directions" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5] [cursor=pointer]: "A: Classic"
+      - generic [ref=e6] [cursor=pointer]: "B: Sidebar"
+      - generic [ref=e7] [cursor=pointer]: "C: Top Tabs"
+      - generic [ref=e8] [cursor=pointer]: "D: Compact"
+      - generic [ref=e9] [cursor=pointer]: "E: Dark"
+      - generic [ref=e10] [cursor=pointer]: "F: Card Grid"
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - heading "Dashboard" [level=2] [ref=e14]
+        - generic [ref=e15]:
+          - combobox [ref=e16]:
+            - option "All Portfolios" [selected]
+            - option "Interactive Brokers"
+            - option "Schwab"
+            - option "Hargreaves Lansdown"
+          - button "Refresh Prices" [ref=e17] [cursor=pointer]
+          - generic [ref=e18]: Prices as of Apr 2, 2026 close
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Total Value
+          - generic [ref=e22]: $284,532.18
+        - generic [ref=e23]:
+          - generic [ref=e24]: Total Cost Basis
+          - generic [ref=e25]: $231,087.44
+        - generic [ref=e26]:
+          - generic [ref=e27]: Total P&L
+          - generic [ref=e28]: +$53,444.74
+        - generic [ref=e29]:
+          - generic [ref=e30]: Cash Returned
+          - generic [ref=e31]: $12,891.30
+      - heading "Active Positions" [level=3] [ref=e33]
+      - table [ref=e35]:
+        - rowgroup [ref=e36]:
+          - row "Ticker Portfolio Shares Avg Entry Last Price Cost Basis Market Value Dividends P&L Weight" [ref=e37]:
+            - columnheader "Ticker" [ref=e38]
+            - columnheader "Portfolio" [ref=e39]
+            - columnheader "Shares" [ref=e40]
+            - columnheader "Avg Entry" [ref=e41]
+            - columnheader "Last Price" [ref=e42]
+            - columnheader "Cost Basis" [ref=e43]
+            - columnheader "Market Value" [ref=e44]
+            - columnheader "Dividends" [ref=e45]
+            - columnheader "P&L" [ref=e46]
+            - columnheader "Weight" [ref=e47]
+        - rowgroup [ref=e48]:
+          - row "AAPL Interactive Brokers 50.0 $142.30 $173.00 $7,115.00 $8,650.00 $240.00 +$1,775.00 3.0%" [ref=e49]:
+            - cell "AAPL" [ref=e50]:
+              - strong [ref=e51]: AAPL
+            - cell "Interactive Brokers" [ref=e52]
+            - cell "50.0" [ref=e53]
+            - cell "$142.30" [ref=e54]
+            - cell "$173.00" [ref=e55]
+            - cell "$7,115.00" [ref=e56]
+            - cell "$8,650.00" [ref=e57]
+            - cell "$240.00" [ref=e58]
+            - cell "+$1,775.00" [ref=e59]
+            - cell "3.0%" [ref=e60]
+          - row "MSFT Schwab 30.0 $285.40 $412.50 $8,562.00 $12,375.00 $180.00 +$3,993.00 4.3%" [ref=e61]:
+            - cell "MSFT" [ref=e62]:
+              - strong [ref=e63]: MSFT
+            - cell "Schwab" [ref=e64]
+            - cell "30.0" [ref=e65]
+            - cell "$285.40" [ref=e66]
+            - cell "$412.50" [ref=e67]
+            - cell "$8,562.00" [ref=e68]
+            - cell "$12,375.00" [ref=e69]
+            - cell "$180.00" [ref=e70]
+            - cell "+$3,993.00" [ref=e71]
+            - cell "4.3%" [ref=e72]
+          - row "VOO Interactive Brokers 120.0 $380.20 $498.30 $45,624.00 $59,796.00 $2,160.00 +$16,332.00 21.0%" [ref=e73]:
+            - cell "VOO" [ref=e74]:
+              - strong [ref=e75]: VOO
+            - cell "Interactive Brokers" [ref=e76]
+            - cell "120.0" [ref=e77]
+            - cell "$380.20" [ref=e78]
+            - cell "$498.30" [ref=e79]
+            - cell "$45,624.00" [ref=e80]
+            - cell "$59,796.00" [ref=e81]
+            - cell "$2,160.00" [ref=e82]
+            - cell "+$16,332.00" [ref=e83]
+            - cell "21.0%" [ref=e84]
+          - row "GSK.L Hargreaves Lansdown 200.0 $17.82 $15.40 $3,564.00 $3,080.00 $310.00 -$174.00 1.1%" [ref=e85]:
+            - cell "GSK.L" [ref=e86]:
+              - strong [ref=e87]: GSK.L
+            - cell "Hargreaves Lansdown" [ref=e88]
+            - cell "200.0" [ref=e89]
+            - cell "$17.82" [ref=e90]
+            - cell "$15.40" [ref=e91]
+            - cell "$3,564.00" [ref=e92]
+            - cell "$3,080.00" [ref=e93]
+            - cell "$310.00" [ref=e94]
+            - cell "-$174.00" [ref=e95]
+            - cell "1.1%" [ref=e96]
+          - row "NVDA Schwab 25.0 $475.60 $890.20 $11,890.00 $22,255.00 $0.00 +$10,365.00 7.8%" [ref=e97]:
+            - cell "NVDA" [ref=e98]:
+              - strong [ref=e99]: NVDA
+            - cell "Schwab" [ref=e100]
+            - cell "25.0" [ref=e101]
+            - cell "$475.60" [ref=e102]
+            - cell "$890.20" [ref=e103]
+            - cell "$11,890.00" [ref=e104]
+            - cell "$22,255.00" [ref=e105]
+            - cell "$0.00" [ref=e106]
+            - cell "+$10,365.00" [ref=e107]
+            - cell "7.8%" [ref=e108]
+      - heading "Closed Positions" [level=3] [ref=e110]
+      - table [ref=e112]:
+        - rowgroup [ref=e113]:
+          - row "Ticker Portfolio Avg Entry Total Invested Proceeds Dividends Realized P&L" [ref=e114]:
+            - columnheader "Ticker" [ref=e115]
+            - columnheader "Portfolio" [ref=e116]
+            - columnheader "Avg Entry" [ref=e117]
+            - columnheader "Total Invested" [ref=e118]
+            - columnheader "Proceeds" [ref=e119]
+            - columnheader "Dividends" [ref=e120]
+            - columnheader "Realized P&L" [ref=e121]
+        - rowgroup [ref=e122]:
+          - row "TSLA Interactive Brokers $198.40 $9,920.00 $14,350.00 $0.00 +$4,430.00" [ref=e123]:
+            - cell "TSLA" [ref=e124]:
+              - strong [ref=e125]: TSLA
+            - cell "Interactive Brokers" [ref=e126]
+            - cell "$198.40" [ref=e127]
+            - cell "$9,920.00" [ref=e128]
+            - cell "$14,350.00" [ref=e129]
+            - cell "$0.00" [ref=e130]
+            - cell "+$4,430.00" [ref=e131]
+    - generic [ref=e132]: "Direction A: Classic — Full-width, no sidebar, metrics above table"
+  - generic [ref=e133]:
+    - generic [ref=e134]:
+      - generic [ref=e135] [cursor=pointer]:
+        - generic [ref=e136]: ▢
+        - text: Dashboard
+      - generic [ref=e137] [cursor=pointer]:
+        - generic [ref=e138]: ▦
+        - text: Positions
+      - generic [ref=e139] [cursor=pointer]:
+        - generic [ref=e140]: ☰
+        - text: Transactions
+      - generic [ref=e141] [cursor=pointer]:
+        - generic [ref=e142]: ⇧
+        - text: Import
+    - generic [ref=e143]:
+      - generic [ref=e144]:
+        - heading "Dashboard" [level=2] [ref=e145]
+        - generic [ref=e146]:
+          - combobox [ref=e147]:
+            - option "All Portfolios" [selected]
+            - option "Interactive Brokers"
+            - option "Schwab"
+          - button "Refresh" [ref=e148] [cursor=pointer]
+          - generic [ref=e149]: Apr 2, 2026 close
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - generic [ref=e152]: Total Value
+          - generic [ref=e153]: $284,532.18
+        - generic [ref=e154]:
+          - generic [ref=e155]: Cost Basis
+          - generic [ref=e156]: $231,087.44
+        - generic [ref=e157]:
+          - generic [ref=e158]: Total P&L
+          - generic [ref=e159]: +$53,444.74
+        - generic [ref=e160]:
+          - generic [ref=e161]: Cash Returned
+          - generic [ref=e162]: $12,891.30
+      - table [ref=e164]:
+        - rowgroup [ref=e165]:
+          - row "Ticker Shares Avg Entry Last Price Cost Basis Market Value P&L Weight" [ref=e166]:
+            - columnheader "Ticker" [ref=e167]
+            - columnheader "Shares" [ref=e168]
+            - columnheader "Avg Entry" [ref=e169]
+            - columnheader "Last Price" [ref=e170]
+            - columnheader "Cost Basis" [ref=e171]
+            - columnheader "Market Value" [ref=e172]
+            - columnheader "P&L" [ref=e173]
+            - columnheader "Weight" [ref=e174]
+        - rowgroup [ref=e175]:
+          - row "AAPL 50.0 $142.30 $173.00 $7,115.00 $8,650.00 +$1,775.00 3.0%" [ref=e176]:
+            - cell "AAPL" [ref=e177]:
+              - strong [ref=e178]: AAPL
+            - cell "50.0" [ref=e179]
+            - cell "$142.30" [ref=e180]
+            - cell "$173.00" [ref=e181]
+            - cell "$7,115.00" [ref=e182]
+            - cell "$8,650.00" [ref=e183]
+            - cell "+$1,775.00" [ref=e184]
+            - cell "3.0%" [ref=e185]
+          - row "MSFT 30.0 $285.40 $412.50 $8,562.00 $12,375.00 +$3,993.00 4.3%" [ref=e186]:
+            - cell "MSFT" [ref=e187]:
+              - strong [ref=e188]: MSFT
+            - cell "30.0" [ref=e189]
+            - cell "$285.40" [ref=e190]
+            - cell "$412.50" [ref=e191]
+            - cell "$8,562.00" [ref=e192]
+            - cell "$12,375.00" [ref=e193]
+            - cell "+$3,993.00" [ref=e194]
+            - cell "4.3%" [ref=e195]
+          - row "VOO 120.0 $380.20 $498.30 $45,624.00 $59,796.00 +$16,332.00 21.0%" [ref=e196]:
+            - cell "VOO" [ref=e197]:
+              - strong [ref=e198]: VOO
+            - cell "120.0" [ref=e199]
+            - cell "$380.20" [ref=e200]
+            - cell "$498.30" [ref=e201]
+            - cell "$45,624.00" [ref=e202]
+            - cell "$59,796.00" [ref=e203]
+            - cell "+$16,332.00" [ref=e204]
+            - cell "21.0%" [ref=e205]
+          - row "GSK.L 200.0 $17.82 $15.40 $3,564.00 $3,080.00 -$174.00 1.1%" [ref=e206]:
+            - cell "GSK.L" [ref=e207]:
+              - strong [ref=e208]: GSK.L
+            - cell "200.0" [ref=e209]
+            - cell "$17.82" [ref=e210]
+            - cell "$15.40" [ref=e211]
+            - cell "$3,564.00" [ref=e212]
+            - cell "$3,080.00" [ref=e213]
+            - cell "-$174.00" [ref=e214]
+            - cell "1.1%" [ref=e215]
+          - row "NVDA 25.0 $475.60 $890.20 $11,890.00 $22,255.00 +$10,365.00 7.8%" [ref=e216]:
+            - cell "NVDA" [ref=e217]:
+              - strong [ref=e218]: NVDA
+            - cell "25.0" [ref=e219]
+            - cell "$475.60" [ref=e220]
+            - cell "$890.20" [ref=e221]
+            - cell "$11,890.00" [ref=e222]
+            - cell "$22,255.00" [ref=e223]
+            - cell "+$10,365.00" [ref=e224]
+            - cell "7.8%" [ref=e225]
+    - generic [ref=e226]: "Direction B: Sidebar — Persistent navigation, narrower content area"

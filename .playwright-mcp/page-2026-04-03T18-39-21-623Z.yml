@@ -1,0 +1,139 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Design Directions" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5] [cursor=pointer]: "A: Classic"
+      - generic [ref=e6] [cursor=pointer]: "B: Sidebar"
+      - generic [ref=e7] [cursor=pointer]: "C: Top Tabs"
+      - generic [ref=e8] [cursor=pointer]: "D: Compact"
+      - generic [ref=e9] [cursor=pointer]: "E: Dark"
+      - generic [ref=e10] [cursor=pointer]: "F: Card Grid"
+  - generic [ref=e481]:
+    - generic [ref=e482]:
+      - generic [ref=e483]:
+        - heading "Dashboard" [level=2] [ref=e484]
+        - generic [ref=e485]:
+          - combobox [ref=e486]:
+            - option "All Portfolios" [selected]
+            - option "Interactive Brokers"
+            - option "Schwab"
+          - button "Refresh Prices" [ref=e487] [cursor=pointer]
+          - generic [ref=e488]: Prices as of Apr 2, 2026 close
+      - generic [ref=e489]:
+        - generic [ref=e490]:
+          - generic [ref=e491]: Total Value
+          - generic [ref=e492]: $284,532.18
+        - generic [ref=e493]:
+          - generic [ref=e494]: Total Cost Basis
+          - generic [ref=e495]: $231,087.44
+        - generic [ref=e496]:
+          - generic [ref=e497]: Total P&L
+          - generic [ref=e498]: +$53,444.74
+        - generic [ref=e499]:
+          - generic [ref=e500]: Cash Returned
+          - generic [ref=e501]: $12,891.30
+      - generic [ref=e502]: Active Positions
+      - generic [ref=e503]:
+        - generic [ref=e504] [cursor=pointer]:
+          - generic [ref=e505]:
+            - generic [ref=e506]: AAPL
+            - generic [ref=e507]: 3.0%
+          - generic [ref=e508]:
+            - generic [ref=e509]:
+              - generic [ref=e510]: Market Value
+              - generic [ref=e511]: $8,650.00
+            - generic [ref=e512]:
+              - generic [ref=e513]: P&L
+              - generic [ref=e514]: +$1,775.00
+            - generic [ref=e515]:
+              - generic [ref=e516]: Shares
+              - generic [ref=e517]: "50.0"
+            - generic [ref=e518]:
+              - generic [ref=e519]: Avg Entry
+              - generic [ref=e520]: $142.30
+        - generic [ref=e521] [cursor=pointer]:
+          - generic [ref=e522]:
+            - generic [ref=e523]: MSFT
+            - generic [ref=e524]: 4.3%
+          - generic [ref=e525]:
+            - generic [ref=e526]:
+              - generic [ref=e527]: Market Value
+              - generic [ref=e528]: $12,375.00
+            - generic [ref=e529]:
+              - generic [ref=e530]: P&L
+              - generic [ref=e531]: +$3,993.00
+            - generic [ref=e532]:
+              - generic [ref=e533]: Shares
+              - generic [ref=e534]: "30.0"
+            - generic [ref=e535]:
+              - generic [ref=e536]: Avg Entry
+              - generic [ref=e537]: $285.40
+        - generic [ref=e538] [cursor=pointer]:
+          - generic [ref=e539]:
+            - generic [ref=e540]: VOO
+            - generic [ref=e541]: 21.0%
+          - generic [ref=e542]:
+            - generic [ref=e543]:
+              - generic [ref=e544]: Market Value
+              - generic [ref=e545]: $59,796.00
+            - generic [ref=e546]:
+              - generic [ref=e547]: P&L
+              - generic [ref=e548]: +$16,332.00
+            - generic [ref=e549]:
+              - generic [ref=e550]: Shares
+              - generic [ref=e551]: "120.0"
+            - generic [ref=e552]:
+              - generic [ref=e553]: Avg Entry
+              - generic [ref=e554]: $380.20
+        - generic [ref=e555] [cursor=pointer]:
+          - generic [ref=e556]:
+            - generic [ref=e557]: GSK.L
+            - generic [ref=e558]: 1.1%
+          - generic [ref=e559]:
+            - generic [ref=e560]:
+              - generic [ref=e561]: Market Value
+              - generic [ref=e562]: $3,080.00
+            - generic [ref=e563]:
+              - generic [ref=e564]: P&L
+              - generic [ref=e565]: "-$174.00"
+            - generic [ref=e566]:
+              - generic [ref=e567]: Shares
+              - generic [ref=e568]: "200.0"
+            - generic [ref=e569]:
+              - generic [ref=e570]: Avg Entry
+              - generic [ref=e571]: $17.82
+        - generic [ref=e572] [cursor=pointer]:
+          - generic [ref=e573]:
+            - generic [ref=e574]: NVDA
+            - generic [ref=e575]: 7.8%
+          - generic [ref=e576]:
+            - generic [ref=e577]:
+              - generic [ref=e578]: Market Value
+              - generic [ref=e579]: $22,255.00
+            - generic [ref=e580]:
+              - generic [ref=e581]: P&L
+              - generic [ref=e582]: +$10,365.00
+            - generic [ref=e583]:
+              - generic [ref=e584]: Shares
+              - generic [ref=e585]: "25.0"
+            - generic [ref=e586]:
+              - generic [ref=e587]: Avg Entry
+              - generic [ref=e588]: $475.60
+        - generic [ref=e589] [cursor=pointer]:
+          - generic [ref=e590]:
+            - generic [ref=e591]: AMZN
+            - generic [ref=e592]: 1.0%
+          - generic [ref=e593]:
+            - generic [ref=e594]:
+              - generic [ref=e595]: Market Value
+              - generic [ref=e596]: $2,798.00
+            - generic [ref=e597]:
+              - generic [ref=e598]: P&L
+              - generic [ref=e599]: +$656.00
+            - generic [ref=e600]:
+              - generic [ref=e601]: Shares
+              - generic [ref=e602]: "15.0"
+            - generic [ref=e603]:
+              - generic [ref=e604]: Avg Entry
+              - generic [ref=e605]: $142.80
+    - generic [ref=e606]: "Direction F: Card Grid — Positions as individual cards instead of table rows"

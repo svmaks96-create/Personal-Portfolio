@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Portfolio Tracker — Design Directions</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #18181b; color: #fafafa; }
+
+  /* Navigation */
+  .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: #18181b; border-bottom: 1px solid #3f3f46; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+  .nav h1 { font-size: 14px; font-weight: 600; color: #a1a1aa; white-space: nowrap; }
+  .nav-tabs { display: flex; gap: 4px; overflow-x: auto; }
+  .nav-tab { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; background: transparent; color: #a1a1aa; white-space: nowrap; transition: all 0.15s; }
+  .nav-tab:hover { background: #27272a; color: #fafafa; }
+  .nav-tab.active { background: #fafafa; color: #18181b; }
+
+  /* Mockup container */
+  .mockup { display: none !important; margin-top: 52px; min-height: calc(100vh - 52px); }
+  .mockup.active { display: block !important; }
+  .mockup.active.db { display: flex !important; }
+  .mockup-label { position: fixed; bottom: 20px; right: 20px; background: #18181b; color: #a1a1aa; padding: 8px 16px; border-radius: 8px; font-size: 12px; border: 1px solid #3f3f46; z-index: 50; }
+
+  /* ============ DIRECTION A: Classic Financial Dashboard ============ */
+  .da { background: #fafafa; color: #18181b; }
+  .da .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .da .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .da .topbar h2 { font-size: 24px; font-weight: 600; }
+  .da .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .da .portfolio-select { padding: 6px 12px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; background: white; }
+  .da .refresh-btn { padding: 6px 14px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; background: white; cursor: pointer; }
+  .da .refresh-btn:hover { background: #f4f4f5; }
+  .da .timestamp { font-size: 12px; color: #71717a; }
+  .da .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .da .metric-card { background: white; border: 1px solid #e4e4e7; border-radius: 8px; padding: 20px; }
+  .da .metric-label { font-size: 13px; color: #71717a; margin-bottom: 4px; }
+  .da .metric-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .da .metric-value.pos { color: #059669; }
+  .da .metric-value.neg { color: #dc2626; }
+  .da .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .da .section-head h3 { font-size: 16px; font-weight: 600; }
+  .da .table-wrap { background: white; border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; margin-bottom: 32px; }
+  .da table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .da th { text-align: left; padding: 10px 16px; font-size: 13px; font-weight: 500; color: #71717a; border-bottom: 1px solid #e4e4e7; background: #fafafa; }
+  .da th.num { text-align: right; }
+  .da td { padding: 10px 16px; border-bottom: 1px solid #f4f4f5; font-variant-numeric: tabular-nums; }
+  .da td.num { text-align: right; }
+  .da td.pos { color: #059669; }
+  .da td.neg { color: #dc2626; }
+  .da tr:hover { background: #f4f4f5; cursor: pointer; }
+  .da .sidebar-nav { display: none; }
+
+  /* ============ DIRECTION B: Sidebar Navigation ============ */
+  .db { background: #fafafa; color: #18181b; display: flex; }
+  .db .sidebar { width: 220px; min-height: calc(100vh - 52px); background: white; border-right: 1px solid #e4e4e7; padding: 20px 0; position: fixed; top: 52px; left: 0; }
+  .db .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 14px; color: #71717a; cursor: pointer; transition: all 0.1s; }
+  .db .sidebar-item:hover { background: #f4f4f5; color: #18181b; }
+  .db .sidebar-item.active { background: #f4f4f5; color: #18181b; font-weight: 500; border-right: 2px solid #18181b; }
+  .db .sidebar-item .icon { width: 18px; text-align: center; }
+  .db .main { margin-left: 220px; flex: 1; padding: 24px; max-width: 1200px; }
+  .db .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .db .topbar h2 { font-size: 24px; font-weight: 600; }
+  .db .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .db .portfolio-select { padding: 6px 12px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; background: white; }
+  .db .refresh-btn { padding: 6px 14px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; background: white; cursor: pointer; }
+  .db .timestamp { font-size: 12px; color: #71717a; }
+  .db .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .db .metric-card { background: white; border: 1px solid #e4e4e7; border-radius: 8px; padding: 20px; }
+  .db .metric-label { font-size: 13px; color: #71717a; margin-bottom: 4px; }
+  .db .metric-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .db .metric-value.pos { color: #059669; }
+  .db .table-wrap { background: white; border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; margin-bottom: 32px; }
+  .db table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .db th { text-align: left; padding: 10px 14px; font-size: 13px; font-weight: 500; color: #71717a; border-bottom: 1px solid #e4e4e7; background: #fafafa; }
+  .db th.num { text-align: right; }
+  .db td { padding: 10px 14px; border-bottom: 1px solid #f4f4f5; font-variant-numeric: tabular-nums; }
+  .db td.num { text-align: right; }
+  .db td.pos { color: #059669; }
+  .db td.neg { color: #dc2626; }
+  .db tr:hover { background: #f4f4f5; cursor: pointer; }
+
+  /* ============ DIRECTION C: Top Tab Navigation ============ */
+  .dc { background: #f4f4f5; color: #18181b; }
+  .dc .app-header { background: white; border-bottom: 1px solid #e4e4e7; padding: 0 24px; }
+  .dc .app-header-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 0; max-width: 1400px; margin: 0 auto; }
+  .dc .app-header-top h2 { font-size: 20px; font-weight: 600; }
+  .dc .app-tabs { display: flex; gap: 0; max-width: 1400px; margin: 0 auto; margin-top: 12px; }
+  .dc .app-tab { padding: 10px 20px; font-size: 14px; color: #71717a; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.1s; }
+  .dc .app-tab:hover { color: #18181b; }
+  .dc .app-tab.active { color: #18181b; font-weight: 500; border-bottom-color: #18181b; }
+  .dc .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .dc .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .dc .controls-left { display: flex; align-items: center; gap: 12px; }
+  .dc .portfolio-select { padding: 8px 14px; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 14px; background: white; }
+  .dc .refresh-btn { padding: 8px 14px; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 13px; background: white; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .dc .timestamp { font-size: 12px; color: #71717a; background: white; padding: 6px 12px; border-radius: 6px; border: 1px solid #e4e4e7; }
+  .dc .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .dc .metric-card { background: white; border: 1px solid #e4e4e7; border-radius: 10px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .dc .metric-label { font-size: 13px; color: #71717a; margin-bottom: 6px; }
+  .dc .metric-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dc .metric-value.pos { color: #059669; }
+  .dc .table-wrap { background: white; border: 1px solid #e4e4e7; border-radius: 10px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .dc table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .dc th { text-align: left; padding: 12px 16px; font-size: 13px; font-weight: 500; color: #71717a; border-bottom: 1px solid #e4e4e7; }
+  .dc th.num { text-align: right; }
+  .dc td { padding: 12px 16px; border-bottom: 1px solid #f4f4f5; font-variant-numeric: tabular-nums; }
+  .dc td.num { text-align: right; }
+  .dc td.pos { color: #059669; }
+  .dc td.neg { color: #dc2626; }
+  .dc tr:hover { background: #f4f4f5; cursor: pointer; }
+  .dc .section-head { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+
+  /* ============ DIRECTION D: Compact / Dense ============ */
+  .dd { background: #fafafa; color: #18181b; }
+  .dd .shell { max-width: 1400px; margin: 0 auto; padding: 16px 24px; }
+  .dd .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #e4e4e7; padding-bottom: 12px; }
+  .dd .topbar h2 { font-size: 18px; font-weight: 600; }
+  .dd .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .dd .portfolio-select { padding: 4px 8px; border: 1px solid #e4e4e7; border-radius: 4px; font-size: 12px; background: white; }
+  .dd .refresh-btn { padding: 4px 10px; border: 1px solid #e4e4e7; border-radius: 4px; font-size: 12px; background: white; cursor: pointer; }
+  .dd .timestamp { font-size: 11px; color: #71717a; }
+  .dd .metric-strip { display: flex; gap: 24px; margin-bottom: 16px; padding: 12px 16px; background: white; border: 1px solid #e4e4e7; border-radius: 6px; }
+  .dd .metric-item { display: flex; align-items: baseline; gap: 8px; }
+  .dd .metric-label { font-size: 12px; color: #71717a; }
+  .dd .metric-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dd .metric-value.pos { color: #059669; }
+  .dd .table-wrap { background: white; border: 1px solid #e4e4e7; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  .dd table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dd th { text-align: left; padding: 6px 12px; font-size: 11px; font-weight: 600; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e4e4e7; background: #fafafa; }
+  .dd th.num { text-align: right; }
+  .dd td { padding: 6px 12px; border-bottom: 1px solid #f4f4f5; font-variant-numeric: tabular-nums; }
+  .dd td.num { text-align: right; }
+  .dd td.pos { color: #059669; }
+  .dd td.neg { color: #dc2626; }
+  .dd tr:hover { background: #f4f4f5; cursor: pointer; }
+  .dd .section-head { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ============ DIRECTION E: Dark Theme ============ */
+  .de { background: #09090b; color: #fafafa; }
+  .de .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .de .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .de .topbar h2 { font-size: 24px; font-weight: 600; color: #fafafa; }
+  .de .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .de .portfolio-select { padding: 6px 12px; border: 1px solid #27272a; border-radius: 6px; font-size: 13px; background: #18181b; color: #fafafa; }
+  .de .refresh-btn { padding: 6px 14px; border: 1px solid #27272a; border-radius: 6px; font-size: 13px; background: #18181b; color: #fafafa; cursor: pointer; }
+  .de .refresh-btn:hover { background: #27272a; }
+  .de .timestamp { font-size: 12px; color: #71717a; }
+  .de .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .de .metric-card { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 20px; }
+  .de .metric-label { font-size: 13px; color: #71717a; margin-bottom: 4px; }
+  .de .metric-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #fafafa; }
+  .de .metric-value.pos { color: #34d399; }
+  .de .metric-value.neg { color: #f87171; }
+  .de .table-wrap { background: #18181b; border: 1px solid #27272a; border-radius: 8px; overflow: hidden; margin-bottom: 32px; }
+  .de table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .de th { text-align: left; padding: 10px 16px; font-size: 13px; font-weight: 500; color: #71717a; border-bottom: 1px solid #27272a; background: #09090b; }
+  .de th.num { text-align: right; }
+  .de td { padding: 10px 16px; border-bottom: 1px solid #1c1c1f; font-variant-numeric: tabular-nums; color: #d4d4d8; }
+  .de td.num { text-align: right; }
+  .de td.pos { color: #34d399; }
+  .de td.neg { color: #f87171; }
+  .de tr:hover { background: #27272a; cursor: pointer; }
+  .de .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .de .section-head h3 { font-size: 16px; font-weight: 600; color: #fafafa; }
+
+  /* ============ DIRECTION F: Card-Based Positions ============ */
+  .df { background: #fafafa; color: #18181b; }
+  .df .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .df .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .df .topbar h2 { font-size: 24px; font-weight: 600; }
+  .df .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .df .portfolio-select { padding: 6px 12px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; background: white; }
+  .df .refresh-btn { padding: 6px 14px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; background: white; cursor: pointer; }
+  .df .timestamp { font-size: 12px; color: #71717a; }
+  .df .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .df .metric-card { background: white; border: 1px solid #e4e4e7; border-radius: 8px; padding: 20px; }
+  .df .metric-label { font-size: 13px; color: #71717a; margin-bottom: 4px; }
+  .df .metric-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .df .metric-value.pos { color: #059669; }
+  .df .section-head { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .df .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .df .pos-card { background: white; border: 1px solid #e4e4e7; border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.15s; }
+  .df .pos-card:hover { border-color: #a1a1aa; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .df .pos-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .df .pos-ticker { font-size: 16px; font-weight: 700; }
+  .df .pos-weight { font-size: 12px; color: #71717a; background: #f4f4f5; padding: 2px 8px; border-radius: 4px; }
+  .df .pos-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .df .pos-metric-label { font-size: 11px; color: #71717a; }
+  .df .pos-metric-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .df .pos-metric-value.pos { color: #059669; }
+  .df .pos-metric-value.neg { color: #dc2626; }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<div class="nav">
+  <h1>Design Directions</h1>
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-id="a">A: Classic</div>
+    <div class="nav-tab" data-id="b">B: Sidebar</div>
+    <div class="nav-tab" data-id="c">C: Top Tabs</div>
+    <div class="nav-tab" data-id="d">D: Compact</div>
+    <div class="nav-tab" data-id="e">E: Dark</div>
+    <div class="nav-tab" data-id="f">F: Card Grid</div>
+  </div>
+</div>
+
+<!-- DIRECTION A: Classic Financial Dashboard -->
+<div class="mockup da active" id="mockup-a">
+  <div class="shell">
+    <div class="topbar">
+      <h2>Dashboard</h2>
+      <div class="topbar-right">
+        <select class="portfolio-select">
+          <option>All Portfolios</option>
+          <option>Interactive Brokers</option>
+          <option>Schwab</option>
+          <option>Hargreaves Lansdown</option>
+        </select>
+        <button class="refresh-btn">Refresh Prices</button>
+        <span class="timestamp">Prices as of Apr 2, 2026 close</span>
+      </div>
+    </div>
+
+    <div class="metric-row">
+      <div class="metric-card">
+        <div class="metric-label">Total Value</div>
+        <div class="metric-value">$284,532.18</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Cost Basis</div>
+        <div class="metric-value">$231,087.44</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total P&L</div>
+        <div class="metric-value pos">+$53,444.74</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cash Returned</div>
+        <div class="metric-value">$12,891.30</div>
+      </div>
+    </div>
+
+    <div class="section-head"><h3>Active Positions</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Portfolio</th>
+            <th class="num">Shares</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Last Price</th>
+            <th class="num">Cost Basis</th>
+            <th class="num">Market Value</th>
+            <th class="num">Dividends</th>
+            <th class="num">P&L</th>
+            <th class="num">Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>AAPL</strong></td>
+            <td>Interactive Brokers</td>
+            <td class="num">50.0</td>
+            <td class="num">$142.30</td>
+            <td class="num">$173.00</td>
+            <td class="num">$7,115.00</td>
+            <td class="num">$8,650.00</td>
+            <td class="num">$240.00</td>
+            <td class="num pos">+$1,775.00</td>
+            <td class="num">3.0%</td>
+          </tr>
+          <tr>
+            <td><strong>MSFT</strong></td>
+            <td>Schwab</td>
+            <td class="num">30.0</td>
+            <td class="num">$285.40</td>
+            <td class="num">$412.50</td>
+            <td class="num">$8,562.00</td>
+            <td class="num">$12,375.00</td>
+            <td class="num">$180.00</td>
+            <td class="num pos">+$3,993.00</td>
+            <td class="num">4.3%</td>
+          </tr>
+          <tr>
+            <td><strong>VOO</strong></td>
+            <td>Interactive Brokers</td>
+            <td class="num">120.0</td>
+            <td class="num">$380.20</td>
+            <td class="num">$498.30</td>
+            <td class="num">$45,624.00</td>
+            <td class="num">$59,796.00</td>
+            <td class="num">$2,160.00</td>
+            <td class="num pos">+$16,332.00</td>
+            <td class="num">21.0%</td>
+          </tr>
+          <tr>
+            <td><strong>GSK.L</strong></td>
+            <td>Hargreaves Lansdown</td>
+            <td class="num">200.0</td>
+            <td class="num">$17.82</td>
+            <td class="num">$15.40</td>
+            <td class="num">$3,564.00</td>
+            <td class="num">$3,080.00</td>
+            <td class="num">$310.00</td>
+            <td class="num neg">-$174.00</td>
+            <td class="num">1.1%</td>
+          </tr>
+          <tr>
+            <td><strong>NVDA</strong></td>
+            <td>Schwab</td>
+            <td class="num">25.0</td>
+            <td class="num">$475.60</td>
+            <td class="num">$890.20</td>
+            <td class="num">$11,890.00</td>
+            <td class="num">$22,255.00</td>
+            <td class="num">$0.00</td>
+            <td class="num pos">+$10,365.00</td>
+            <td class="num">7.8%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-head"><h3>Closed Positions</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Portfolio</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Total Invested</th>
+            <th class="num">Proceeds</th>
+            <th class="num">Dividends</th>
+            <th class="num">Realized P&L</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>TSLA</strong></td>
+            <td>Interactive Brokers</td>
+            <td class="num">$198.40</td>
+            <td class="num">$9,920.00</td>
+            <td class="num">$14,350.00</td>
+            <td class="num">$0.00</td>
+            <td class="num pos">+$4,430.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="mockup-label">Direction A: Classic — Full-width, no sidebar, metrics above table</div>
+</div>
+
+<!-- DIRECTION B: Sidebar Navigation -->
+<div class="mockup db" id="mockup-b">
+  <div class="sidebar">
+    <div class="sidebar-item active"><span class="icon">&#9634;</span> Dashboard</div>
+    <div class="sidebar-item"><span class="icon">&#9638;</span> Positions</div>
+    <div class="sidebar-item"><span class="icon">&#9776;</span> Transactions</div>
+    <div class="sidebar-item"><span class="icon">&#8679;</span> Import</div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <h2>Dashboard</h2>
+      <div class="topbar-right">
+        <select class="portfolio-select">
+          <option>All Portfolios</option>
+          <option>Interactive Brokers</option>
+          <option>Schwab</option>
+        </select>
+        <button class="refresh-btn">Refresh</button>
+        <span class="timestamp">Apr 2, 2026 close</span>
+      </div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-card">
+        <div class="metric-label">Total Value</div>
+        <div class="metric-value">$284,532.18</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cost Basis</div>
+        <div class="metric-value">$231,087.44</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total P&L</div>
+        <div class="metric-value pos">+$53,444.74</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cash Returned</div>
+        <div class="metric-value">$12,891.30</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th class="num">Shares</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Last Price</th>
+            <th class="num">Cost Basis</th>
+            <th class="num">Market Value</th>
+            <th class="num">P&L</th>
+            <th class="num">Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>AAPL</strong></td><td class="num">50.0</td><td class="num">$142.30</td><td class="num">$173.00</td><td class="num">$7,115.00</td><td class="num">$8,650.00</td><td class="num pos">+$1,775.00</td><td class="num">3.0%</td></tr>
+          <tr><td><strong>MSFT</strong></td><td class="num">30.0</td><td class="num">$285.40</td><td class="num">$412.50</td><td class="num">$8,562.00</td><td class="num">$12,375.00</td><td class="num pos">+$3,993.00</td><td class="num">4.3%</td></tr>
+          <tr><td><strong>VOO</strong></td><td class="num">120.0</td><td class="num">$380.20</td><td class="num">$498.30</td><td class="num">$45,624.00</td><td class="num">$59,796.00</td><td class="num pos">+$16,332.00</td><td class="num">21.0%</td></tr>
+          <tr><td><strong>GSK.L</strong></td><td class="num">200.0</td><td class="num">$17.82</td><td class="num">$15.40</td><td class="num">$3,564.00</td><td class="num">$3,080.00</td><td class="num neg">-$174.00</td><td class="num">1.1%</td></tr>
+          <tr><td><strong>NVDA</strong></td><td class="num">25.0</td><td class="num">$475.60</td><td class="num">$890.20</td><td class="num">$11,890.00</td><td class="num">$22,255.00</td><td class="num pos">+$10,365.00</td><td class="num">7.8%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="mockup-label">Direction B: Sidebar — Persistent navigation, narrower content area</div>
+</div>
+
+<!-- DIRECTION C: Top Tab Navigation -->
+<div class="mockup dc" id="mockup-c">
+  <div class="app-header">
+    <div class="app-header-top">
+      <h2>Personal Portfolio Tracker</h2>
+    </div>
+    <div class="app-tabs">
+      <div class="app-tab active">Dashboard</div>
+      <div class="app-tab">Positions</div>
+      <div class="app-tab">Transactions</div>
+      <div class="app-tab">Import</div>
+    </div>
+  </div>
+  <div class="shell">
+    <div class="controls">
+      <div class="controls-left">
+        <select class="portfolio-select">
+          <option>All Portfolios</option>
+          <option>Interactive Brokers</option>
+          <option>Schwab</option>
+        </select>
+        <button class="refresh-btn">&#8635; Refresh Prices</button>
+      </div>
+      <span class="timestamp">Prices as of Apr 2, 2026 close</span>
+    </div>
+    <div class="metric-row">
+      <div class="metric-card">
+        <div class="metric-label">Total Value</div>
+        <div class="metric-value">$284,532.18</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cost Basis</div>
+        <div class="metric-value">$231,087.44</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total P&L</div>
+        <div class="metric-value pos">+$53,444.74</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cash Returned</div>
+        <div class="metric-value">$12,891.30</div>
+      </div>
+    </div>
+    <div class="section-head">Active Positions</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Portfolio</th>
+            <th class="num">Shares</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Last Price</th>
+            <th class="num">Cost Basis</th>
+            <th class="num">Market Value</th>
+            <th class="num">Dividends</th>
+            <th class="num">P&L</th>
+            <th class="num">Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>AAPL</strong></td><td>Interactive Brokers</td><td class="num">50.0</td><td class="num">$142.30</td><td class="num">$173.00</td><td class="num">$7,115.00</td><td class="num">$8,650.00</td><td class="num">$240.00</td><td class="num pos">+$1,775.00</td><td class="num">3.0%</td></tr>
+          <tr><td><strong>MSFT</strong></td><td>Schwab</td><td class="num">30.0</td><td class="num">$285.40</td><td class="num">$412.50</td><td class="num">$8,562.00</td><td class="num">$12,375.00</td><td class="num">$180.00</td><td class="num pos">+$3,993.00</td><td class="num">4.3%</td></tr>
+          <tr><td><strong>VOO</strong></td><td>Interactive Brokers</td><td class="num">120.0</td><td class="num">$380.20</td><td class="num">$498.30</td><td class="num">$45,624.00</td><td class="num">$59,796.00</td><td class="num">$2,160.00</td><td class="num pos">+$16,332.00</td><td class="num">21.0%</td></tr>
+          <tr><td><strong>GSK.L</strong></td><td>Hargreaves Lansdown</td><td class="num">200.0</td><td class="num">$17.82</td><td class="num">$15.40</td><td class="num">$3,564.00</td><td class="num">$3,080.00</td><td class="num">$310.00</td><td class="num neg">-$174.00</td><td class="num">1.1%</td></tr>
+          <tr><td><strong>NVDA</strong></td><td>Schwab</td><td class="num">25.0</td><td class="num">$475.60</td><td class="num">$890.20</td><td class="num">$11,890.00</td><td class="num">$22,255.00</td><td class="num">$0.00</td><td class="num pos">+$10,365.00</td><td class="num">7.8%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="mockup-label">Direction C: Top Tabs — Horizontal tab navigation, subtle card shadows</div>
+</div>
+
+<!-- DIRECTION D: Compact / Dense -->
+<div class="mockup dd" id="mockup-d">
+  <div class="shell">
+    <div class="topbar">
+      <h2>Portfolio Dashboard</h2>
+      <div class="topbar-right">
+        <select class="portfolio-select">
+          <option>All Portfolios</option>
+          <option>Interactive Brokers</option>
+          <option>Schwab</option>
+        </select>
+        <button class="refresh-btn">Refresh</button>
+        <span class="timestamp">Apr 2, 2026 close</span>
+      </div>
+    </div>
+
+    <div class="metric-strip">
+      <div class="metric-item">
+        <span class="metric-label">Value</span>
+        <span class="metric-value">$284,532.18</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Cost</span>
+        <span class="metric-value">$231,087.44</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">P&L</span>
+        <span class="metric-value pos">+$53,444.74</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Cash</span>
+        <span class="metric-value">$12,891.30</span>
+      </div>
+    </div>
+
+    <div class="section-head">Active Positions</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Portfolio</th>
+            <th class="num">Shares</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Last</th>
+            <th class="num">Cost Basis</th>
+            <th class="num">Mkt Value</th>
+            <th class="num">Divs</th>
+            <th class="num">Proceeds</th>
+            <th class="num">P&L</th>
+            <th class="num">Wt%</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>AAPL</strong></td><td>IB</td><td class="num">50.0</td><td class="num">$142.30</td><td class="num">$173.00</td><td class="num">$7,115</td><td class="num">$8,650</td><td class="num">$240</td><td class="num">$0</td><td class="num pos">+$1,775</td><td class="num">3.0</td></tr>
+          <tr><td><strong>MSFT</strong></td><td>Schwab</td><td class="num">30.0</td><td class="num">$285.40</td><td class="num">$412.50</td><td class="num">$8,562</td><td class="num">$12,375</td><td class="num">$180</td><td class="num">$0</td><td class="num pos">+$3,993</td><td class="num">4.3</td></tr>
+          <tr><td><strong>VOO</strong></td><td>IB</td><td class="num">120.0</td><td class="num">$380.20</td><td class="num">$498.30</td><td class="num">$45,624</td><td class="num">$59,796</td><td class="num">$2,160</td><td class="num">$0</td><td class="num pos">+$16,332</td><td class="num">21.0</td></tr>
+          <tr><td><strong>GSK.L</strong></td><td>HL</td><td class="num">200.0</td><td class="num">$17.82</td><td class="num">$15.40</td><td class="num">$3,564</td><td class="num">$3,080</td><td class="num">$310</td><td class="num">$0</td><td class="num neg">-$174</td><td class="num">1.1</td></tr>
+          <tr><td><strong>NVDA</strong></td><td>Schwab</td><td class="num">25.0</td><td class="num">$475.60</td><td class="num">$890.20</td><td class="num">$11,890</td><td class="num">$22,255</td><td class="num">$0</td><td class="num">$0</td><td class="num pos">+$10,365</td><td class="num">7.8</td></tr>
+          <tr><td><strong>AMZN</strong></td><td>IB</td><td class="num">15.0</td><td class="num">$142.80</td><td class="num">$186.50</td><td class="num">$2,142</td><td class="num">$2,798</td><td class="num">$0</td><td class="num">$0</td><td class="num pos">+$656</td><td class="num">1.0</td></tr>
+          <tr><td><strong>RDSA.L</strong></td><td>HL</td><td class="num">300.0</td><td class="num">$28.10</td><td class="num">$31.40</td><td class="num">$8,430</td><td class="num">$9,420</td><td class="num">$840</td><td class="num">$0</td><td class="num pos">+$1,830</td><td class="num">3.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-head">Closed Positions</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Portfolio</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Invested</th>
+            <th class="num">Proceeds</th>
+            <th class="num">Divs</th>
+            <th class="num">Realized P&L</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>TSLA</strong></td><td>IB</td><td class="num">$198.40</td><td class="num">$9,920</td><td class="num">$14,350</td><td class="num">$0</td><td class="num pos">+$4,430</td></tr>
+          <tr><td><strong>BABA</strong></td><td>Schwab</td><td class="num">$112.30</td><td class="num">$5,615</td><td class="num">$4,280</td><td class="num">$90</td><td class="num neg">-$1,245</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="mockup-label">Direction D: Compact — Inline metrics strip, dense rows, abbreviated labels, more data visible</div>
+</div>
+
+<!-- DIRECTION E: Dark Theme -->
+<div class="mockup de" id="mockup-e">
+  <div class="shell">
+    <div class="topbar">
+      <h2>Dashboard</h2>
+      <div class="topbar-right">
+        <select class="portfolio-select">
+          <option>All Portfolios</option>
+          <option>Interactive Brokers</option>
+          <option>Schwab</option>
+        </select>
+        <button class="refresh-btn">Refresh Prices</button>
+        <span class="timestamp">Prices as of Apr 2, 2026 close</span>
+      </div>
+    </div>
+
+    <div class="metric-row">
+      <div class="metric-card">
+        <div class="metric-label">Total Value</div>
+        <div class="metric-value">$284,532.18</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Cost Basis</div>
+        <div class="metric-value">$231,087.44</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total P&L</div>
+        <div class="metric-value pos">+$53,444.74</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cash Returned</div>
+        <div class="metric-value">$12,891.30</div>
+      </div>
+    </div>
+
+    <div class="section-head"><h3>Active Positions</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Portfolio</th>
+            <th class="num">Shares</th>
+            <th class="num">Avg Entry</th>
+            <th class="num">Last Price</th>
+            <th class="num">Cost Basis</th>
+            <th class="num">Market Value</th>
+            <th class="num">P&L</th>
+            <th class="num">Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>AAPL</strong></td><td>Interactive Brokers</td><td class="num">50.0</td><td class="num">$142.30</td><td class="num">$173.00</td><td class="num">$7,115.00</td><td class="num">$8,650.00</td><td class="num pos">+$1,775.00</td><td class="num">3.0%</td></tr>
+          <tr><td><strong>MSFT</strong></td><td>Schwab</td><td class="num">30.0</td><td class="num">$285.40</td><td class="num">$412.50</td><td class="num">$8,562.00</td><td class="num">$12,375.00</td><td class="num pos">+$3,993.00</td><td class="num">4.3%</td></tr>
+          <tr><td><strong>VOO</strong></td><td>Interactive Brokers</td><td class="num">120.0</td><td class="num">$380.20</td><td class="num">$498.30</td><td class="num">$45,624.00</td><td class="num">$59,796.00</td><td class="num pos">+$16,332.00</td><td class="num">21.0%</td></tr>
+          <tr><td><strong>GSK.L</strong></td><td>Hargreaves Lansdown</td><td class="num">200.0</td><td class="num">$17.82</td><td class="num">$15.40</td><td class="num">$3,564.00</td><td class="num">$3,080.00</td><td class="num neg">-$174.00</td><td class="num">1.1%</td></tr>
+          <tr><td><strong>NVDA</strong></td><td>Schwab</td><td class="num">25.0</td><td class="num">$475.60</td><td class="num">$890.20</td><td class="num">$11,890.00</td><td class="num">$22,255.00</td><td class="num pos">+$10,365.00</td><td class="num">7.8%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="mockup-label">Direction E: Dark — Dark background, lighter text, higher contrast P&L colors</div>
+</div>
+
+<!-- DIRECTION F: Card-Based Positions -->
+<div class="mockup df" id="mockup-f">
+  <div class="shell">
+    <div class="topbar">
+      <h2>Dashboard</h2>
+      <div class="topbar-right">
+        <select class="portfolio-select">
+          <option>All Portfolios</option>
+          <option>Interactive Brokers</option>
+          <option>Schwab</option>
+        </select>
+        <button class="refresh-btn">Refresh Prices</button>
+        <span class="timestamp">Prices as of Apr 2, 2026 close</span>
+      </div>
+    </div>
+
+    <div class="metric-row">
+      <div class="metric-card">
+        <div class="metric-label">Total Value</div>
+        <div class="metric-value">$284,532.18</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Cost Basis</div>
+        <div class="metric-value">$231,087.44</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total P&L</div>
+        <div class="metric-value pos">+$53,444.74</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Cash Returned</div>
+        <div class="metric-value">$12,891.30</div>
+      </div>
+    </div>
+
+    <div class="section-head">Active Positions</div>
+    <div class="pos-grid">
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-ticker">AAPL</span>
+          <span class="pos-weight">3.0%</span>
+        </div>
+        <div class="pos-metrics">
+          <div><div class="pos-metric-label">Market Value</div><div class="pos-metric-value">$8,650.00</div></div>
+          <div><div class="pos-metric-label">P&L</div><div class="pos-metric-value pos">+$1,775.00</div></div>
+          <div><div class="pos-metric-label">Shares</div><div class="pos-metric-value">50.0</div></div>
+          <div><div class="pos-metric-label">Avg Entry</div><div class="pos-metric-value">$142.30</div></div>
+        </div>
+      </div>
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-ticker">MSFT</span>
+          <span class="pos-weight">4.3%</span>
+        </div>
+        <div class="pos-metrics">
+          <div><div class="pos-metric-label">Market Value</div><div class="pos-metric-value">$12,375.00</div></div>
+          <div><div class="pos-metric-label">P&L</div><div class="pos-metric-value pos">+$3,993.00</div></div>
+          <div><div class="pos-metric-label">Shares</div><div class="pos-metric-value">30.0</div></div>
+          <div><div class="pos-metric-label">Avg Entry</div><div class="pos-metric-value">$285.40</div></div>
+        </div>
+      </div>
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-ticker">VOO</span>
+          <span class="pos-weight">21.0%</span>
+        </div>
+        <div class="pos-metrics">
+          <div><div class="pos-metric-label">Market Value</div><div class="pos-metric-value">$59,796.00</div></div>
+          <div><div class="pos-metric-label">P&L</div><div class="pos-metric-value pos">+$16,332.00</div></div>
+          <div><div class="pos-metric-label">Shares</div><div class="pos-metric-value">120.0</div></div>
+          <div><div class="pos-metric-label">Avg Entry</div><div class="pos-metric-value">$380.20</div></div>
+        </div>
+      </div>
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-ticker">GSK.L</span>
+          <span class="pos-weight">1.1%</span>
+        </div>
+        <div class="pos-metrics">
+          <div><div class="pos-metric-label">Market Value</div><div class="pos-metric-value">$3,080.00</div></div>
+          <div><div class="pos-metric-label">P&L</div><div class="pos-metric-value neg">-$174.00</div></div>
+          <div><div class="pos-metric-label">Shares</div><div class="pos-metric-value">200.0</div></div>
+          <div><div class="pos-metric-label">Avg Entry</div><div class="pos-metric-value">$17.82</div></div>
+        </div>
+      </div>
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-ticker">NVDA</span>
+          <span class="pos-weight">7.8%</span>
+        </div>
+        <div class="pos-metrics">
+          <div><div class="pos-metric-label">Market Value</div><div class="pos-metric-value">$22,255.00</div></div>
+          <div><div class="pos-metric-label">P&L</div><div class="pos-metric-value pos">+$10,365.00</div></div>
+          <div><div class="pos-metric-label">Shares</div><div class="pos-metric-value">25.0</div></div>
+          <div><div class="pos-metric-label">Avg Entry</div><div class="pos-metric-value">$475.60</div></div>
+        </div>
+      </div>
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-ticker">AMZN</span>
+          <span class="pos-weight">1.0%</span>
+        </div>
+        <div class="pos-metrics">
+          <div><div class="pos-metric-label">Market Value</div><div class="pos-metric-value">$2,798.00</div></div>
+          <div><div class="pos-metric-label">P&L</div><div class="pos-metric-value pos">+$656.00</div></div>
+          <div><div class="pos-metric-label">Shares</div><div class="pos-metric-value">15.0</div></div>
+          <div><div class="pos-metric-label">Avg Entry</div><div class="pos-metric-value">$142.80</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="mockup-label">Direction F: Card Grid — Positions as individual cards instead of table rows</div>
+</div>
+
+<script>
+document.querySelectorAll('.nav-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    var id = this.getAttribute('data-id');
+    document.querySelectorAll('.mockup').forEach(function(m) { m.classList.remove('active'); });
+    document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.getElementById('mockup-' + id).classList.add('active');
+    tab.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
