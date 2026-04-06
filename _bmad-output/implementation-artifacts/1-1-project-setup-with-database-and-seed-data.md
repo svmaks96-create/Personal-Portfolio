@@ -1,6 +1,6 @@
 # Story 1.1: Project Setup with Database and Seed Data
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,40 +20,40 @@ so that I have a working development environment with test data for all subseque
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Initialize Next.js project (AC: #1)
-  - [ ] Run `npx create-next-app@latest personal-portfolio --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"`
-  - [ ] Run `npx shadcn@latest init` (accept defaults — New York style, zinc base color)
-  - [ ] Install production deps: `npm install drizzle-orm better-sqlite3 @tanstack/react-table zod exceljs date-fns decimal.js`
-  - [ ] Install dev deps: `npm install -D drizzle-kit @types/better-sqlite3 vitest tsx`
-  - [ ] Enable TypeScript strict mode in `tsconfig.json` (`"strict": true`)
-  - [ ] Verify `npm run dev` serves the default page successfully
+- [x] Task 1: Initialize Next.js project (AC: #1)
+  - [x] Run `npx create-next-app@latest personal-portfolio --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"`
+  - [x] Run `npx shadcn@latest init` (accept defaults — New York style, zinc base color)
+  - [x] Install production deps: `npm install drizzle-orm better-sqlite3 @tanstack/react-table zod exceljs date-fns decimal.js`
+  - [x] Install dev deps: `npm install -D drizzle-kit @types/better-sqlite3 vitest tsx`
+  - [x] Enable TypeScript strict mode in `tsconfig.json` (`"strict": true`)
+  - [x] Verify `npm run dev` serves the default page successfully
 
-- [ ] Task 2: Create configuration files (AC: #4)
-  - [ ] Create `drizzle.config.ts` — dialect `sqlite`, schema path `./src/server/db/schema.ts`, dbCredentials url `data/portfolio.db`
-  - [ ] Create `vitest.config.ts` — configure path aliases to match `tsconfig.json`
-  - [ ] Create `src/server/config.ts` — typed env var access (only file reading `process.env`)
-  - [ ] Create `.env.example` with `FMP_API_KEY=` placeholder
-  - [ ] Create `.env.local` with empty `FMP_API_KEY=`
-  - [ ] Update `.gitignore` — add `data/portfolio.db`, `.env.local`, `.env.test`
-  - [ ] Add `package.json` scripts: `seed`, `db:push`, `test`, `test:run`
+- [x] Task 2: Create configuration files (AC: #4)
+  - [x] Create `drizzle.config.ts` — dialect `sqlite`, schema path `./src/server/db/schema.ts`, dbCredentials url `data/portfolio.db`
+  - [x] Create `vitest.config.ts` — configure path aliases to match `tsconfig.json`
+  - [x] Create `src/server/config.ts` — typed env var access (only file reading `process.env`)
+  - [x] Create `.env.example` with `FMP_API_KEY=` placeholder
+  - [x] Create `.env.local` with empty `FMP_API_KEY=`
+  - [x] Update `.gitignore` — add `data/portfolio.db`, `.env.local`, `.env.test`
+  - [x] Add `package.json` scripts: `seed`, `db:push`, `test`, `test:run`
 
-- [ ] Task 3: Define database schema (AC: #2)
-  - [ ] Create `src/server/db/schema.ts` with `transactions` and `market_data` tables
-  - [ ] Create `src/server/db/index.ts` — Drizzle client singleton using better-sqlite3
-  - [ ] Create `data/` directory (empty, gitignored except `.gitkeep` if needed)
-  - [ ] Run `npx drizzle-kit push` to create tables in `data/portfolio.db`
-  - [ ] Verify tables created with correct columns and types
+- [x] Task 3: Define database schema (AC: #2)
+  - [x] Create `src/server/db/schema.ts` with `transactions` and `market_data` tables
+  - [x] Create `src/server/db/index.ts` — Drizzle client singleton using better-sqlite3
+  - [x] Create `data/` directory (empty, gitignored except `.gitkeep` if needed)
+  - [x] Run `npx drizzle-kit push` to create tables in `data/portfolio.db`
+  - [x] Verify tables created with correct columns and types
 
-- [ ] Task 4: Create seed script (AC: #3)
-  - [ ] Create `src/server/db/seed.ts` — idempotent (clears + re-inserts)
-  - [ ] Seed transactions: multi-currency (USD, GBP, EUR), all 4 action types, partial sells, closed position, same ticker in 2 portfolios
-  - [ ] Seed market_data: stock prices for all seed tickers, FX rates for GBP and EUR
-  - [ ] Verify `npm run seed` runs successfully and is idempotent (run twice, identical result)
+- [x] Task 4: Create seed script (AC: #3)
+  - [x] Create `src/server/db/seed.ts` — idempotent (clears + re-inserts)
+  - [x] Seed transactions: multi-currency (USD, GBP, EUR), all 4 action types, partial sells, closed position, same ticker in 2 portfolios
+  - [x] Seed market_data: stock prices for all seed tickers, FX rates for GBP and EUR
+  - [x] Verify `npm run seed` runs successfully and is idempotent (run twice, identical result)
 
-- [ ] Task 5: Create shared utilities (AC: #4)
-  - [ ] Create `src/lib/utils.ts` — Shadcn `cn()` helper (if not created by shadcn init)
-  - [ ] Create `src/lib/formatting.ts` — stub exports: `formatCurrency`, `formatShares`, `formatPercent`, `formatPnL` (implementations come in Story 1.4)
-  - [ ] Create `src/server/types/action-result.ts` — `ActionResult<T>` type definition
+- [x] Task 5: Create shared utilities (AC: #4)
+  - [x] Create `src/lib/utils.ts` — Shadcn `cn()` helper (if not created by shadcn init)
+  - [x] Create `src/lib/formatting.ts` — stub exports: `formatCurrency`, `formatShares`, `formatPercent`, `formatPnL` (implementations come in Story 1.4)
+  - [x] Create `src/server/types/action-result.ts` — `ActionResult<T>` type definition
 
 ## Dev Notes
 
@@ -285,8 +285,53 @@ personal-portfolio/
 
 ### Agent Model Used
 
+Claude Opus 4.6 (1M context)
+
 ### Debug Log References
+
+- Scaffolded Next.js in temp dir and copied to project root (directory name with space incompatible with create-next-app)
+- Shadcn init used `-d` flag for non-interactive default mode
 
 ### Completion Notes List
 
+- Next.js 16.2.2 scaffolded with TypeScript strict, Tailwind CSS 4, ESLint 9, App Router, src dir
+- Shadcn/ui initialized (Radix base, button component + cn() utility auto-created)
+- All production deps installed: drizzle-orm, better-sqlite3, @tanstack/react-table, zod, exceljs, date-fns, decimal.js
+- All dev deps installed: drizzle-kit, @types/better-sqlite3, vitest, tsx
+- Database schema: `transactions` table (9 columns with indexes) and `market_data` table (6 columns with composite index)
+- Drizzle client singleton in `src/server/db/index.ts`
+- Seed script: 13 transactions (5 tickers, 3 currencies, 3 portfolios, all 4 action types, partial sell, closed position, same ticker in 2 portfolios) + 11 market data rows (4 stock prices, 7 FX rates)
+- Seed verified idempotent (identical counts on repeated runs)
+- Config files: drizzle.config.ts, vitest.config.ts, src/server/config.ts (sole process.env reader), .env.example (committed), .env.local (gitignored)
+- Package.json scripts: dev (turbopack), build, start, seed, db:push, test, test:run, lint
+- formatting.ts stub exports: formatCurrency, formatShares, formatPercent, formatPnL
+- ActionResult<T> type defined
+- 14 unit tests passing: schema CRUD, seed idempotency, config, formatting stubs, ActionResult type
+- ESLint passes cleanly
+
+### Change Log
+
+- 2026-04-06: Story 1.1 implemented — full project scaffolding, database schema, seed data, config files, shared utilities, and tests
+
 ### File List
+
+- drizzle.config.ts (new)
+- vitest.config.ts (new)
+- .env.example (new)
+- .env.local (new)
+- .gitignore (modified)
+- package.json (modified)
+- package-lock.json (modified)
+- src/server/config.ts (new)
+- src/server/db/schema.ts (new)
+- src/server/db/index.ts (new)
+- src/server/db/seed.ts (new)
+- src/server/types/action-result.ts (new)
+- src/lib/formatting.ts (new)
+- src/lib/utils.ts (created by shadcn init)
+- src/components/ui/button.tsx (created by shadcn init)
+- data/portfolio.db (generated, gitignored)
+- src/server/db/__tests__/schema.test.ts (new)
+- src/server/__tests__/config.test.ts (new)
+- src/lib/__tests__/formatting.test.ts (new)
+- src/server/types/__tests__/action-result.test.ts (new)

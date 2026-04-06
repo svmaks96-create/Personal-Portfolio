@@ -44,7 +44,7 @@ story_location: "{project-root}/_bmad-output/implementation-artifacts"
 development_status:
   # Epic 1: Project Foundation & Position Computation Engine
   epic-1: in-progress
-  1-1-project-setup-with-database-and-seed-data: in-progress
+  1-1-project-setup-with-database-and-seed-data: review
   1-2-core-position-computation-engine: backlog
   1-3-multi-currency-fx-conversion: backlog
   1-4-app-shell-navigation-formatting-and-empty-states: backlog
