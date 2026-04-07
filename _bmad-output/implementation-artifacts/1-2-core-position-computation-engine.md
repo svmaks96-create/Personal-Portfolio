@@ -1,6 +1,6 @@
 # Story 1.2: Core Position Computation Engine
 
-Status: review
+Status: done
 
 ## Story
 
@@ -66,6 +66,20 @@ So that all portfolio metrics are accurate and verifiable against broker stateme
   - [x] Test negative share flagging (sell exceeding held shares)
   - [x] Test fee row division-by-zero safety
   - [x] Test with seed data scenarios for integration confidence
+
+### Review Findings
+
+- [x] [Review][Defer] Cost basis corruption on oversell — when sell qty > sharesHeld, cost basis reduction overshoots producing negative costBasis; `hasInvalidState` is flagged [computation.ts:54-56] — deferred, import validation (Story 5) will prevent oversells
+- [x] [Review][Defer] Mixed currency within same ticker+portfolio group — `currency` taken from first transaction; no warning if group has inconsistent currencies [computation.ts:113] — deferred, data quality / input validation concern
+- [x] [Review][Defer] No currency conversion in `computeAggregates` — cross-currency sums are meaningless until FX applied — deferred, intentionally out of scope (Story 1.3)
+- [x] [Review][Defer] NaN/Infinity from SQLite REAL columns propagate silently through Decimal arithmetic — deferred, pre-existing data quality boundary
+- [x] [Review][Defer] Market data value of 0 treated as valid price — produces $0 market value for open positions — deferred, FMP service layer (Story 2.1) should filter
+- [x] [Review][Defer] Negative market data value silently produces negative market values — deferred, FMP service layer (Story 2.1) should validate
+- [x] [Review][Defer] Same-date transaction ordering uses id tiebreaker — real execution order may differ from insertion order — deferred, data modeling concern
+- [x] [Review][Defer] Zero-quantity sell with fees produces negative sellProceeds — deferred, input validation concern
+- [x] [Review][Defer] Zero-quantity buy with non-zero fees inflates cost basis identically to fee action — deferred, input validation concern
+- [x] [Review][Defer] Case-sensitive ticker grouping — `AAPL` vs `aapl` produces separate positions — deferred, input normalization concern
+- [x] [Review][Defer] Additional test coverage for edge cases (negative prices, single-position aggregates, hasInvalidState + market data) — deferred, nice-to-have
 
 ## Dev Notes
 
