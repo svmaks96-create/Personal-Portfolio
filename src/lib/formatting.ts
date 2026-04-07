@@ -43,3 +43,7 @@ export function formatDate(date: string | null): string {
   if (date === null) return "N/A";
   return format(parseISO(date), "MMM d, yyyy");
 }
+
+export function formatTimestampDate(isoTimestamp: string): string {
+  return format(parseISO(isoTimestamp), "MMM d");
+}

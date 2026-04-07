@@ -2,7 +2,10 @@ import { Suspense } from "react";
 import { EmptyState } from "@/components/domain/empty-state";
 import { DashboardMetrics } from "@/components/domain/dashboard-metrics";
 import { MetricCardsSkeleton } from "@/components/domain/metric-card-skeleton";
+import { ControlsBar } from "@/components/domain/controls-bar";
 import { getTransactionCount } from "@/server/queries/transactions";
+import { getUniquePortfolios } from "@/server/queries/portfolios";
+import { getStalestMarketDate } from "@/server/queries/market-data";
 
 export default async function DashboardPage({
   searchParams,
@@ -25,8 +28,16 @@ export default async function DashboardPage({
   const portfolioFilter =
     typeof portfolio === "string" ? portfolio : undefined;
 
+  const portfolios = getUniquePortfolios();
+  const timestamp = getStalestMarketDate();
+
   return (
     <div className="space-y-8">
+      <ControlsBar
+        portfolios={portfolios}
+        selectedPortfolio={portfolioFilter}
+        timestamp={timestamp}
+      />
       <Suspense fallback={<MetricCardsSkeleton />}>
         <DashboardMetrics portfolio={portfolioFilter} />
       </Suspense>

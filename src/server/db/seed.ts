@@ -43,19 +43,19 @@ function seed() {
 
     tx.insert(marketData).values([
       // Stock prices
-      { symbol: "AAPL", type: "stock_price", date: "2026-04-04", value: 215.30, fetchedAt: now },
-      { symbol: "MSFT", type: "stock_price", date: "2026-04-04", value: 365.80, fetchedAt: now },
-      { symbol: "VOD.L", type: "stock_price", date: "2026-04-04", value: 0.88, fetchedAt: now },
-      { symbol: "SAP.DE", type: "stock_price", date: "2026-04-04", value: 178.50, fetchedAt: now },
+      { symbol: "AAPL", type: "stock_price", date: "2026-04-02", value: 215.30, fetchedAt: now },
+      { symbol: "MSFT", type: "stock_price", date: "2026-04-02", value: 365.80, fetchedAt: now },
+      { symbol: "VOD.L", type: "stock_price", date: "2026-04-02", value: 0.88, fetchedAt: now },
+      { symbol: "SAP.DE", type: "stock_price", date: "2026-04-02", value: 178.50, fetchedAt: now },
 
       // FX rates — covering seed transaction dates + recent
       { symbol: "GBPUSD", type: "fx_rate", date: "2025-05-10", value: 1.2550, fetchedAt: now },
       { symbol: "GBPUSD", type: "fx_rate", date: "2025-08-15", value: 1.2700, fetchedAt: now },
       { symbol: "GBPUSD", type: "fx_rate", date: "2025-11-20", value: 1.2600, fetchedAt: now },
-      { symbol: "GBPUSD", type: "fx_rate", date: "2026-04-04", value: 1.2850, fetchedAt: now },
+      { symbol: "GBPUSD", type: "fx_rate", date: "2026-04-02", value: 1.2850, fetchedAt: now },
       { symbol: "EURUSD", type: "fx_rate", date: "2025-06-20", value: 1.0890, fetchedAt: now },
       { symbol: "EURUSD", type: "fx_rate", date: "2026-02-01", value: 1.0750, fetchedAt: now },
-      { symbol: "EURUSD", type: "fx_rate", date: "2026-04-04", value: 1.0920, fetchedAt: now },
+      { symbol: "EURUSD", type: "fx_rate", date: "2026-04-02", value: 1.0920, fetchedAt: now },
     ]).run();
   });
 

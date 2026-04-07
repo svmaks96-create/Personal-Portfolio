@@ -1,15 +1,17 @@
-/** Raw response from FMP /quote-short endpoint */
+/** Raw response from FMP /quote endpoint */
 export interface FmpQuote {
   symbol: string;
   price: number;
   volume: number;
+  timestamp: number;
 }
 
-/** Raw response from FMP /forex-quote-short endpoint */
+/** Raw response from FMP /quote endpoint (forex pair) */
 export interface FmpFxQuote {
   symbol: string;
   price: number;
   volume: number;
+  timestamp: number;
 }
 
 /** Result returned by refresh Server Actions */

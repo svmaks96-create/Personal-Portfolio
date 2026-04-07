@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { format } from "date-fns";
+import { fromUnixTime } from "date-fns";
 import { db } from "@/server/db";
 import { transactions, marketData } from "@/server/db/schema";
 import { fetchStockPrices, fetchFxRates } from "@/server/services/fmp";
-import { getExistingSymbolsForDate } from "@/server/queries/market-data";
+import { getExistingSymbolDates } from "@/server/queries/market-data";
 import type { ActionResult } from "@/server/types/action-result";
 import type { RefreshResult } from "@/server/types/market-data";
 
@@ -15,8 +15,6 @@ import type { RefreshResult } from "@/server/types/market-data";
  */
 export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
   try {
-    const today = format(new Date(), "yyyy-MM-dd");
-
     // 1. Get unique tickers from transactions
     const rows = db.select({ ticker: transactions.ticker }).from(transactions).all();
     const allTickers = [...new Set(rows.map((r) => r.ticker))];
@@ -25,18 +23,8 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
 
-    // 2. Check which tickers already have today's data (FR51 skip optimization)
-    const existingSymbols = getExistingSymbolsForDate(today, "stock_price");
-    const existingSet = new Set(existingSymbols);
-    const tickersToFetch = allTickers.filter((t) => !existingSet.has(t));
-    const skipped = allTickers.length - tickersToFetch.length;
-
-    if (tickersToFetch.length === 0) {
-      return { success: true, data: { updated: 0, skipped } };
-    }
-
-    // 3. Call FMP service
-    const quotes = await fetchStockPrices(tickersToFetch);
+    // 2. Call FMP service first to get quotes with actual trading dates
+    const quotes = await fetchStockPrices(allTickers);
 
     if (quotes.length === 0) {
       return {
@@ -45,15 +33,32 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       };
     }
 
+    // 3. Check which tickers already have data for their trading date (FR51 skip)
+    // Each quote carries its own trading date (exchanges have different calendars)
+    const existingPairs = getExistingSymbolDates(
+      quotes.map((q) => q.symbol),
+      "stock_price"
+    );
+    const newQuotes = quotes.filter((q) => {
+      const quoteDate = fromUnixTime(q.timestamp).toISOString().slice(0, 10);
+      return !existingPairs.has(`${q.symbol}:${quoteDate}`);
+    });
+    const skipped = allTickers.length - newQuotes.length;
+
+    if (newQuotes.length === 0) {
+      return { success: true, data: { updated: 0, skipped } };
+    }
+
     // 4. Write results to market_data table (atomic)
     const fetchedAt = new Date().toISOString();
     db.transaction((tx) => {
-      for (const quote of quotes) {
+      for (const quote of newQuotes) {
+        const quoteDate = fromUnixTime(quote.timestamp).toISOString().slice(0, 10);
         tx.insert(marketData)
           .values({
             symbol: quote.symbol,
             type: "stock_price",
-            date: today,
+            date: quoteDate,
             value: quote.price,
             fetchedAt,
           })
@@ -67,7 +72,7 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
     // 6. Return result
     return {
       success: true,
-      data: { updated: quotes.length, skipped },
+      data: { updated: newQuotes.length, skipped },
     };
   } catch (error) {
     console.error("refreshPrices failed:", error);
@@ -84,8 +89,6 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
  */
 export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
   try {
-    const today = format(new Date(), "yyyy-MM-dd");
-
     // 1. Get unique non-USD currencies from transactions
     const rows = db.select({ currency: transactions.currency }).from(transactions).all();
     const allCurrencies = [...new Set(rows.map((r) => r.currency))].filter(
@@ -96,18 +99,8 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
 
-    // 2. Check which FX pairs already have today's data (FR51 skip optimization)
-    const existingSymbols = getExistingSymbolsForDate(today, "fx_rate");
-    const existingSet = new Set(existingSymbols);
-    const pairsToFetch = allCurrencies.filter((c) => !existingSet.has(`${c}USD`));
-    const skipped = allCurrencies.length - pairsToFetch.length;
-
-    if (pairsToFetch.length === 0) {
-      return { success: true, data: { updated: 0, skipped } };
-    }
-
-    // 3. Call FMP service
-    const fxQuotes = await fetchFxRates(pairsToFetch);
+    // 2. Call FMP service first to get quotes with actual trading dates
+    const fxQuotes = await fetchFxRates(allCurrencies);
 
     if (fxQuotes.length === 0) {
       return {
@@ -116,15 +109,31 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       };
     }
 
+    // 3. Check which pairs already have data for their trading date (FR51 skip)
+    const existingPairs = getExistingSymbolDates(
+      fxQuotes.map((q) => q.symbol),
+      "fx_rate"
+    );
+    const newQuotes = fxQuotes.filter((q) => {
+      const quoteDate = fromUnixTime(q.timestamp).toISOString().slice(0, 10);
+      return !existingPairs.has(`${q.symbol}:${quoteDate}`);
+    });
+    const skipped = allCurrencies.length - newQuotes.length;
+
+    if (newQuotes.length === 0) {
+      return { success: true, data: { updated: 0, skipped } };
+    }
+
     // 4. Write results to market_data table (atomic)
     const fetchedAt = new Date().toISOString();
     db.transaction((tx) => {
-      for (const quote of fxQuotes) {
+      for (const quote of newQuotes) {
+        const quoteDate = fromUnixTime(quote.timestamp).toISOString().slice(0, 10);
         tx.insert(marketData)
           .values({
             symbol: quote.symbol,
             type: "fx_rate",
-            date: today,
+            date: quoteDate,
             value: quote.price,
             fetchedAt,
           })
@@ -138,7 +147,7 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
     // 6. Return result
     return {
       success: true,
-      data: { updated: fxQuotes.length, skipped },
+      data: { updated: newQuotes.length, skipped },
     };
   } catch (error) {
     console.error("refreshFxRates failed:", error);

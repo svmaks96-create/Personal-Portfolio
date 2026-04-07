@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter, Geist_Mono } from "next/font/google";
 import { AppNav } from "@/components/domain/app-nav";
 import "./globals.css";
@@ -34,7 +35,9 @@ export default function RootLayout({
                 Personal Portfolio Tracker
               </h1>
             </div>
-            <AppNav />
+            <Suspense>
+              <AppNav />
+            </Suspense>
           </div>
         </header>
         <main className="max-w-[1400px] mx-auto px-6 py-8">{children}</main>

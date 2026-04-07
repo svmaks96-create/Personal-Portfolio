@@ -5,6 +5,7 @@ import {
   formatPercent,
   formatPnL,
   formatDate,
+  formatTimestampDate,
 } from "./formatting";
 
 describe("formatCurrency", () => {
@@ -114,5 +115,23 @@ describe("formatDate", () => {
 
   it("returns N/A for null", () => {
     expect(formatDate(null)).toBe("N/A");
+  });
+});
+
+describe("formatTimestampDate", () => {
+  it("formats ISO date string to short month and day", () => {
+    expect(formatTimestampDate("2024-04-02")).toBe("Apr 2");
+  });
+
+  it("formats ISO timestamp with time component", () => {
+    expect(formatTimestampDate("2024-12-25T14:30:00Z")).toBe("Dec 25");
+  });
+
+  it("formats January date", () => {
+    expect(formatTimestampDate("2025-01-15")).toBe("Jan 15");
+  });
+
+  it("formats single-digit day without leading zero", () => {
+    expect(formatTimestampDate("2024-03-05")).toBe("Mar 5");
   });
 });

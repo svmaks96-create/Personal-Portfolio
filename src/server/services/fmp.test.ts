@@ -28,14 +28,14 @@ describe("fetchStockPrices", () => {
   });
 
   it("fetches a single ticker", async () => {
-    const quote = { symbol: "AAPL", price: 258.86, volume: 29319825 };
+    const quote = { symbol: "AAPL", price: 258.86, volume: 29319825, timestamp: 1775505601 };
     mockFetchResponse([quote]);
 
     const result = await fetchStockPrices(["AAPL"]);
     expect(result).toEqual([quote]);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/quote-short/AAPL?apikey=test-api-key")
+      expect.stringContaining("/quote?symbol=AAPL&apikey=test-api-key")
     );
   });
 
@@ -44,11 +44,11 @@ describe("fetchStockPrices", () => {
       const urlStr = url instanceof Request ? url.url : url.toString();
       if (urlStr.includes("AAPL")) {
         return new Response(
-          JSON.stringify([{ symbol: "AAPL", price: 258.86, volume: 100 }])
+          JSON.stringify([{ symbol: "AAPL", price: 258.86, volume: 100, timestamp: 1775505601 }])
         );
       }
       return new Response(
-        JSON.stringify([{ symbol: "MSFT", price: 410.5, volume: 200 }])
+        JSON.stringify([{ symbol: "MSFT", price: 410.5, volume: 200, timestamp: 1775505601 }])
       );
     });
 
@@ -92,19 +92,28 @@ describe("fetchStockPrices", () => {
   });
 
   it("filters out items with missing price field", async () => {
-    mockFetchResponse([{ symbol: "AAPL" }, { symbol: "MSFT", price: 410.5, volume: 200 }]);
+    mockFetchResponse([{ symbol: "AAPL", timestamp: 1775505601 }, { symbol: "MSFT", price: 410.5, volume: 200, timestamp: 1775505601 }]);
     const result = await fetchStockPrices(["AAPL"]);
-    expect(result).toEqual([{ symbol: "MSFT", price: 410.5, volume: 200 }]);
+    expect(result).toEqual([{ symbol: "MSFT", price: 410.5, volume: 200, timestamp: 1775505601 }]);
   });
 
   it("filters out items with NaN or Infinity price", async () => {
     mockFetchResponse([
-      { symbol: "BAD1", price: NaN, volume: 0 },
-      { symbol: "BAD2", price: Infinity, volume: 0 },
-      { symbol: "GOOD", price: 100, volume: 50 },
+      { symbol: "BAD1", price: NaN, volume: 0, timestamp: 1775505601 },
+      { symbol: "BAD2", price: Infinity, volume: 0, timestamp: 1775505601 },
+      { symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 },
     ]);
     const result = await fetchStockPrices(["AAPL"]);
-    expect(result).toEqual([{ symbol: "GOOD", price: 100, volume: 50 }]);
+    expect(result).toEqual([{ symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 }]);
+  });
+
+  it("filters out items with missing timestamp", async () => {
+    mockFetchResponse([
+      { symbol: "NOTIMESTAMP", price: 100, volume: 50 },
+      { symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 },
+    ]);
+    const result = await fetchStockPrices(["AAPL"]);
+    expect(result).toEqual([{ symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 }]);
   });
 
   it("handles partial failures gracefully", async () => {
@@ -112,14 +121,14 @@ describe("fetchStockPrices", () => {
       const urlStr = url instanceof Request ? url.url : url.toString();
       if (urlStr.includes("AAPL")) {
         return new Response(
-          JSON.stringify([{ symbol: "AAPL", price: 258.86, volume: 100 }])
+          JSON.stringify([{ symbol: "AAPL", price: 258.86, volume: 100, timestamp: 1775505601 }])
         );
       }
       return new Response("error", { status: 500 });
     });
 
     const result = await fetchStockPrices(["AAPL", "INVALID"]);
-    expect(result).toEqual([{ symbol: "AAPL", price: 258.86, volume: 100 }]);
+    expect(result).toEqual([{ symbol: "AAPL", price: 258.86, volume: 100, timestamp: 1775505601 }]);
   });
 });
 
@@ -132,13 +141,13 @@ describe("fetchFxRates", () => {
   });
 
   it("fetches a single FX rate with correct pair format", async () => {
-    const fxQuote = { symbol: "GBPUSD", price: 1.32344, volume: 71487 };
+    const fxQuote = { symbol: "GBPUSD", price: 1.32344, volume: 71487, timestamp: 1775555031 };
     mockFetchResponse([fxQuote]);
 
     const result = await fetchFxRates(["GBP"]);
     expect(result).toEqual([fxQuote]);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/forex-quote-short/GBPUSD?apikey=test-api-key")
+      expect.stringContaining("/quote?symbol=GBPUSD&apikey=test-api-key")
     );
   });
 
@@ -147,11 +156,11 @@ describe("fetchFxRates", () => {
       const urlStr = url instanceof Request ? url.url : url.toString();
       if (urlStr.includes("GBPUSD")) {
         return new Response(
-          JSON.stringify([{ symbol: "GBPUSD", price: 1.32, volume: 100 }])
+          JSON.stringify([{ symbol: "GBPUSD", price: 1.32, volume: 100, timestamp: 1775555031 }])
         );
       }
       return new Response(
-        JSON.stringify([{ symbol: "EURUSD", price: 1.08, volume: 200 }])
+        JSON.stringify([{ symbol: "EURUSD", price: 1.08, volume: 200, timestamp: 1775555031 }])
       );
     });
 

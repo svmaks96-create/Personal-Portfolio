@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const tabs = [
   { label: "Dashboard", href: "/" },
@@ -18,6 +18,15 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AppNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const portfolio = searchParams.get("portfolio");
+
+  function buildHref(href: string): string {
+    if (portfolio) {
+      return `${href}?portfolio=${encodeURIComponent(portfolio)}`;
+    }
+    return href;
+  }
 
   return (
     <nav className="flex gap-0 -mb-px">
@@ -26,7 +35,7 @@ export function AppNav() {
         return (
           <Link
             key={tab.href}
-            href={tab.href}
+            href={buildHref(tab.href)}
             className={`px-5 py-2.5 text-sm border-b-2 transition-colors ${
               active
                 ? "border-zinc-900 text-zinc-900 font-medium"

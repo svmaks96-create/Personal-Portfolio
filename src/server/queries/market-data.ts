@@ -1,35 +1,48 @@
 import { db } from "@/server/db";
 import { marketData } from "@/server/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, max, inArray } from "drizzle-orm";
 
 /**
- * Get symbols that already have market data for the given date and type.
- * Used by FR51 skip optimization to avoid redundant FMP API calls.
+ * Get existing (symbol, date) pairs for given symbols and type.
+ * Used by FR51 skip optimization — checks per-symbol trading dates,
+ * since different exchanges have different trading calendars.
  */
-export function getExistingSymbolsForDate(
-  date: string,
+export function getExistingSymbolDates(
+  symbols: string[],
   type: "stock_price" | "fx_rate"
-): string[] {
+): Set<string> {
+  if (symbols.length === 0) return new Set();
+
   const rows = db
-    .select({ symbol: marketData.symbol })
+    .select({ symbol: marketData.symbol, date: marketData.date })
     .from(marketData)
-    .where(and(eq(marketData.date, date), eq(marketData.type, type)))
+    .where(and(inArray(marketData.symbol, symbols), eq(marketData.type, type)))
     .all();
 
-  return rows.map((r) => r.symbol);
+  return new Set(rows.map((r) => `${r.symbol}:${r.date}`));
 }
 
 /**
- * Get the latest fetched_at timestamp across all market data.
- * Returns null if no market data exists. Needed by Story 2.3 for freshness display.
+ * Get the oldest (stalest) trading date across the latest entry per symbol.
+ * This represents the freshness of the least-current data point,
+ * so the user knows if ANY position has stale prices.
+ * Returns a "yyyy-MM-dd" string or null if no market data exists.
  */
-export function getLatestFetchTimestamp(): string | null {
-  const row = db
-    .select({ fetchedAt: marketData.fetchedAt })
+export function getStalestMarketDate(): string | null {
+  const rows = db
+    .select({ symbol: marketData.symbol, latestDate: max(marketData.date) })
     .from(marketData)
-    .orderBy(desc(marketData.fetchedAt))
-    .limit(1)
-    .get();
+    .groupBy(marketData.symbol)
+    .all();
 
-  return row?.fetchedAt ?? null;
+  if (rows.length === 0) return null;
+
+  let stalest: string | null = null;
+  for (const row of rows) {
+    if (row.latestDate && (!stalest || row.latestDate < stalest)) {
+      stalest = row.latestDate;
+    }
+  }
+
+  return stalest;
 }

@@ -1,10 +1,11 @@
 import { config } from "@/server/config";
 import type { FmpQuote, FmpFxQuote } from "@/server/types/market-data";
 
-const FMP_BASE_URL = "https://financialmodelingprep.com/api/v3";
+const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 
 /**
- * Fetch stock prices for given tickers via FMP quote-short endpoint.
+ * Fetch stock quotes for given tickers via FMP /quote endpoint.
+ * Returns full quote data including timestamp (for actual trading date).
  * Pure function — no DB or framework imports.
  * Returns empty array on empty input or missing API key.
  */
@@ -13,14 +14,14 @@ export async function fetchStockPrices(tickers: string[]): Promise<FmpQuote[]> {
   if (!config.fmpApiKey) return [];
 
   const results = await Promise.all(
-    tickers.map((ticker) => fetchQuoteShort(ticker))
+    tickers.map((ticker) => fetchQuote(ticker))
   );
 
   return results.flat();
 }
 
 /**
- * Fetch FX rates for given non-USD currencies via FMP forex-quote-short endpoint.
+ * Fetch FX rates for given non-USD currencies via FMP /quote endpoint.
  * Currencies should be base currencies (e.g., "GBP", "EUR") — "USD" is appended automatically.
  * Pure function — no DB or framework imports.
  * Returns empty array on empty input or missing API key.
@@ -30,7 +31,7 @@ export async function fetchFxRates(currencies: string[]): Promise<FmpFxQuote[]> 
   if (!config.fmpApiKey) return [];
 
   const results = await Promise.all(
-    currencies.map((currency) => fetchForexQuoteShort(`${currency}USD`))
+    currencies.map((currency) => fetchForexQuote(`${currency}USD`))
   );
 
   return results.flat();
@@ -42,13 +43,15 @@ function isValidQuote(item: unknown): item is FmpQuote {
     item !== null &&
     typeof (item as FmpQuote).symbol === "string" &&
     typeof (item as FmpQuote).price === "number" &&
-    Number.isFinite((item as FmpQuote).price)
+    Number.isFinite((item as FmpQuote).price) &&
+    typeof (item as FmpQuote).timestamp === "number" &&
+    Number.isFinite((item as FmpQuote).timestamp)
   );
 }
 
-async function fetchQuoteShort(symbol: string): Promise<FmpQuote[]> {
+async function fetchQuote(symbol: string): Promise<FmpQuote[]> {
   try {
-    const url = `${FMP_BASE_URL}/quote-short/${encodeURIComponent(symbol)}?apikey=${config.fmpApiKey}`;
+    const url = `${FMP_BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&apikey=${config.fmpApiKey}`;
     const response = await fetch(url);
     if (!response.ok) return [];
     const data = await response.json();
@@ -59,9 +62,9 @@ async function fetchQuoteShort(symbol: string): Promise<FmpQuote[]> {
   }
 }
 
-async function fetchForexQuoteShort(pair: string): Promise<FmpFxQuote[]> {
+async function fetchForexQuote(pair: string): Promise<FmpFxQuote[]> {
   try {
-    const url = `${FMP_BASE_URL}/forex-quote-short/${encodeURIComponent(pair)}?apikey=${config.fmpApiKey}`;
+    const url = `${FMP_BASE_URL}/quote?symbol=${encodeURIComponent(pair)}&apikey=${config.fmpApiKey}`;
     const response = await fetch(url);
     if (!response.ok) return [];
     const data = await response.json();
