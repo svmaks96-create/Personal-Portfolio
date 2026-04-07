@@ -1,6 +1,6 @@
 # Story 1.4: App Shell, Navigation, Formatting, and Empty States
 
-Status: review
+Status: done
 
 ## Story
 
@@ -57,6 +57,14 @@ So that I can navigate between views and understand where to start.
   - [x] 5.1 Verify/update `globals.css` color variables match UX spec palette
   - [x] 5.2 Apply tabular-nums via Tailwind (`font-variant-numeric: tabular-nums`) — add utility class or use `tabular-nums` in Tailwind config if needed
   - [x] 5.3 Ensure page titles use `text-2xl font-semibold` (24px/600), consistent across all pages
+
+### Review Findings
+
+- [x] [Review][Decision] `--font-mono` CSS variable aliased to Inter (proportional font) — resolved: restored Geist Mono for `--font-mono` variable. [src/app/globals.css, src/app/layout.tsx]
+- [x] [Review][Patch] `formatDate` does not accept `null` — fixed: signature changed to `(date: string | null)` with null guard, test added. [src/lib/formatting.ts]
+- [x] [Review][Defer] NaN/Infinity propagation through all formatters — if `NaN` or `Infinity` leaks past decimal.js, formatters produce `"$NaN"`, `"-$NaN"`, `"NaN%"` etc. instead of `"N/A"`. Low risk (decimal.js guards against this server-side). [src/lib/formatting.ts] — deferred, pre-existing
+- [x] [Review][Defer] `getTransactionCount` crashes if DB/table doesn't exist — on fresh clone without `db:push`, visiting any page throws `SqliteError: no such table`. First-run DX issue from Story 1.1. [src/server/queries/transactions.ts] — deferred, pre-existing
+
 
 ## Dev Notes
 

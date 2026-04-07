@@ -111,4 +111,8 @@ describe("formatDate", () => {
   it("formats January date", () => {
     expect(formatDate("2025-01-05")).toBe("Jan 5, 2025");
   });
+
+  it("returns N/A for null", () => {
+    expect(formatDate(null)).toBe("N/A");
+  });
 });

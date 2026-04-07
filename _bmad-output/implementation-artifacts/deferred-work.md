@@ -23,6 +23,11 @@
 - Additional test coverage for edge cases: negative prices/fees on buy, single-position aggregates, hasInvalidState combined with market data
 - Cost basis corruption on oversell — when sell qty exceeds sharesHeld, cost basis reduction overshoots (e.g., 15/10 * costBasis), producing negative costBasis; `hasInvalidState` is flagged but values are corrupted. Deferred: import validation (Story 5) will prevent oversells
 
+## Deferred from: code review of 1-4-app-shell-navigation-formatting-and-empty-states (2026-04-07)
+
+- NaN/Infinity propagation through all formatters — `formatCurrency`, `formatShares`, `formatPercent`, `formatPnL` accept `number | null` but don't guard against NaN/Infinity, producing garbled output like `"$NaN"` or `"+$∞"`. Low risk due to decimal.js server-side arithmetic, but a `Number.isFinite()` guard would close the gap.
+- `getTransactionCount` crashes if DB/table doesn't exist — on fresh clone before `db:push`, all pages crash with `SqliteError: no such table: transactions`. First-run DX issue inherited from Story 1.1 DB setup.
+
 ## Deferred from: code review of 1-3-multi-currency-fx-conversion (2026-04-07)
 
 - Truthiness check on `Decimal(0)` fragile pattern in `computeAggregates` — `totalValue ? .toNumber() : null` works because `Decimal(0)` is truthy (object), but would break if accumulators were refactored to `number | null`. Pre-existing from story 1.2, extended to `totalCostBasis`/`totalCashReturned`.

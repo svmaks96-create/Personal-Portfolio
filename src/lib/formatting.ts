@@ -39,6 +39,7 @@ export function formatPnL(value: number | null): string {
   return `-${formatted}`;
 }
 
-export function formatDate(date: string): string {
+export function formatDate(date: string | null): string {
+  if (date === null) return "N/A";
   return format(parseISO(date), "MMM d, yyyy");
 }
