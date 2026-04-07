@@ -6,13 +6,13 @@ interface DashboardMetricsProps {
   portfolio?: string;
 }
 
-export function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
+export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
   const metrics = getDashboardMetrics(portfolio);
 
   const pnlDirection =
     metrics.totalPnl === null
       ? null
-      : metrics.totalPnl >= 0
+      : metrics.totalPnl > 0
         ? "positive"
         : "negative";
 

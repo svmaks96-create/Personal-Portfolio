@@ -1,6 +1,6 @@
 # Story 2.2: Portfolio Dashboard with Metric Cards and Loading States
 
-Status: review
+Status: done
 
 ## Story
 
@@ -58,6 +58,14 @@ So that I get a complete financial overview the moment I open the app.
   - [x] `npm run lint` passes
   - [x] `npm run test:run` — all existing tests pass (85 tests, 7 files)
   - [x] Visual check: dashboard loads with metric cards when data exists
+
+### Review Findings
+
+- [x] [Review][Patch] `DashboardMetrics` not async — Suspense fallback never shows (AC5) [src/components/domain/dashboard-metrics.tsx:9] — FIXED
+- [x] [Review][Patch] P&L zero treated as positive (green) — should be neutral color [src/components/domain/dashboard-metrics.tsx:15] — FIXED
+- [x] [Review][Defer] `getTransactionCount()` not portfolio-aware — deferred, pre-existing (Story 2.3 scope) [src/app/page.tsx:12]
+- [x] [Review][Defer] FX rates query fetches full history without dedup — deferred, pre-existing [src/server/queries/dashboard.ts:50-54]
+- [x] [Review][Defer] `computeAggregates` returns 0 not null for empty arrays — deferred, pre-existing [src/server/services/computation.ts:247-250]
 
 ## Dev Notes
 

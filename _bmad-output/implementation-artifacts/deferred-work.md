@@ -40,3 +40,9 @@
 
 - Concurrent refreshes can create duplicate rows (TOCTOU race) [src/server/actions/market-data.ts] — check-then-insert without locking or upsert. Single-user localhost app makes this low-risk.
 - Unbounded parallelism in FMP API calls [src/server/services/fmp.ts] — `Promise.all` with no concurrency limit. Seed data has ~10 tickers; will matter if portfolio grows to 100+.
+
+## Deferred from: code review of 2-2-portfolio-dashboard-with-metric-cards-and-loading-states (2026-04-07)
+
+- `getTransactionCount()` not portfolio-aware — empty state check uses global count; when filtering to a portfolio with no transactions, dashboard shows $0 cards instead of empty state. Story 2.3 (portfolio selector) should address this.
+- FX rates query fetches full history without deduplication [src/server/queries/dashboard.ts:50-54] — all `fx_rate` rows loaded into memory every render. `lookupFxRate` handles selection correctly but O(n) scan grows with history. See also: O(n*m) FX lookup deferred from story 1.3.
+- `computeAggregates` returns 0 not null for empty position arrays [src/server/services/computation.ts:247-250] — when all positions are closed/filtered out, aggregates show `$0.00` instead of `N/A`. Pre-existing from story 1.2. See also: Decimal(0) truthiness deferred from story 1.3.
