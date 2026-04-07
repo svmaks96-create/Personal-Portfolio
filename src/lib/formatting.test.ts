@@ -1,0 +1,114 @@
+import { describe, expect, it } from "vitest";
+import {
+  formatCurrency,
+  formatShares,
+  formatPercent,
+  formatPnL,
+  formatDate,
+} from "./formatting";
+
+describe("formatCurrency", () => {
+  it("formats positive value with $ prefix, commas, and 2dp", () => {
+    expect(formatCurrency(8650)).toBe("$8,650.00");
+  });
+
+  it("formats zero", () => {
+    expect(formatCurrency(0)).toBe("$0.00");
+  });
+
+  it("formats negative value", () => {
+    expect(formatCurrency(-1234.5)).toBe("-$1,234.50");
+  });
+
+  it("formats large value with commas", () => {
+    expect(formatCurrency(1234567.89)).toBe("$1,234,567.89");
+  });
+
+  it("rounds to 2 decimal places", () => {
+    expect(formatCurrency(10.999)).toBe("$11.00");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatCurrency(null)).toBe("N/A");
+  });
+});
+
+describe("formatShares", () => {
+  it("formats with 1 decimal place", () => {
+    expect(formatShares(50)).toBe("50.0");
+  });
+
+  it("formats fractional shares", () => {
+    expect(formatShares(12.34)).toBe("12.3");
+  });
+
+  it("formats zero", () => {
+    expect(formatShares(0)).toBe("0.0");
+  });
+
+  it("formats large share count with commas", () => {
+    expect(formatShares(1500)).toBe("1,500.0");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatShares(null)).toBe("N/A");
+  });
+});
+
+describe("formatPercent", () => {
+  it("formats with 1 decimal place and % suffix", () => {
+    expect(formatPercent(21.5)).toBe("21.5%");
+  });
+
+  it("formats zero", () => {
+    expect(formatPercent(0)).toBe("0.0%");
+  });
+
+  it("formats negative percent", () => {
+    expect(formatPercent(-5.75)).toBe("-5.8%");
+  });
+
+  it("formats whole number with 1dp", () => {
+    expect(formatPercent(100)).toBe("100.0%");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatPercent(null)).toBe("N/A");
+  });
+});
+
+describe("formatPnL", () => {
+  it("formats positive with + prefix and $ sign", () => {
+    expect(formatPnL(1535)).toBe("+$1,535.00");
+  });
+
+  it("formats negative with - prefix and $ sign", () => {
+    expect(formatPnL(-250.5)).toBe("-$250.50");
+  });
+
+  it("formats zero as positive", () => {
+    expect(formatPnL(0)).toBe("+$0.00");
+  });
+
+  it("formats large positive value", () => {
+    expect(formatPnL(123456.78)).toBe("+$123,456.78");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatPnL(null)).toBe("N/A");
+  });
+});
+
+describe("formatDate", () => {
+  it("formats ISO date string", () => {
+    expect(formatDate("2024-03-15")).toBe("Mar 15, 2024");
+  });
+
+  it("formats date with time component", () => {
+    expect(formatDate("2024-12-01T10:30:00Z")).toBe("Dec 1, 2024");
+  });
+
+  it("formats January date", () => {
+    expect(formatDate("2025-01-05")).toBe("Jan 5, 2025");
+  });
+});

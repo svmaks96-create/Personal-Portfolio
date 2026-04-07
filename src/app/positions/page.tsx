@@ -1,0 +1,16 @@
+import { EmptyState } from "@/components/domain/empty-state";
+import { getTransactionCount } from "@/server/queries/transactions";
+
+export default function PositionsPage() {
+  const count = getTransactionCount();
+
+  if (count === 0) {
+    return <EmptyState message="No positions yet" />;
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-semibold text-zinc-900">Positions</h2>
+    </div>
+  );
+}

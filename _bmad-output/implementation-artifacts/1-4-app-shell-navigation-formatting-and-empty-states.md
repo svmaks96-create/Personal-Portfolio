@@ -1,6 +1,6 @@
 # Story 1.4: App Shell, Navigation, Formatting, and Empty States
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -30,33 +30,33 @@ So that I can navigate between views and understand where to start.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Fix formatting utilities (AC: #7)
-  - [ ] 1.1 Rewrite `formatCurrency` — `$` prefix, comma thousands, 2dp (e.g., `"$8,650.00"`)
-  - [ ] 1.2 Rewrite `formatShares` — 1 decimal place (e.g., `"50.0"`)
-  - [ ] 1.3 Rewrite `formatPercent` — 1 decimal place with `%` suffix (e.g., `"21.5%"`)
-  - [ ] 1.4 Rewrite `formatPnL` — `+`/`-` prefix, `$`, comma thousands, 2dp (e.g., `"+$1,535.00"`)
-  - [ ] 1.5 Add `formatDate(date: string): string` using date-fns (display format TBD — `"MMM d, yyyy"`)
-  - [ ] 1.6 Write unit tests for all formatting functions in `src/lib/formatting.test.ts`
-- [ ] Task 2: Switch font from Geist to Inter (AC: #8)
-  - [ ] 2.1 Replace Geist/Geist_Mono imports in `layout.tsx` with Inter from `next/font/google`
-  - [ ] 2.2 Apply Inter as the single typeface via CSS variable
-- [ ] Task 3: Build root layout with header and tab navigation (AC: #1, #2, #3)
-  - [ ] 3.1 Create `src/components/domain/app-nav.tsx` — `'use client'` component using `usePathname()` for active tab detection
-  - [ ] 3.2 Rewrite `src/app/layout.tsx` — fixed header, app title, nav tabs, background, content shell
-  - [ ] 3.3 Tab links: `/` (Dashboard), `/positions`, `/transactions`, `/import`
-  - [ ] 3.4 Active tab: `font-weight: 500`, `color: zinc-900`, `border-bottom: 2px solid zinc-900`; inactive: `color: zinc-500`
-  - [ ] 3.5 Content shell: `max-w-[1400px] mx-auto px-6` on zinc-100 background
-- [ ] Task 4: Create page stubs with empty states (AC: #4, #5, #6)
-  - [ ] 4.1 Create `src/components/domain/empty-state.tsx` — reusable component (icon, message, optional action button)
-  - [ ] 4.2 Create `src/server/queries/transactions.ts` — `getTransactionCount(portfolio?: string)` using Drizzle
-  - [ ] 4.3 Rewrite `src/app/page.tsx` (Dashboard) — Server Component, check transaction count, show empty state or placeholder
-  - [ ] 4.4 Create `src/app/positions/page.tsx` — Server Component with empty state
-  - [ ] 4.5 Create `src/app/transactions/page.tsx` — Server Component with empty state
-  - [ ] 4.6 Create `src/app/import/page.tsx` — placeholder page (import wizard is Epic 5)
-- [ ] Task 5: Apply typography and color system (AC: #8, #9)
-  - [ ] 5.1 Verify/update `globals.css` color variables match UX spec palette
-  - [ ] 5.2 Apply tabular-nums via Tailwind (`font-variant-numeric: tabular-nums`) — add utility class or use `tabular-nums` in Tailwind config if needed
-  - [ ] 5.3 Ensure page titles use `text-2xl font-semibold` (24px/600), consistent across all pages
+- [x] Task 1: Fix formatting utilities (AC: #7)
+  - [x] 1.1 Rewrite `formatCurrency` — `$` prefix, comma thousands, 2dp (e.g., `"$8,650.00"`)
+  - [x] 1.2 Rewrite `formatShares` — 1 decimal place (e.g., `"50.0"`)
+  - [x] 1.3 Rewrite `formatPercent` — 1 decimal place with `%` suffix (e.g., `"21.5%"`)
+  - [x] 1.4 Rewrite `formatPnL` — `+`/`-` prefix, `$`, comma thousands, 2dp (e.g., `"+$1,535.00"`)
+  - [x] 1.5 Add `formatDate(date: string): string` using date-fns (display format TBD — `"MMM d, yyyy"`)
+  - [x] 1.6 Write unit tests for all formatting functions in `src/lib/formatting.test.ts`
+- [x] Task 2: Switch font from Geist to Inter (AC: #8)
+  - [x] 2.1 Replace Geist/Geist_Mono imports in `layout.tsx` with Inter from `next/font/google`
+  - [x] 2.2 Apply Inter as the single typeface via CSS variable
+- [x] Task 3: Build root layout with header and tab navigation (AC: #1, #2, #3)
+  - [x] 3.1 Create `src/components/domain/app-nav.tsx` — `'use client'` component using `usePathname()` for active tab detection
+  - [x] 3.2 Rewrite `src/app/layout.tsx` — fixed header, app title, nav tabs, background, content shell
+  - [x] 3.3 Tab links: `/` (Dashboard), `/positions`, `/transactions`, `/import`
+  - [x] 3.4 Active tab: `font-weight: 500`, `color: zinc-900`, `border-bottom: 2px solid zinc-900`; inactive: `color: zinc-500`
+  - [x] 3.5 Content shell: `max-w-[1400px] mx-auto px-6` on zinc-100 background
+- [x] Task 4: Create page stubs with empty states (AC: #4, #5, #6)
+  - [x] 4.1 Create `src/components/domain/empty-state.tsx` — reusable component (icon, message, optional action button)
+  - [x] 4.2 Create `src/server/queries/transactions.ts` — `getTransactionCount(portfolio?: string)` using Drizzle
+  - [x] 4.3 Rewrite `src/app/page.tsx` (Dashboard) — Server Component, check transaction count, show empty state or placeholder
+  - [x] 4.4 Create `src/app/positions/page.tsx` — Server Component with empty state
+  - [x] 4.5 Create `src/app/transactions/page.tsx` — Server Component with empty state
+  - [x] 4.6 Create `src/app/import/page.tsx` — placeholder page (import wizard is Epic 5)
+- [x] Task 5: Apply typography and color system (AC: #8, #9)
+  - [x] 5.1 Verify/update `globals.css` color variables match UX spec palette
+  - [x] 5.2 Apply tabular-nums via Tailwind (`font-variant-numeric: tabular-nums`) — add utility class or use `tabular-nums` in Tailwind config if needed
+  - [x] 5.3 Ensure page titles use `text-2xl font-semibold` (24px/600), consistent across all pages
 
 ## Dev Notes
 
@@ -352,10 +352,40 @@ src/components/ui/button.tsx            (Shadcn managed)
 
 ### Agent Model Used
 
+Claude Opus 4.6 (1M context)
+
 ### Debug Log References
+
+None — clean implementation with no blockers.
 
 ### Completion Notes List
 
+- **Task 1:** Rewrote all 4 formatting functions using `Intl.NumberFormat` for locale-aware formatting. Added `formatDate` using date-fns `parseISO` + `format`. All functions accept `null` → `"N/A"`. Removed old `currency` parameter (all values are USD-denominated). Deleted outdated tests at `src/lib/__tests__/formatting.test.ts` and replaced with 24 comprehensive tests in `src/lib/formatting.test.ts`.
+- **Task 2:** Replaced Geist/Geist_Mono with Inter from `next/font/google`. Updated `--font-sans` CSS variable to reference `--font-inter`.
+- **Task 3:** Created `app-nav.tsx` client component with `usePathname()` for active tab detection. Transactions tab uses `startsWith` for drill-down compatibility. Rewrote `layout.tsx` with sticky header, app title, nav tabs, and `max-w-[1400px]` content shell on `bg-zinc-100`.
+- **Task 4:** Created reusable `EmptyState` component with optional action button. Created `getTransactionCount()` query (sync, uses `.get()`). Rewrote dashboard page with empty state conditional. Created positions, transactions, and import page stubs. All pages are Server Components.
+- **Task 5:** Colors use standard Tailwind utilities directly (zinc-*, emerald-600, red-600, amber-500). `tabular-nums` is a built-in Tailwind v4 utility. All page titles use `text-2xl font-semibold text-zinc-900`.
+
 ### Change Log
 
+- 2026-04-07: Implemented Story 1.4 — app shell, navigation, formatting, and empty states. All 5 tasks complete. 24 new unit tests, 64 total tests passing. Build and lint clean.
+
 ### File List
+
+**Created:**
+- `src/components/domain/app-nav.tsx` — Client component for tab navigation
+- `src/components/domain/empty-state.tsx` — Reusable empty state component
+- `src/server/queries/transactions.ts` — `getTransactionCount()` query
+- `src/app/positions/page.tsx` — Positions page stub
+- `src/app/transactions/page.tsx` — Transactions page stub
+- `src/app/import/page.tsx` — Import page stub
+- `src/lib/formatting.test.ts` — 24 unit tests for formatting functions
+
+**Modified:**
+- `src/lib/formatting.ts` — Rewrote all formatters with Intl.NumberFormat, added formatDate
+- `src/app/layout.tsx` — Complete rewrite: Inter font, header, nav, content shell
+- `src/app/page.tsx` — Complete rewrite: dashboard with empty state
+- `src/app/globals.css` — Updated font-sans/font-mono CSS vars to use Inter
+
+**Deleted:**
+- `src/lib/__tests__/formatting.test.ts` — Replaced by co-located test file
