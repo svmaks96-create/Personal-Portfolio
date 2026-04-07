@@ -8,7 +8,7 @@ export const transactions = sqliteTable(
     ticker: text("ticker").notNull(),
     action: text("action").$type<"buy" | "sell" | "dividend" | "fee">().notNull(),
     quantity: real("quantity").notNull(),
-    price: real("price").notNull(),
+    grossAmount: real("gross_amount").notNull(),
     fees: real("fees").notNull().default(0),
     portfolio: text("portfolio").notNull(),
     currency: text("currency").notNull(),

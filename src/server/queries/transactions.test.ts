@@ -27,7 +27,7 @@ function makeDbRow(overrides: Record<string, unknown> = {}) {
     ticker: "AAPL",
     action: "buy",
     quantity: 10.5,
-    price: 172.50,
+    grossAmount: 1812.75,
     fees: 4.95,
     portfolio: "Main",
     currency: "USD",
@@ -51,8 +51,8 @@ describe("getTransactions", () => {
   });
 
   function setupMockReturn(rows: ReturnType<typeof makeDbRow>[]) {
-    // Call the chain to get the terminal mock and set its return value
-    getTransactions(); // warm up to create mock instances
+    // Call the chain to create mock instances, then reset
+    getTransactions();
     vi.clearAllMocks();
 
     const mockAll = vi.fn().mockReturnValue(rows);
@@ -71,7 +71,7 @@ describe("getTransactions", () => {
     expect(result).toEqual([]);
   });
 
-  it("returns formatted transaction rows", () => {
+  it("returns formatted buy transaction rows with derived fields", () => {
     setupMockReturn([makeDbRow()]);
 
     const result = getTransactions();
@@ -84,23 +84,49 @@ describe("getTransactions", () => {
     expect(result[0].currency).toBe("USD");
     expect(result[0].date).toEqual({ value: "2025-03-15", display: "Mar 15, 2025" });
     expect(result[0].quantity).toEqual({ value: 10.5, display: "10.5" });
-    expect(result[0].price).toEqual({ value: 172.50, display: "$172.50" });
+    expect(result[0].grossAmount).toEqual({ value: 1812.75, display: "$1,812.75" });
     expect(result[0].fees).toEqual({ value: 4.95, display: "$4.95" });
+    // net = 1812.75 + 4.95 = 1817.70 (buy: gross + fees)
+    expect(result[0].netAmount).toEqual({ value: 1817.70, display: "$1,817.70" });
+    // net avg price = 1817.70 / 10.5 ≈ 173.114...
+    expect(result[0].netAvgPrice.value).toBeCloseTo(1817.70 / 10.5, 2);
+  });
+
+  it("computes sell net amount as gross minus fees", () => {
+    setupMockReturn([makeDbRow({ action: "sell", grossAmount: 4215, fees: 4.99 })]);
+
+    const result = getTransactions();
+    // sell net = 4215 - 4.99 = 4210.01
+    expect(result[0].netAmount.value).toBeCloseTo(4210.01, 2);
+  });
+
+  it("shows N/A for quantity and net avg price on dividend rows", () => {
+    setupMockReturn([makeDbRow({ action: "dividend", quantity: 0, grossAmount: 15, fees: 0 })]);
+
+    const result = getTransactions();
+    expect(result[0].quantity).toEqual({ value: null, display: "N/A" });
+    expect(result[0].netAvgPrice).toEqual({ value: null, display: "N/A" });
+    expect(result[0].fees).toEqual({ value: null, display: "N/A" });
+    expect(result[0].netAmount.value).toBe(15);
+  });
+
+  it("shows N/A for quantity, gross amount, and net avg price on fee rows", () => {
+    setupMockReturn([makeDbRow({ action: "fee", quantity: 0, grossAmount: 0, fees: 12.50 })]);
+
+    const result = getTransactions();
+    expect(result[0].quantity).toEqual({ value: null, display: "N/A" });
+    expect(result[0].grossAmount).toEqual({ value: null, display: "N/A" });
+    expect(result[0].netAvgPrice).toEqual({ value: null, display: "N/A" });
+    expect(result[0].netAmount.value).toBe(12.50);
   });
 
   it("calls where when portfolio filter provided", () => {
     getTransactions("Main");
-    // Verify select was called (the mock chain was exercised)
     expect(mockSelect).toHaveBeenCalled();
   });
 
   it("calls where when ticker filter provided", () => {
     getTransactions(undefined, "AAPL");
-    expect(mockSelect).toHaveBeenCalled();
-  });
-
-  it("calls where with both filters", () => {
-    getTransactions("Main", "AAPL");
     expect(mockSelect).toHaveBeenCalled();
   });
 

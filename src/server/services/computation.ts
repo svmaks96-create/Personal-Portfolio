@@ -68,7 +68,7 @@ export function computePositions(
 
     for (const t of group) {
       const qty = new Decimal(t.quantity);
-      const price = new Decimal(t.price);
+      const grossAmount = new Decimal(t.grossAmount);
       const fees = new Decimal(t.fees);
 
       // Look up trade-date FX rate for non-USD currencies
@@ -91,7 +91,7 @@ export function computePositions(
 
       switch (t.action) {
         case "buy": {
-          const buyCost = price.times(qty).plus(fees).times(rate);
+          const buyCost = grossAmount.plus(fees).times(rate);
           sharesHeld = sharesHeld.plus(qty);
           totalSharesBought = totalSharesBought.plus(qty);
           costBasis = costBasis.plus(buyCost);
@@ -105,7 +105,7 @@ export function computePositions(
           }
           sharesHeld = sharesHeld.minus(qty);
           totalSharesSold = totalSharesSold.plus(qty);
-          const sellProceeds = price.times(qty).minus(fees).times(rate);
+          const sellProceeds = grossAmount.minus(fees).times(rate);
           totalSellProceeds = totalSellProceeds.plus(sellProceeds);
           if (sharesHeld.lessThan(0)) {
             hasInvalidState = true;
@@ -113,7 +113,7 @@ export function computePositions(
           break;
         }
         case "dividend": {
-          const dividendAmount = qty.times(price).times(rate);
+          const dividendAmount = grossAmount.times(rate);
           totalDividends = totalDividends.plus(dividendAmount);
           break;
         }

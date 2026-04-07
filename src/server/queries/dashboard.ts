@@ -21,7 +21,7 @@ export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
     ticker: row.ticker,
     action: row.action,
     quantity: row.quantity,
-    price: row.price,
+    grossAmount: row.grossAmount,
     fees: row.fees,
     portfolio: row.portfolio,
     currency: row.currency,

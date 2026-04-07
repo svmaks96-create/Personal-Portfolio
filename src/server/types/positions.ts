@@ -4,7 +4,7 @@ export interface TransactionInput {
   ticker: string;
   action: "buy" | "sell" | "dividend" | "fee";
   quantity: number;
-  price: number;
+  grossAmount: number;
   fees: number;
   portfolio: string;
   currency: string;

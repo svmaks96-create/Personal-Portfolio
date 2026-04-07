@@ -16,7 +16,7 @@ function createTestDb() {
       ticker TEXT NOT NULL,
       action TEXT NOT NULL,
       quantity REAL NOT NULL,
-      price REAL NOT NULL,
+      gross_amount REAL NOT NULL,
       fees REAL NOT NULL DEFAULT 0,
       portfolio TEXT NOT NULL,
       currency TEXT NOT NULL
@@ -43,7 +43,7 @@ describe("transactions schema", () => {
       ticker: "AAPL",
       action: "buy",
       quantity: 10,
-      price: 150.0,
+      grossAmount: 1500.0,
       fees: 4.99,
       portfolio: "Test",
       currency: "USD",
@@ -54,7 +54,7 @@ describe("transactions schema", () => {
     expect(rows[0].ticker).toBe("AAPL");
     expect(rows[0].action).toBe("buy");
     expect(rows[0].quantity).toBe(10);
-    expect(rows[0].price).toBe(150.0);
+    expect(rows[0].grossAmount).toBe(1500.0);
     expect(rows[0].fees).toBe(4.99);
 
     sqlite.close();
@@ -67,8 +67,8 @@ describe("transactions schema", () => {
       date: "2026-01-01",
       ticker: "MSFT",
       action: "dividend",
-      quantity: 25,
-      price: 0.75,
+      quantity: 0,
+      grossAmount: 18.75,
       portfolio: "Test",
       currency: "USD",
     }).run();
@@ -112,7 +112,7 @@ describe("seed idempotency", () => {
       ticker: "AAPL",
       action: "buy",
       quantity: 10,
-      price: 150.0,
+      grossAmount: 1500.0,
       portfolio: "Test",
       currency: "USD",
     }).run();
@@ -125,7 +125,7 @@ describe("seed idempotency", () => {
       ticker: "AAPL",
       action: "buy",
       quantity: 10,
-      price: 150.0,
+      grossAmount: 1500.0,
       portfolio: "Test",
       currency: "USD",
     }).run();

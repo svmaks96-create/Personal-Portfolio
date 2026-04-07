@@ -14,7 +14,7 @@ function tx(
     date: "2025-06-15",
     ticker: "AAPL",
     quantity: 0,
-    price: 0,
+    grossAmount: 0,
     fees: 0,
     portfolio: "Test",
     currency: "USD",
@@ -65,8 +65,10 @@ describe("lookupFxRate", () => {
 describe("computePositions", () => {
   it("computes buy accumulation and average entry price", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, price: 185.5, fees: 4.99 }),
-      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, price: 192.0, fees: 4.99 }),
+      // 50 shares for $9275 + $4.99 fees = $9279.99 net cost
+      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99 }),
+      // 30 shares for $5760 + $4.99 fees = $5764.99 net cost
+      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, grossAmount: 5760, fees: 4.99 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
@@ -74,7 +76,7 @@ describe("computePositions", () => {
     expect(positions).toHaveLength(1);
     const pos = positions[0];
     expect(pos.sharesHeld).toBe(80);
-    // cost = (50*185.5 + 4.99) + (30*192 + 4.99) = 9279.99 + 5764.99 = 15044.98
+    // cost = (9275 + 4.99) + (5760 + 4.99) = 9279.99 + 5764.99 = 15044.98
     expect(pos.costBasis).toBeCloseTo(15044.98, 2);
     expect(pos.avgEntryPrice).toBeCloseTo(15044.98 / 80, 4);
     expect(pos.totalInvested).toBeCloseTo(15044.98, 2);
@@ -83,16 +85,17 @@ describe("computePositions", () => {
 
   it("reduces cost basis proportionally on sell and tracks proceeds", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, price: 185.5, fees: 4.99 }),
-      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, price: 192.0, fees: 4.99 }),
-      tx({ id: 3, date: "2025-12-10", action: "sell", quantity: 20, price: 210.75, fees: 4.99 }),
+      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99 }),
+      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, grossAmount: 5760, fees: 4.99 }),
+      // Sell 20 shares for $4215 gross, $4.99 fees → net proceeds = $4210.01
+      tx({ id: 3, date: "2025-12-10", action: "sell", quantity: 20, grossAmount: 4215, fees: 4.99 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
     const pos = positions[0];
 
     expect(pos.sharesHeld).toBe(60);
-    // sell proceeds = 20 * 210.75 - 4.99 = 4210.01
+    // sell proceeds = 4215 - 4.99 = 4210.01
     expect(pos.totalSellProceeds).toBeCloseTo(4210.01, 2);
     // cost basis reduced by 20/80 * 15044.98 = 3761.245
     expect(pos.costBasis).toBeCloseTo(15044.98 - 3761.245, 2);
@@ -102,25 +105,25 @@ describe("computePositions", () => {
 
   it("accumulates net dividends per position", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 60, price: 100, fees: 0 }),
-      tx({ id: 2, date: "2025-09-20", action: "dividend", quantity: 60, price: 0.25, fees: 0 }),
+      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 60, grossAmount: 6000, fees: 0 }),
+      // Dividend: total $15 received
+      tx({ id: 2, date: "2025-09-20", action: "dividend", quantity: 0, grossAmount: 15, fees: 0 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
-    // dividend = 60 * 0.25 = 15
     expect(positions[0].totalDividends).toBeCloseTo(15, 2);
   });
 
   it("increases cost basis and avg entry for standalone fees", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-07-01", ticker: "MSFT", action: "buy", quantity: 25, price: 340, fees: 4.99 }),
-      tx({ id: 2, date: "2026-01-20", ticker: "MSFT", action: "fee", quantity: 0, price: 0, fees: 12.5 }),
+      tx({ id: 1, date: "2025-07-01", ticker: "MSFT", action: "buy", quantity: 25, grossAmount: 8500, fees: 4.99 }),
+      tx({ id: 2, date: "2026-01-20", ticker: "MSFT", action: "fee", quantity: 0, grossAmount: 0, fees: 12.5 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
     const pos = positions[0];
 
-    // cost = 25*340 + 4.99 = 8504.99, then + 12.50 fee = 8517.49
+    // cost = (8500 + 4.99) + 12.50 = 8517.49
     expect(pos.costBasis).toBeCloseTo(8517.49, 2);
     expect(pos.avgEntryPrice).toBeCloseTo(8517.49 / 25, 4);
     expect(pos.totalInvested).toBeCloseTo(8517.49, 2);
@@ -128,7 +131,7 @@ describe("computePositions", () => {
 
   it("handles fee row division-by-zero safely (quantity 0)", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, action: "fee", quantity: 0, price: 0, fees: 10 }),
+      tx({ id: 1, action: "fee", quantity: 0, grossAmount: 0, fees: 10 }),
     ];
 
     // Fee-only with no shares — should not crash
@@ -141,10 +144,10 @@ describe("computePositions", () => {
 
   it("computes market value and total P&L when market data available", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, price: 185.5, fees: 4.99 }),
-      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, price: 192.0, fees: 4.99 }),
-      tx({ id: 3, date: "2025-12-10", action: "sell", quantity: 20, price: 210.75, fees: 4.99 }),
-      tx({ id: 4, date: "2026-01-15", action: "dividend", quantity: 60, price: 0.25, fees: 0 }),
+      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99 }),
+      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, grossAmount: 5760, fees: 4.99 }),
+      tx({ id: 3, date: "2025-12-10", action: "sell", quantity: 20, grossAmount: 4215, fees: 4.99 }),
+      tx({ id: 4, date: "2026-01-15", action: "dividend", quantity: 0, grossAmount: 15, fees: 0 }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -164,7 +167,7 @@ describe("computePositions", () => {
 
   it("returns null for price-dependent fields when no market data", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, action: "buy", quantity: 10, price: 100, fees: 0 }),
+      tx({ id: 1, action: "buy", quantity: 10, grossAmount: 1000, fees: 0 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
@@ -177,8 +180,8 @@ describe("computePositions", () => {
 
   it("isolates same ticker across different portfolios", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, action: "buy", quantity: 50, price: 185.5, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 2, action: "buy", quantity: 15, price: 195, fees: 9.99, portfolio: "UK Income" }),
+      tx({ id: 1, action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 2, action: "buy", quantity: 15, grossAmount: 2925, fees: 9.99, portfolio: "UK Income" }),
     ];
 
     const positions = computePositions(transactions, {}, []);
@@ -189,14 +192,17 @@ describe("computePositions", () => {
 
     expect(usPos.sharesHeld).toBe(50);
     expect(ukPos.sharesHeld).toBe(15);
-    expect(ukPos.costBasis).toBeCloseTo(15 * 195 + 9.99, 2);
+    expect(ukPos.costBasis).toBeCloseTo(2925 + 9.99, 2);
   });
 
   it("identifies closed positions (all shares sold)", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, price: 0.72, fees: 8, currency: "GBP" }),
-      tx({ id: 2, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 500, price: 0.02, fees: 0, currency: "GBP" }),
-      tx({ id: 3, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, price: 0.85, fees: 8, currency: "GBP" }),
+      // VOD.L: buy 500 shares for £360 + £8 fees
+      tx({ id: 1, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, grossAmount: 360, fees: 8, currency: "GBP" }),
+      // Dividend: £10 total
+      tx({ id: 2, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 0, grossAmount: 10, fees: 0, currency: "GBP" }),
+      // Sell all 500 shares for £425 - £8 fees
+      tx({ id: 3, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, grossAmount: 425, fees: 8, currency: "GBP" }),
     ];
 
     const positions = computePositions(transactions, {}, SEED_FX_RATES);
@@ -204,42 +210,44 @@ describe("computePositions", () => {
 
     expect(pos.isClosed).toBe(true);
     expect(pos.sharesHeld).toBe(0);
-    // cost = (500*0.72 + 8) * 1.255 = 368 * 1.255 = 461.84
+    // cost = (360 + 8) * 1.255 = 368 * 1.255 = 461.84
     expect(pos.costBasis).toBeCloseTo(0, 2); // fully reduced
-    // dividend = (500*0.02) * 1.27 = 10 * 1.27 = 12.70
+    // dividend = 10 * 1.27 = 12.70
     expect(pos.totalDividends).toBeCloseTo(12.7, 2);
-    // sell proceeds = (500*0.85 - 8) * 1.26 = 417 * 1.26 = 525.42
+    // sell proceeds = (425 - 8) * 1.26 = 417 * 1.26 = 525.42
     expect(pos.totalSellProceeds).toBeCloseTo(525.42, 2);
     expect(pos.totalInvested).toBeCloseTo(461.84, 2);
   });
 
   it("flags negative share state from sell exceeding held shares", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 10, price: 100, fees: 0 }),
-      tx({ id: 2, date: "2025-06-01", action: "sell", quantity: 15, price: 110, fees: 0 }),
+      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 10, grossAmount: 1000, fees: 0 }),
+      tx({ id: 2, date: "2025-06-01", action: "sell", quantity: 15, grossAmount: 1650, fees: 0 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
     expect(positions[0].hasInvalidState).toBe(true);
   });
 
-  it("handles dividend withholding tax (negative price)", () => {
+  it("handles dividend withholding tax (negative gross_amount)", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 100, price: 50, fees: 0 }),
-      tx({ id: 2, date: "2025-06-01", action: "dividend", quantity: 100, price: 1.0, fees: 0 }),
-      tx({ id: 3, date: "2025-06-01", action: "dividend", quantity: 100, price: -0.15, fees: 0 }),
+      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 100, grossAmount: 5000, fees: 0 }),
+      // Gross dividend
+      tx({ id: 2, date: "2025-06-01", action: "dividend", quantity: 0, grossAmount: 100, fees: 0 }),
+      // Withholding tax (separate row, negative)
+      tx({ id: 3, date: "2025-06-01", action: "dividend", quantity: 0, grossAmount: -15, fees: 0 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
-    // Net dividend = 100*1.0 + 100*(-0.15) = 100 - 15 = 85
+    // Net dividend = 100 + (-15) = 85
     expect(positions[0].totalDividends).toBeCloseTo(85, 2);
   });
 
   it("computes realized P&L for closed positions without market data", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, price: 0.72, fees: 8, currency: "GBP" }),
-      tx({ id: 2, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 500, price: 0.02, fees: 0, currency: "GBP" }),
-      tx({ id: 3, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, price: 0.85, fees: 8, currency: "GBP" }),
+      tx({ id: 1, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, grossAmount: 360, fees: 8, currency: "GBP" }),
+      tx({ id: 2, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 0, grossAmount: 10, fees: 0, currency: "GBP" }),
+      tx({ id: 3, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, grossAmount: 425, fees: 8, currency: "GBP" }),
     ];
 
     // No market data — closed position should still have P&L
@@ -260,8 +268,8 @@ describe("computePositions", () => {
   it("sorts transactions chronologically before processing", () => {
     // Out-of-order: sell before buy by date
     const transactions: TransactionInput[] = [
-      tx({ id: 2, date: "2025-09-01", action: "sell", quantity: 5, price: 110, fees: 0 }),
-      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 10, price: 100, fees: 0 }),
+      tx({ id: 2, date: "2025-09-01", action: "sell", quantity: 5, grossAmount: 550, fees: 0 }),
+      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 10, grossAmount: 1000, fees: 0 }),
     ];
 
     const positions = computePositions(transactions, {}, []);
@@ -273,14 +281,14 @@ describe("computePositions", () => {
   it("processes all four action types correctly (seed data integration)", () => {
     // Full US Growth AAPL scenario from seed data
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, price: 185.5, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, price: 192.0, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 3, date: "2025-12-10", action: "sell", quantity: 20, price: 210.75, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 4, date: "2026-01-15", action: "dividend", quantity: 60, price: 0.25, fees: 0, portfolio: "US Growth" }),
+      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 2, date: "2025-09-20", action: "buy", quantity: 30, grossAmount: 5760, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 3, date: "2025-12-10", action: "sell", quantity: 20, grossAmount: 4215, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 4, date: "2026-01-15", action: "dividend", quantity: 0, grossAmount: 15, fees: 0, portfolio: "US Growth" }),
       // MSFT with standalone fee
-      tx({ id: 5, date: "2025-07-01", ticker: "MSFT", action: "buy", quantity: 25, price: 340, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 6, date: "2025-10-15", ticker: "MSFT", action: "dividend", quantity: 25, price: 0.75, fees: 0, portfolio: "US Growth" }),
-      tx({ id: 7, date: "2026-01-20", ticker: "MSFT", action: "fee", quantity: 0, price: 0, fees: 12.5, portfolio: "US Growth" }),
+      tx({ id: 5, date: "2025-07-01", ticker: "MSFT", action: "buy", quantity: 25, grossAmount: 8500, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 6, date: "2025-10-15", ticker: "MSFT", action: "dividend", quantity: 0, grossAmount: 18.75, fees: 0, portfolio: "US Growth" }),
+      tx({ id: 7, date: "2026-01-20", ticker: "MSFT", action: "fee", quantity: 0, grossAmount: 0, fees: 12.5, portfolio: "US Growth" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -307,9 +315,9 @@ describe("computePositions", () => {
 
   it("converts GBP position to USD (VOD.L full lifecycle)", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, price: 0.72, fees: 8, portfolio: "UK Income", currency: "GBP" }),
-      tx({ id: 2, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 500, price: 0.02, fees: 0, portfolio: "UK Income", currency: "GBP" }),
-      tx({ id: 3, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, price: 0.85, fees: 8, portfolio: "UK Income", currency: "GBP" }),
+      tx({ id: 1, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, grossAmount: 360, fees: 8, portfolio: "UK Income", currency: "GBP" }),
+      tx({ id: 2, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 0, grossAmount: 10, fees: 0, portfolio: "UK Income", currency: "GBP" }),
+      tx({ id: 3, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, grossAmount: 425, fees: 8, portfolio: "UK Income", currency: "GBP" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -336,8 +344,10 @@ describe("computePositions", () => {
 
   it("converts EUR position to USD (SAP.DE open position)", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-20", ticker: "SAP.DE", action: "buy", quantity: 40, price: 165.3, fees: 6.5, portfolio: "EU Diversified", currency: "EUR" }),
-      tx({ id: 2, date: "2026-02-01", ticker: "SAP.DE", action: "dividend", quantity: 40, price: 2.2, fees: 0, portfolio: "EU Diversified", currency: "EUR" }),
+      // 40 shares for €6612 + €6.50 fees
+      tx({ id: 1, date: "2025-06-20", ticker: "SAP.DE", action: "buy", quantity: 40, grossAmount: 6612, fees: 6.5, portfolio: "EU Diversified", currency: "EUR" }),
+      // Dividend: €88 total
+      tx({ id: 2, date: "2026-02-01", ticker: "SAP.DE", action: "dividend", quantity: 0, grossAmount: 88, fees: 0, portfolio: "EU Diversified", currency: "EUR" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -349,13 +359,13 @@ describe("computePositions", () => {
 
     expect(pos.isClosed).toBe(false);
     expect(pos.sharesHeld).toBe(40);
-    // cost = (165.3*40 + 6.5) * 1.089 = 6618.5 * 1.089 = 7207.5465
+    // cost = (6612 + 6.5) * 1.089 = 6618.5 * 1.089 = 7207.5465
     expect(pos.costBasis).toBeCloseTo(7207.5465, 2);
     expect(pos.avgEntryPrice).toBeCloseTo(7207.5465 / 40, 2);
     expect(pos.lastPrice).toBe(178.5); // native EUR
     // market value = 40*178.5 * 1.092 = 7140 * 1.092 = 7796.88
     expect(pos.marketValue).toBeCloseTo(7796.88, 2);
-    // dividend = (40*2.2) * 1.075 = 88 * 1.075 = 94.60
+    // dividend = 88 * 1.075 = 94.60
     expect(pos.totalDividends).toBeCloseTo(94.6, 2);
     expect(pos.totalSellProceeds).toBe(0);
     expect(pos.totalInvested).toBeCloseTo(7207.5465, 2);
@@ -367,10 +377,10 @@ describe("computePositions", () => {
 
   it("USD positions unchanged when fxRates provided (rate = 1.0)", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-06-15", ticker: "AAPL", action: "buy", quantity: 50, price: 185.5, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 2, date: "2025-09-20", ticker: "AAPL", action: "buy", quantity: 30, price: 192.0, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 3, date: "2025-12-10", ticker: "AAPL", action: "sell", quantity: 20, price: 210.75, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 4, date: "2026-01-15", ticker: "AAPL", action: "dividend", quantity: 60, price: 0.25, fees: 0, portfolio: "US Growth" }),
+      tx({ id: 1, date: "2025-06-15", ticker: "AAPL", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 2, date: "2025-09-20", ticker: "AAPL", action: "buy", quantity: 30, grossAmount: 5760, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 3, date: "2025-12-10", ticker: "AAPL", action: "sell", quantity: 20, grossAmount: 4215, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 4, date: "2026-01-15", ticker: "AAPL", action: "dividend", quantity: 0, grossAmount: 15, fees: 0, portfolio: "US Growth" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -391,13 +401,13 @@ describe("computePositions", () => {
   it("uses FX fallback when exact date missing", () => {
     // Buy on 2025-07-01 — no exact GBPUSD rate, should fall back to 2025-05-10 rate (1.255)
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-07-01", ticker: "VOD.L", action: "buy", quantity: 100, price: 1.0, fees: 0, currency: "GBP" }),
+      tx({ id: 1, date: "2025-07-01", ticker: "VOD.L", action: "buy", quantity: 100, grossAmount: 100, fees: 0, currency: "GBP" }),
     ];
 
     const positions = computePositions(transactions, {}, SEED_FX_RATES);
     const pos = positions[0];
 
-    // cost = (100 * 1.0 + 0) * 1.255 = 125.5
+    // cost = (100 + 0) * 1.255 = 125.5
     expect(pos.costBasis).toBeCloseTo(125.5, 2);
     expect(pos.totalInvested).toBeCloseTo(125.5, 2);
   });
@@ -405,7 +415,7 @@ describe("computePositions", () => {
   it("returns null monetary fields when FX rate missing for non-USD position", () => {
     // Buy before any GBPUSD rate exists
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-01-01", ticker: "VOD.L", action: "buy", quantity: 100, price: 1.0, fees: 0, currency: "GBP" }),
+      tx({ id: 1, date: "2025-01-01", ticker: "VOD.L", action: "buy", quantity: 100, grossAmount: 100, fees: 0, currency: "GBP" }),
     ];
 
     const positions = computePositions(transactions, {}, SEED_FX_RATES);
@@ -426,23 +436,23 @@ describe("computePositions", () => {
   it("full seed data integration — all 5 positions with FX conversion", () => {
     const transactions: TransactionInput[] = [
       // US Growth — AAPL
-      tx({ id: 1, date: "2025-06-15", ticker: "AAPL", action: "buy", quantity: 50, price: 185.5, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 2, date: "2025-09-20", ticker: "AAPL", action: "buy", quantity: 30, price: 192.0, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 3, date: "2025-12-10", ticker: "AAPL", action: "sell", quantity: 20, price: 210.75, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 4, date: "2026-01-15", ticker: "AAPL", action: "dividend", quantity: 60, price: 0.25, fees: 0, portfolio: "US Growth" }),
+      tx({ id: 1, date: "2025-06-15", ticker: "AAPL", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 2, date: "2025-09-20", ticker: "AAPL", action: "buy", quantity: 30, grossAmount: 5760, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 3, date: "2025-12-10", ticker: "AAPL", action: "sell", quantity: 20, grossAmount: 4215, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 4, date: "2026-01-15", ticker: "AAPL", action: "dividend", quantity: 0, grossAmount: 15, fees: 0, portfolio: "US Growth" }),
       // US Growth — MSFT
-      tx({ id: 5, date: "2025-07-01", ticker: "MSFT", action: "buy", quantity: 25, price: 340, fees: 4.99, portfolio: "US Growth" }),
-      tx({ id: 6, date: "2025-10-15", ticker: "MSFT", action: "dividend", quantity: 25, price: 0.75, fees: 0, portfolio: "US Growth" }),
-      tx({ id: 7, date: "2026-01-20", ticker: "MSFT", action: "fee", quantity: 0, price: 0, fees: 12.5, portfolio: "US Growth" }),
+      tx({ id: 5, date: "2025-07-01", ticker: "MSFT", action: "buy", quantity: 25, grossAmount: 8500, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 6, date: "2025-10-15", ticker: "MSFT", action: "dividend", quantity: 0, grossAmount: 18.75, fees: 0, portfolio: "US Growth" }),
+      tx({ id: 7, date: "2026-01-20", ticker: "MSFT", action: "fee", quantity: 0, grossAmount: 0, fees: 12.5, portfolio: "US Growth" }),
       // UK Income — VOD.L (closed)
-      tx({ id: 8, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, price: 0.72, fees: 8, portfolio: "UK Income", currency: "GBP" }),
-      tx({ id: 9, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 500, price: 0.02, fees: 0, portfolio: "UK Income", currency: "GBP" }),
-      tx({ id: 10, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, price: 0.85, fees: 8, portfolio: "UK Income", currency: "GBP" }),
+      tx({ id: 8, date: "2025-05-10", ticker: "VOD.L", action: "buy", quantity: 500, grossAmount: 360, fees: 8, portfolio: "UK Income", currency: "GBP" }),
+      tx({ id: 9, date: "2025-08-15", ticker: "VOD.L", action: "dividend", quantity: 0, grossAmount: 10, fees: 0, portfolio: "UK Income", currency: "GBP" }),
+      tx({ id: 10, date: "2025-11-20", ticker: "VOD.L", action: "sell", quantity: 500, grossAmount: 425, fees: 8, portfolio: "UK Income", currency: "GBP" }),
       // UK Income — AAPL (separate from US Growth AAPL)
-      tx({ id: 11, date: "2025-08-01", ticker: "AAPL", action: "buy", quantity: 15, price: 195, fees: 9.99, portfolio: "UK Income" }),
+      tx({ id: 11, date: "2025-08-01", ticker: "AAPL", action: "buy", quantity: 15, grossAmount: 2925, fees: 9.99, portfolio: "UK Income" }),
       // EU Diversified — SAP.DE
-      tx({ id: 12, date: "2025-06-20", ticker: "SAP.DE", action: "buy", quantity: 40, price: 165.3, fees: 6.5, portfolio: "EU Diversified", currency: "EUR" }),
-      tx({ id: 13, date: "2026-02-01", ticker: "SAP.DE", action: "dividend", quantity: 40, price: 2.2, fees: 0, portfolio: "EU Diversified", currency: "EUR" }),
+      tx({ id: 12, date: "2025-06-20", ticker: "SAP.DE", action: "buy", quantity: 40, grossAmount: 6612, fees: 6.5, portfolio: "EU Diversified", currency: "EUR" }),
+      tx({ id: 13, date: "2026-02-01", ticker: "SAP.DE", action: "dividend", quantity: 0, grossAmount: 88, fees: 0, portfolio: "EU Diversified", currency: "EUR" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -498,8 +508,8 @@ describe("computePositions", () => {
 describe("computeAggregates", () => {
   it("computes totals and weights across positions", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, action: "buy", quantity: 50, price: 100, fees: 0, ticker: "A", portfolio: "P1" }),
-      tx({ id: 2, action: "buy", quantity: 100, price: 50, fees: 0, ticker: "B", portfolio: "P1" }),
+      tx({ id: 1, action: "buy", quantity: 50, grossAmount: 5000, fees: 0, ticker: "A", portfolio: "P1" }),
+      tx({ id: 2, action: "buy", quantity: 100, grossAmount: 5000, fees: 0, ticker: "B", portfolio: "P1" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -522,8 +532,8 @@ describe("computeAggregates", () => {
 
   it("returns null totalValue/totalPnl when any position has no market data", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, action: "buy", quantity: 10, price: 100, fees: 0, ticker: "A", portfolio: "P1" }),
-      tx({ id: 2, action: "buy", quantity: 20, price: 50, fees: 0, ticker: "B", portfolio: "P1" }),
+      tx({ id: 1, action: "buy", quantity: 10, grossAmount: 1000, fees: 0, ticker: "A", portfolio: "P1" }),
+      tx({ id: 2, action: "buy", quantity: 20, grossAmount: 1000, fees: 0, ticker: "B", portfolio: "P1" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -542,9 +552,9 @@ describe("computeAggregates", () => {
 
   it("includes closed positions in totals with realized P&L", () => {
     const transactions: TransactionInput[] = [
-      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 100, price: 10, fees: 0, ticker: "A" }),
-      tx({ id: 2, date: "2025-06-01", action: "sell", quantity: 100, price: 15, fees: 0, ticker: "A" }),
-      tx({ id: 3, date: "2025-01-01", action: "buy", quantity: 50, price: 20, fees: 0, ticker: "B" }),
+      tx({ id: 1, date: "2025-01-01", action: "buy", quantity: 100, grossAmount: 1000, fees: 0, ticker: "A" }),
+      tx({ id: 2, date: "2025-06-01", action: "sell", quantity: 100, grossAmount: 1500, fees: 0, ticker: "A" }),
+      tx({ id: 3, date: "2025-01-01", action: "buy", quantity: 50, grossAmount: 1000, fees: 0, ticker: "B" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {
@@ -575,9 +585,9 @@ describe("computeAggregates", () => {
   it("aggregates mixed-currency positions with all values in USD", () => {
     const transactions: TransactionInput[] = [
       // USD position
-      tx({ id: 1, date: "2025-06-15", ticker: "AAPL", action: "buy", quantity: 50, price: 185.5, fees: 4.99, portfolio: "US Growth" }),
+      tx({ id: 1, date: "2025-06-15", ticker: "AAPL", action: "buy", quantity: 50, grossAmount: 9275, fees: 4.99, portfolio: "US Growth" }),
       // EUR position
-      tx({ id: 2, date: "2025-06-20", ticker: "SAP.DE", action: "buy", quantity: 40, price: 165.3, fees: 6.5, portfolio: "EU Diversified", currency: "EUR" }),
+      tx({ id: 2, date: "2025-06-20", ticker: "SAP.DE", action: "buy", quantity: 40, grossAmount: 6612, fees: 6.5, portfolio: "EU Diversified", currency: "EUR" }),
     ];
 
     const marketData: Record<string, MarketDataInput> = {

@@ -54,7 +54,7 @@ function computeAllPositions(portfolio?: string): ComputedPosition[] {
     ticker: row.ticker,
     action: row.action,
     quantity: row.quantity,
-    price: row.price,
+    grossAmount: row.grossAmount,
     fees: row.fees,
     portfolio: row.portfolio,
     currency: row.currency,

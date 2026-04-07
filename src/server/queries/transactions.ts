@@ -8,9 +8,11 @@ export interface TransactionRow {
   date: { value: string; display: string };
   ticker: string;
   action: string;
-  quantity: { value: number; display: string };
-  price: { value: number; display: string };
-  fees: { value: number; display: string };
+  quantity: { value: number | null; display: string };
+  grossAmount: { value: number | null; display: string };
+  fees: { value: number | null; display: string };
+  netAmount: { value: number; display: string };
+  netAvgPrice: { value: number | null; display: string };
   portfolio: string;
   currency: string;
 }
@@ -18,6 +20,21 @@ export interface TransactionRow {
 export function getTransactionCount(): number {
   const result = db.select({ count: count() }).from(transactions).get();
   return result?.count ?? 0;
+}
+
+function computeNetAmount(action: string, grossAmount: number, fees: number): number {
+  switch (action) {
+    case "buy":
+      return grossAmount + fees;
+    case "sell":
+      return grossAmount - fees;
+    case "dividend":
+      return grossAmount;
+    case "fee":
+      return fees;
+    default:
+      return grossAmount;
+  }
 }
 
 export function getTransactions(
@@ -35,15 +52,36 @@ export function getTransactions(
     .orderBy(desc(transactions.date))
     .all();
 
-  return rows.map((row) => ({
-    id: row.id,
-    date: { value: row.date, display: formatDate(row.date) },
-    ticker: row.ticker,
-    action: row.action,
-    quantity: { value: row.quantity, display: formatShares(row.quantity) },
-    price: { value: row.price, display: formatCurrency(row.price) },
-    fees: { value: row.fees, display: formatCurrency(row.fees) },
-    portfolio: row.portfolio,
-    currency: row.currency,
-  }));
+  return rows.map((row) => {
+    const netAmount = computeNetAmount(row.action, row.grossAmount, row.fees);
+    const hasShares = row.quantity > 0;
+    const netAvgPrice = hasShares ? netAmount / row.quantity : null;
+
+    // For dividends and fees, quantity/grossAmount/fees may be zero — show N/A
+    const isDividend = row.action === "dividend";
+    const isFee = row.action === "fee";
+
+    return {
+      id: row.id,
+      date: { value: row.date, display: formatDate(row.date) },
+      ticker: row.ticker,
+      action: row.action,
+      quantity: {
+        value: isDividend || isFee ? null : row.quantity,
+        display: isDividend || isFee ? "N/A" : formatShares(row.quantity),
+      },
+      grossAmount: {
+        value: isFee ? null : row.grossAmount,
+        display: isFee ? "N/A" : formatCurrency(row.grossAmount),
+      },
+      fees: {
+        value: isDividend ? null : row.fees,
+        display: isDividend ? "N/A" : formatCurrency(row.fees),
+      },
+      netAmount: { value: netAmount, display: formatCurrency(netAmount) },
+      netAvgPrice: { value: netAvgPrice, display: formatCurrency(netAvgPrice) },
+      portfolio: row.portfolio,
+      currency: row.currency,
+    };
+  });
 }
