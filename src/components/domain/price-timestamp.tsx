@@ -1,6 +1,6 @@
 "use client";
 
-import { parseISO, isToday } from "date-fns";
+import { format } from "date-fns";
 import { formatTimestampDate } from "@/lib/formatting";
 
 interface PriceTimestampProps {
@@ -18,12 +18,20 @@ export function PriceTimestamp({
     return <span className="text-[12px] font-normal text-zinc-500">Refreshing...</span>;
   }
 
-  if (refreshError && timestamp) {
-    const dateStr = formatTimestampDate(timestamp);
+  if (refreshError) {
+    if (timestamp) {
+      const dateStr = formatTimestampDate(timestamp);
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[12px] font-normal text-amber-500">
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+          Unable to refresh — last prices from {dateStr}
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1.5 text-[12px] font-normal text-amber-500">
         <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-        Unable to refresh — last prices from {dateStr}
+        Unable to refresh — please try again.
       </span>
     );
   }
@@ -32,7 +40,8 @@ export function PriceTimestamp({
     return <span className="text-[12px] font-normal text-zinc-500">No price data</span>;
   }
 
-  const isStale = !isToday(parseISO(timestamp));
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const isStale = timestamp !== todayStr;
   const dateStr = formatTimestampDate(timestamp);
 
   if (isStale) {

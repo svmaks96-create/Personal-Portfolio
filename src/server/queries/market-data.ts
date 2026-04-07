@@ -32,6 +32,7 @@ export function getStalestMarketDate(): string | null {
   const rows = db
     .select({ symbol: marketData.symbol, latestDate: max(marketData.date) })
     .from(marketData)
+    .where(eq(marketData.type, "stock_price"))
     .groupBy(marketData.symbol)
     .all();
 

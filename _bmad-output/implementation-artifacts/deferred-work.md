@@ -46,3 +46,9 @@
 - `getTransactionCount()` not portfolio-aware — empty state check uses global count; when filtering to a portfolio with no transactions, dashboard shows $0 cards instead of empty state. Story 2.3 (portfolio selector) should address this.
 - FX rates query fetches full history without deduplication [src/server/queries/dashboard.ts:50-54] — all `fx_rate` rows loaded into memory every render. `lookupFxRate` handles selection correctly but O(n) scan grows with history. See also: O(n*m) FX lookup deferred from story 1.3.
 - `computeAggregates` returns 0 not null for empty position arrays [src/server/services/computation.ts:247-250] — when all positions are closed/filtered out, aggregates show `$0.00` instead of `N/A`. Pre-existing from story 1.2. See also: Decimal(0) truthiness deferred from story 1.3.
+
+## Deferred from: code review of 2-3-portfolio-selector-price-refresh-and-freshness-display (2026-04-07)
+
+- `getExistingSymbolDates` fetches all historical rows per symbol [src/server/queries/market-data.ts:15-22] — loads entire (symbol, date) history into memory to check one date. Will degrade as market_data grows. Consider adding a date filter or using a subquery for latest date only.
+- No unique constraint on `market_data(symbol, type, date)` [src/server/db/schema.ts] — pre-existing; concurrent refresh could insert duplicate rows. See also: TOCTOU race deferred from story 2.1.
+- `fromUnixTime` UTC vs exchange-local trading date semantics [src/server/actions/market-data.ts] — `fromUnixTime(q.timestamp).toISOString().slice(0,10)` produces UTC date, but trading dates are in exchange-local time. Late-session trades in far-east exchanges could map to wrong UTC calendar day. Needs research into FMP timestamp semantics.

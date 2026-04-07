@@ -45,7 +45,8 @@ function isValidQuote(item: unknown): item is FmpQuote {
     typeof (item as FmpQuote).price === "number" &&
     Number.isFinite((item as FmpQuote).price) &&
     typeof (item as FmpQuote).timestamp === "number" &&
-    Number.isFinite((item as FmpQuote).timestamp)
+    Number.isFinite((item as FmpQuote).timestamp) &&
+    (item as FmpQuote).timestamp > 0
   );
 }
 

@@ -33,11 +33,14 @@ export function ControlsBar({
       const fxFailed = !fxResult?.success;
 
       if (pricesFailed || fxFailed) {
-        setRefreshError(
-          pricesFailed
-            ? (pricesResult as { error: string }).error ?? "Unable to refresh prices."
-            : (fxResult as { error: string }).error ?? "Unable to refresh FX rates."
-        );
+        const errors: string[] = [];
+        if (pricesFailed) {
+          errors.push((pricesResult as { error: string }).error ?? "Unable to refresh prices.");
+        }
+        if (fxFailed) {
+          errors.push((fxResult as { error: string }).error ?? "Unable to refresh FX rates.");
+        }
+        setRefreshError(errors.join(" "));
       }
     } catch {
       setRefreshError("Unable to refresh — please try again.");

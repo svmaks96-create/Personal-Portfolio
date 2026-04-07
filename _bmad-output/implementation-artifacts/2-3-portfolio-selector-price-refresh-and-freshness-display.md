@@ -1,6 +1,6 @@
 # Story 2.3: Portfolio Selector, Price Refresh, and Freshness Display
 
-Status: review
+Status: done
 
 ## Story
 
@@ -65,6 +65,19 @@ So that I can view any portfolio in isolation and trust the data freshness.
   - [x] 8.2 Unit test `formatTimestampDate()` — correct format output
   - [x] 8.3 Verify existing tests still pass (`npm run test:run`)
   - [x] 8.4 Run lint (`npm run lint`)
+
+### Review Findings
+
+- [x] [Review][Decision] Sequential refresh vs AC6 "in parallel" — Accepted as-is. Next.js serializes server actions from client; true parallelism would require a combined server action. Deviation accepted as framework limitation. [src/components/domain/controls-bar.tsx:30-31]
+- [x] [Review][Decision→Patch] `getStalestMarketDate` mixes stock/FX types — Added `WHERE type = 'stock_price'` filter. [src/server/queries/market-data.ts]
+- [x] [Review][Patch] Both-fail error swallows second failure — Now collects both error messages. [src/components/domain/controls-bar.tsx]
+- [x] [Review][Patch] `refreshError` not shown when `timestamp` is null — Error now displayed even without prior timestamp. [src/components/domain/price-timestamp.tsx]
+- [x] [Review][Patch] `isToday` timezone bug with "yyyy-MM-dd" strings — Switched to direct string comparison with `format(new Date(), "yyyy-MM-dd")`. [src/components/domain/price-timestamp.tsx]
+- [x] [Review][Patch] `timestamp=0` not rejected by `isValidQuote` — Added `> 0` check. [src/server/services/fmp.ts]
+- [x] [Review][Patch] Missing newline at EOF in `market-data.ts` [src/server/actions/market-data.ts]
+- [x] [Review][Defer] `getExistingSymbolDates` fetches all historical rows per symbol [src/server/queries/market-data.ts:15-22] — deferred, performance concern for future data growth
+- [x] [Review][Defer] No unique constraint on `market_data(symbol, type, date)` [src/server/db/schema.ts] — deferred, pre-existing schema concern
+- [x] [Review][Defer] `fromUnixTime` UTC vs exchange-local trading date semantics [src/server/actions/market-data.ts] — deferred, FMP timestamp semantics need research
 
 ## Dev Notes
 
