@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import {
   Select,
@@ -25,6 +25,7 @@ export function PortfolioSelector({
 }: PortfolioSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
   const items = [
@@ -36,11 +37,14 @@ export function PortfolioSelector({
 
   function handleChange(value: string | null) {
     startTransition(() => {
+      const params = new URLSearchParams(searchParams.toString());
       if (!value || value === ALL_PORTFOLIOS) {
-        router.push(pathname);
+        params.delete("portfolio");
       } else {
-        router.push(`${pathname}?portfolio=${encodeURIComponent(value)}`);
+        params.set("portfolio", value);
       }
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
     });
   }
 

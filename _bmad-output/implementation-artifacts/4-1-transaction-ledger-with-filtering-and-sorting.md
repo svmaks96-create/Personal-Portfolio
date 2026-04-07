@@ -1,6 +1,6 @@
 # Story 4.1: Transaction Ledger with Filtering and Sorting
 
-Status: review
+Status: done
 
 ## Story
 
@@ -225,6 +225,15 @@ Key learnings from Story 3.2 that apply here:
 - [Source: src/components/domain/positions-table.tsx — Generic table component]
 - [Source: src/app/positions/page.tsx — Page pattern with searchParams]
 - [Source: src/lib/formatting.ts — formatDate, formatCurrency, formatShares]
+
+### Review Findings
+
+- [x] [Review][Decision] Column set deviates from AC1 spec — RESOLVED: spec updated to match implementation. Columns are now Date, Ticker, Action, Quantity, Gross Amount, Fees, Net Amount, Net Avg Price, Portfolio, Currency (reflects price→grossAmount refactor).
+- [x] [Review][Patch] Numeric columns center-aligned instead of right-aligned — DISMISSED: user accepts center alignment, spec updated to match implementation
+- [x] [Review][Patch] Financial math uses JS number instead of decimal.js [src/server/queries/transactions.ts:25-58] — FIXED: `computeNetAmount` and `netAvgPrice` now use `decimal.js`
+- [x] [Review][Patch] PortfolioSelector drops ticker filter when changing portfolio [src/components/domain/portfolio-selector.tsx] — FIXED: now preserves existing search params via `useSearchParams()`
+- [x] [Review][Patch] Same-date transactions have no stable sort tiebreaker [src/server/queries/transactions.ts:50] — FIXED: added `desc(transactions.id)` as secondary sort
+- [x] [Review][Defer] Withholding tax dividend rows have no visual distinction from income dividends — deferred, UX enhancement beyond story scope
 
 ## Dev Agent Record
 

@@ -104,9 +104,9 @@ describe("getTransactions", () => {
     setupMockReturn([makeDbRow({ action: "dividend", quantity: 0, grossAmount: 15, fees: 0 })]);
 
     const result = getTransactions();
-    expect(result[0].quantity).toEqual({ value: null, display: "N/A" });
-    expect(result[0].netAvgPrice).toEqual({ value: null, display: "N/A" });
-    expect(result[0].fees).toEqual({ value: null, display: "N/A" });
+    expect(result[0].quantity).toEqual({ value: null, display: "\u2014" });
+    expect(result[0].netAvgPrice).toEqual({ value: null, display: "\u2014" });
+    expect(result[0].fees).toEqual({ value: null, display: "\u2014" });
     expect(result[0].netAmount.value).toBe(15);
   });
 
@@ -114,9 +114,9 @@ describe("getTransactions", () => {
     setupMockReturn([makeDbRow({ action: "fee", quantity: 0, grossAmount: 0, fees: 12.50 })]);
 
     const result = getTransactions();
-    expect(result[0].quantity).toEqual({ value: null, display: "N/A" });
-    expect(result[0].grossAmount).toEqual({ value: null, display: "N/A" });
-    expect(result[0].netAvgPrice).toEqual({ value: null, display: "N/A" });
+    expect(result[0].quantity).toEqual({ value: null, display: "\u2014" });
+    expect(result[0].grossAmount).toEqual({ value: null, display: "\u2014" });
+    expect(result[0].netAvgPrice).toEqual({ value: null, display: "\u2014" });
     expect(result[0].netAmount.value).toBe(12.50);
   });
 

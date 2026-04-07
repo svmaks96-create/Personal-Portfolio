@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import { transactions } from "@/server/db/schema";
 import { count, eq, and, desc } from "drizzle-orm";
 import { formatDate, formatCurrency, formatShares } from "@/lib/formatting";
+import Decimal from "decimal.js";
 
 export interface TransactionRow {
   id: number;
@@ -23,17 +24,19 @@ export function getTransactionCount(): number {
 }
 
 function computeNetAmount(action: string, grossAmount: number, fees: number): number {
+  const g = new Decimal(grossAmount);
+  const f = new Decimal(fees);
   switch (action) {
     case "buy":
-      return grossAmount + fees;
+      return g.plus(f).toNumber();
     case "sell":
-      return grossAmount - fees;
+      return g.minus(f).toNumber();
     case "dividend":
-      return grossAmount;
+      return g.toNumber();
     case "fee":
-      return fees;
+      return f.toNumber();
     default:
-      return grossAmount;
+      return g.toNumber();
   }
 }
 
@@ -49,17 +52,19 @@ export function getTransactions(
     .select()
     .from(transactions)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(transactions.date))
+    .orderBy(desc(transactions.date), desc(transactions.id))
     .all();
 
   return rows.map((row) => {
     const netAmount = computeNetAmount(row.action, row.grossAmount, row.fees);
     const hasShares = row.quantity > 0;
-    const netAvgPrice = hasShares ? netAmount / row.quantity : null;
+    const netAvgPrice = hasShares
+      ? new Decimal(netAmount).div(new Decimal(row.quantity)).toNumber()
+      : null;
 
-    // For dividends and fees, quantity/grossAmount/fees may be zero — show N/A
     const isDividend = row.action === "dividend";
     const isFee = row.action === "fee";
+    const dash = "\u2014";
 
     return {
       id: row.id,
@@ -68,18 +73,21 @@ export function getTransactions(
       action: row.action,
       quantity: {
         value: isDividend || isFee ? null : row.quantity,
-        display: isDividend || isFee ? "N/A" : formatShares(row.quantity),
+        display: isDividend || isFee ? dash : formatShares(row.quantity),
       },
       grossAmount: {
         value: isFee ? null : row.grossAmount,
-        display: isFee ? "N/A" : formatCurrency(row.grossAmount),
+        display: isFee ? dash : formatCurrency(row.grossAmount),
       },
       fees: {
         value: isDividend ? null : row.fees,
-        display: isDividend ? "N/A" : formatCurrency(row.fees),
+        display: isDividend ? dash : formatCurrency(row.fees),
       },
       netAmount: { value: netAmount, display: formatCurrency(netAmount) },
-      netAvgPrice: { value: netAvgPrice, display: formatCurrency(netAvgPrice) },
+      netAvgPrice: {
+        value: netAvgPrice,
+        display: netAvgPrice !== null ? formatCurrency(netAvgPrice) : dash,
+      },
       portfolio: row.portfolio,
       currency: row.currency,
     };

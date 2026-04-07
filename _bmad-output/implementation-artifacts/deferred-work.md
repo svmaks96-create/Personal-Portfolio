@@ -67,3 +67,7 @@
 - `avgEntryPrice` = 0 (not null) when `totalSharesBought` = 0 — dividend-only tickers show "$0.00" instead of "N/A" for avg entry. Pre-existing edge case from story 3.1 (`isClosed` false-negative for dividend-only tickers).
 - `isClosed` false-negative when all buys had missing FX rates — `totalInvested` stays 0 because buy cost calculation is skipped, so `isClosed` condition (`totalInvested > 0`) fails. Position vanishes from both active and closed tables. Pre-existing FX rate handling issue.
 - Sell-before-buy causes negative `costBasis` flow-through — cost basis reduction overshoots when sell exceeds held shares, producing negative `avgEntryPrice`. `hasInvalidState` flag covers UI display. Pre-existing, see also deferred from story 1.2.
+
+## Deferred from: code review of 4-1-transaction-ledger-with-filtering-and-sorting (2026-04-07)
+
+- Withholding tax dividend rows have no visual distinction from income dividends — negative `grossAmount` rows display as regular "Dividend" with negative currency values. No visual cue (e.g., "Withholding Tax" label or row styling) to differentiate. UX enhancement beyond story scope.
