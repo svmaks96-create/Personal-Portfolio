@@ -1,8 +1,7 @@
 import { EmptyState } from "@/components/domain/empty-state";
 import { ControlsBar } from "@/components/domain/controls-bar";
 import { DrillDownPositionsTable } from "@/components/domain/positions-table";
-import { activePositionsColumns } from "@/components/domain/positions-columns";
-import { closedPositionsColumns } from "@/components/domain/positions-columns";
+import { activePositionsColumns, closedPositionsColumns } from "@/components/domain/positions-columns";
 import { getTransactionCount } from "@/server/queries/transactions";
 import { getActivePositions, getClosedPositions } from "@/server/queries/positions";
 import { getUniquePortfolios } from "@/server/queries/portfolios";

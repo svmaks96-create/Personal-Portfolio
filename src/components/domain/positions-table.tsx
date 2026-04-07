@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   useReactTable,
   getCoreRowModel,
@@ -95,19 +96,20 @@ export function PositionsTable<TData>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => {
-            const original = row.original as Record<string, unknown>;
-            const hasInvalidState = Boolean(original.hasInvalidState);
+            const hasInvalidState =
+              "hasInvalidState" in (row.original as object) &&
+              Boolean((row.original as Record<string, unknown>).hasInvalidState);
             return (
               <TableRow
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                className={`h-10 border-b border-zinc-100 ${
+                className={cn(
+                  "h-10 border-b border-zinc-100",
                   hasInvalidState
                     ? "bg-amber-50 hover:bg-amber-100"
-                    : onRowClick
-                      ? "hover:bg-zinc-100"
-                      : ""
-                } ${onRowClick ? "cursor-pointer" : ""}`}
+                    : onRowClick && "hover:bg-zinc-100",
+                  onRowClick && "cursor-pointer"
+                )}
               >
                 {row.getVisibleCells().map((cell) => {
                   const align =
@@ -155,7 +157,7 @@ export function DrillDownPositionsTable<TData extends { ticker: string; portfoli
       emptyMessage={emptyMessage}
       onRowClick={(row) =>
         router.push(
-          `/transactions?ticker=${row.ticker}&portfolio=${encodeURIComponent(row.portfolio)}`
+          `/transactions?ticker=${encodeURIComponent(row.ticker)}&portfolio=${encodeURIComponent(row.portfolio)}`
         )
       }
     />

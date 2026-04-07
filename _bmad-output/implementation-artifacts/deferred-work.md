@@ -60,3 +60,10 @@
 - `isClosed` false-negative for dividend-only tickers — ticker with only dividend transactions has `sharesHeld=0` and `totalInvested=0`, so `isClosed=false` and appears as active position with 0 shares. Pre-existing computation logic.
 - `hasInvalidState` not set for buys with missing FX rate — buys with missing FX rate add to `sharesHeld` without updating `costBasis`, creating positions where data is unreliable but not flagged. Pre-existing computation logic.
 - `totalValue = 0` nulls out all weights — `computeAggregates` uses `totalValueNum > 0` check, so zero total market value produces `weight: null` ("N/A") for all positions. Pre-existing, arguably correct.
+
+## Deferred from: code review of 3-2-closed-positions-table-and-drill-down-navigation (2026-04-07)
+
+- Double computation of `computeAllPositions` on positions page — `getActivePositions()` and `getClosedPositions()` each call `computeAllPositions()` independently, doubling DB queries and computation. Acceptable for single user, easy to optimize later with a combined function.
+- `avgEntryPrice` = 0 (not null) when `totalSharesBought` = 0 — dividend-only tickers show "$0.00" instead of "N/A" for avg entry. Pre-existing edge case from story 3.1 (`isClosed` false-negative for dividend-only tickers).
+- `isClosed` false-negative when all buys had missing FX rates — `totalInvested` stays 0 because buy cost calculation is skipped, so `isClosed` condition (`totalInvested > 0`) fails. Position vanishes from both active and closed tables. Pre-existing FX rate handling issue.
+- Sell-before-buy causes negative `costBasis` flow-through — cost basis reduction overshoots when sell exceeds held shares, producing negative `avgEntryPrice`. `hasInvalidState` flag covers UI display. Pre-existing, see also deferred from story 1.2.

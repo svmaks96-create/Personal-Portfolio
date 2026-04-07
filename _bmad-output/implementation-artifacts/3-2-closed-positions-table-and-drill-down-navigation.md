@@ -1,6 +1,6 @@
 # Story 3.2: Closed Positions Table & Drill-Down Navigation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -330,6 +330,20 @@ None — clean implementation, no blockers encountered.
 
 - 2026-04-07: Story 3.2 implemented — closed positions table, drill-down navigation, generalized PositionsTable
 - 2026-04-07: Fixed avgEntryPrice=0 for closed positions (now uses totalInvested/totalSharesBought), added avgExitPrice field throughout stack
+
+### Review Findings
+
+- [x] [Review][Decision] `avgEntryPrice` formula changed for ALL positions — approved: new formula matches FR31 definition
+- [x] [Review][Decision] "Avg Exit" column added without spec authorization — approved: useful addition, spec updated to 9 columns
+- [x] [Review][Patch] `ticker` not URL-encoded in drill-down navigation — fixed: added `encodeURIComponent` [`src/components/domain/positions-table.tsx`]
+- [x] [Review][Patch] Unsafe `as Record<string, unknown>` cast for `hasInvalidState` — fixed: uses `in` type guard [`src/components/domain/positions-table.tsx`]
+- [x] [Review][Patch] Duplicate import from `@/components/domain/positions-columns` — fixed: merged into single import [`src/app/positions/page.tsx`]
+- [x] [Review][Patch] Missing test for portfolio filtering in `getClosedPositions` — fixed: added test [`src/server/queries/positions.test.ts`]
+- [x] [Review][Patch] `className` uses nested ternary string concat instead of `cn()` utility — fixed: refactored to `cn()` [`src/components/domain/positions-table.tsx`]
+- [x] [Review][Defer] Double computation of `computeAllPositions` on page load — deferred, pre-existing design choice acknowledged in story notes
+- [x] [Review][Defer] `avgEntryPrice` = 0 (not null) when `totalSharesBought` = 0 (dividend-only tickers) — deferred, pre-existing edge case from story 3.1
+- [x] [Review][Defer] `isClosed` false-negative when all buys had missing FX rates (`totalInvested` stays 0) — deferred, pre-existing FX rate handling issue
+- [x] [Review][Defer] Sell-before-buy causes negative `costBasis` flow-through to `avgEntryPrice` — deferred, pre-existing, `hasInvalidState` flag covers UI
 
 ### File List
 

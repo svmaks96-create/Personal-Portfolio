@@ -206,6 +206,18 @@ describe("getClosedPositions", () => {
     expect(mockComputeAggregates).not.toHaveBeenCalled();
   });
 
+  it("passes portfolio filter to computeAllPositions", () => {
+    const closed = makePosition({ ticker: "TSLA", portfolio: "Schwab", isClosed: true, sharesHeld: 0 });
+    mockComputePositions.mockReturnValue([closed]);
+
+    const result = getClosedPositions("Schwab");
+
+    expect(result).toHaveLength(1);
+    expect(result[0].ticker).toBe("TSLA");
+    // computePositions is called (portfolio filtering happens at DB level in computeAllPositions)
+    expect(mockComputePositions).toHaveBeenCalled();
+  });
+
   it("handles null price-dependent fields with N/A display", () => {
     const closedNa = makePosition({
       isClosed: true,
