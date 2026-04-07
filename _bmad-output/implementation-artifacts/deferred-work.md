@@ -52,3 +52,11 @@
 - `getExistingSymbolDates` fetches all historical rows per symbol [src/server/queries/market-data.ts:15-22] — loads entire (symbol, date) history into memory to check one date. Will degrade as market_data grows. Consider adding a date filter or using a subquery for latest date only.
 - No unique constraint on `market_data(symbol, type, date)` [src/server/db/schema.ts] — pre-existing; concurrent refresh could insert duplicate rows. See also: TOCTOU race deferred from story 2.1.
 - `fromUnixTime` UTC vs exchange-local trading date semantics [src/server/actions/market-data.ts] — `fromUnixTime(q.timestamp).toISOString().slice(0,10)` produces UTC date, but trading dates are in exchange-local time. Late-session trades in far-east exchanges could map to wrong UTC calendar day. Needs research into FMP timestamp semantics.
+
+## Deferred from: code review of 3-1-active-positions-table (2026-04-07)
+
+- FX rates fetched without dedup/ordering in `getActivePositions` — same pattern as `getDashboardMetrics`; computation service handles selection correctly but all historical rows loaded into memory. See also: O(n*m) FX lookup deferred from story 1.3.
+- Portfolio selector drops non-portfolio query params on navigation — `router.push(pathname)` and `router.push(\`${pathname}?portfolio=...\`)` discard any other URL search params. No current impact (only `?portfolio=` used today) but will break if future pages add query params.
+- `isClosed` false-negative for dividend-only tickers — ticker with only dividend transactions has `sharesHeld=0` and `totalInvested=0`, so `isClosed=false` and appears as active position with 0 shares. Pre-existing computation logic.
+- `hasInvalidState` not set for buys with missing FX rate — buys with missing FX rate add to `sharesHeld` without updating `costBasis`, creating positions where data is unreliable but not flagged. Pre-existing computation logic.
+- `totalValue = 0` nulls out all weights — `computeAggregates` uses `totalValueNum > 0` check, so zero total market value produces `weight: null` ("N/A") for all positions. Pre-existing, arguably correct.

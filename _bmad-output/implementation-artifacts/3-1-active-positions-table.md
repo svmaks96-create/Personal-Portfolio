@@ -1,6 +1,6 @@
 # Story 3.1: Active Positions Table
 
-Status: review
+Status: done
 
 ## Story
 
@@ -333,6 +333,18 @@ Claude Opus 4.6 (1M context)
 - 4 unit tests for `getActivePositions()` covering: empty state, formatted output, closed position exclusion, null/N/A handling
 - All 97 tests pass, lint clean (only expected React Compiler warning for TanStack Table), production build successful
 - Note on Task 6.2 (column definition tests): Column definitions are pure data declarations with no branching logic. Testing them would only verify static data, adding maintenance burden with no value. The column behavior is validated through the query tests (formatting) and will be covered by E2E tests (rendering).
+
+### Review Findings
+
+- [x] [Review][Decision] P&L zero handling — resolved: neutral (no color for zero). Fixed in both positions-columns.tsx and dashboard-metrics.tsx
+- [x] [Review][Dismissed] Numeric columns use `text-center` — intentional per developer choice
+- [x] [Review][Patch] Null sorting — fixed: added `sortUndefined: "last"` + `?? undefined` on all nullable accessorFns [src/components/domain/positions-columns.tsx]
+- [x] [Review][Dismissed] Client `import type` from `src/server/` — already uses `import type` syntax, safe
+- [x] [Review][Defer] FX rates fetched without dedup/ordering — pre-existing pattern from dashboard.ts, computation service handles multiple entries
+- [x] [Review][Defer] Portfolio selector drops non-portfolio query params — no current impact, only `?portfolio=` used today
+- [x] [Review][Defer] `isClosed` false-negative for dividend-only tickers — pre-existing computation logic
+- [x] [Review][Defer] `hasInvalidState` not set for buys with missing FX rate — pre-existing computation logic
+- [x] [Review][Defer] `totalValue = 0` nulls out all weights — pre-existing computation logic, arguably correct
 
 ### Change Log
 

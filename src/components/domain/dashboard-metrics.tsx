@@ -10,7 +10,7 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
   const metrics = getDashboardMetrics(portfolio);
 
   const pnlDirection =
-    metrics.totalPnl === null
+    metrics.totalPnl === null || metrics.totalPnl === 0
       ? null
       : metrics.totalPnl > 0
         ? "positive"
