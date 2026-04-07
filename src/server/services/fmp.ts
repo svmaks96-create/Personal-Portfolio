@@ -36,6 +36,16 @@ export async function fetchFxRates(currencies: string[]): Promise<FmpFxQuote[]> 
   return results.flat();
 }
 
+function isValidQuote(item: unknown): item is FmpQuote {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    typeof (item as FmpQuote).symbol === "string" &&
+    typeof (item as FmpQuote).price === "number" &&
+    Number.isFinite((item as FmpQuote).price)
+  );
+}
+
 async function fetchQuoteShort(symbol: string): Promise<FmpQuote[]> {
   try {
     const url = `${FMP_BASE_URL}/quote-short/${encodeURIComponent(symbol)}?apikey=${config.fmpApiKey}`;
@@ -43,7 +53,7 @@ async function fetchQuoteShort(symbol: string): Promise<FmpQuote[]> {
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data as FmpQuote[];
+    return data.filter(isValidQuote);
   } catch {
     return [];
   }
@@ -56,7 +66,7 @@ async function fetchForexQuoteShort(pair: string): Promise<FmpFxQuote[]> {
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data as FmpFxQuote[];
+    return data.filter(isValidQuote) as FmpFxQuote[];
   } catch {
     return [];
   }

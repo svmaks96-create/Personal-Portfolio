@@ -103,6 +103,7 @@ ENV ACCESS:      src/server/config.ts (only file reading process.env)
 - Domain components receive `{ value: number, display: string }` — never format in components
 - URL search params (`?portfolio=`) for filter state persistence
 - Shadcn components imported directly from `@/components/ui/` — no wrapping
+- Do lint first, then tests while reviewing the code and testing
 
 ### Anti-Patterns (DO NOT)
 

@@ -1,6 +1,6 @@
 # Story 2.1: FMP Service & Market Data Server Actions
 
-Status: review
+Status: done
 
 ## Story
 
@@ -334,3 +334,15 @@ All 79 tests pass (6 test files). Zero lint errors/warnings.
 - `src/server/services/fmp.test.ts` (NEW)
 - `src/server/queries/market-data.ts` (NEW)
 - `src/server/actions/market-data.ts` (NEW)
+
+### Review Findings
+
+- [x] [Review][Decision] FMP service imports `config` directly — ACCEPTED (Option B). Config.ts is the canonical env accessor; keeps call sites cleaner. User decision: 2026-04-07.
+- [x] [Review][Decision] Partial success not reported to caller — ACCEPTED (Option B). Failed tickers show "N/A" in UI; user can retry. User decision: 2026-04-07.
+- [x] [Review][Patch] Unsafe `as` type assertion — no runtime validation of FMP response shape [src/server/services/fmp.ts] — FIXED: added `isValidQuote` guard that checks `symbol` is string and `price` is finite number; replaced `as` casts with `.filter(isValidQuote)`.
+- [x] [Review][Patch] No transaction wrapping inserts — partial writes with no rollback [src/server/actions/market-data.ts] — FIXED: wrapped insert loops in `db.transaction()` for atomicity.
+- [x] [Review][Patch] Total FMP failure reported as success with 0 updates [src/server/actions/market-data.ts] — FIXED: added `quotes.length === 0` check after FMP call; returns failure when all fetches fail.
+- [x] [Review][Patch] Error messages swallow all diagnostic info [src/server/actions/market-data.ts] — FIXED: added `console.error` before returning generic error message.
+- [x] [Review][Patch] No validation that `quote.price` is a finite number [src/server/services/fmp.ts] — FIXED: `isValidQuote` checks `Number.isFinite(price)`, filtering out NaN/Infinity.
+- [x] [Review][Defer] Concurrent refreshes can create duplicate rows (TOCTOU race) [src/server/actions/market-data.ts:28-52] — deferred, pre-existing. Check-then-insert without locking or upsert. Single-user localhost app makes this low-risk.
+- [x] [Review][Defer] Unbounded parallelism in FMP API calls [src/server/services/fmp.ts:15,30] — deferred, pre-existing. `Promise.all` with no concurrency limit. Seed data has ~10 tickers; will matter if portfolio grows to 100+.

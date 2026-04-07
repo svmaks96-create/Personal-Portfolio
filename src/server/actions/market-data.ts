@@ -38,19 +38,28 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
     // 3. Call FMP service
     const quotes = await fetchStockPrices(tickersToFetch);
 
-    // 4. Write results to market_data table
-    const fetchedAt = new Date().toISOString();
-    for (const quote of quotes) {
-      db.insert(marketData)
-        .values({
-          symbol: quote.symbol,
-          type: "stock_price",
-          date: today,
-          value: quote.price,
-          fetchedAt,
-        })
-        .run();
+    if (quotes.length === 0) {
+      return {
+        success: false,
+        error: "Unable to fetch stock prices. Please try again.",
+      };
     }
+
+    // 4. Write results to market_data table (atomic)
+    const fetchedAt = new Date().toISOString();
+    db.transaction((tx) => {
+      for (const quote of quotes) {
+        tx.insert(marketData)
+          .values({
+            symbol: quote.symbol,
+            type: "stock_price",
+            date: today,
+            value: quote.price,
+            fetchedAt,
+          })
+          .run();
+      }
+    });
 
     // 5. Revalidate
     revalidatePath("/", "layout");
@@ -60,7 +69,8 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       success: true,
       data: { updated: quotes.length, skipped },
     };
-  } catch {
+  } catch (error) {
+    console.error("refreshPrices failed:", error);
     return {
       success: false,
       error: "Unable to fetch stock prices. Please try again.",
@@ -99,19 +109,28 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
     // 3. Call FMP service
     const fxQuotes = await fetchFxRates(pairsToFetch);
 
-    // 4. Write results to market_data table
-    const fetchedAt = new Date().toISOString();
-    for (const quote of fxQuotes) {
-      db.insert(marketData)
-        .values({
-          symbol: quote.symbol,
-          type: "fx_rate",
-          date: today,
-          value: quote.price,
-          fetchedAt,
-        })
-        .run();
+    if (fxQuotes.length === 0) {
+      return {
+        success: false,
+        error: "Unable to fetch FX rates. Please try again.",
+      };
     }
+
+    // 4. Write results to market_data table (atomic)
+    const fetchedAt = new Date().toISOString();
+    db.transaction((tx) => {
+      for (const quote of fxQuotes) {
+        tx.insert(marketData)
+          .values({
+            symbol: quote.symbol,
+            type: "fx_rate",
+            date: today,
+            value: quote.price,
+            fetchedAt,
+          })
+          .run();
+      }
+    });
 
     // 5. Revalidate
     revalidatePath("/", "layout");
@@ -121,7 +140,8 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       success: true,
       data: { updated: fxQuotes.length, skipped },
     };
-  } catch {
+  } catch (error) {
+    console.error("refreshFxRates failed:", error);
     return {
       success: false,
       error: "Unable to fetch FX rates. Please try again.",

@@ -35,3 +35,8 @@
 - Mixed currencies in same ticker+portfolio group amplified by FX conversion — `currency` taken from first transaction in group; FX conversion now multiplies wrong-currency values by wrong rate. Pre-existing from story 1.2, worsened by FX.
 - Aggregate null-propagation skips closed positions with null monetary fields — `computeAggregates` only nulls totals for non-closed positions with null values; a closed position with null fields is silently excluded. Currently unreachable because missingFxRate forces `isClosed: false`.
 - O(n*m) FX lookup performance — `lookupFxRate` scans all rates linearly per transaction call. Negligible now, may need indexing when historical FX rates accumulate.
+
+## Deferred from: code review of 2-1-fmp-service-and-market-data-server-actions (2026-04-07)
+
+- Concurrent refreshes can create duplicate rows (TOCTOU race) [src/server/actions/market-data.ts] — check-then-insert without locking or upsert. Single-user localhost app makes this low-risk.
+- Unbounded parallelism in FMP API calls [src/server/services/fmp.ts] — `Promise.all` with no concurrency limit. Seed data has ~10 tickers; will matter if portfolio grows to 100+.

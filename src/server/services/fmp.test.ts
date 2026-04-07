@@ -91,6 +91,22 @@ describe("fetchStockPrices", () => {
     expect(result).toEqual([]);
   });
 
+  it("filters out items with missing price field", async () => {
+    mockFetchResponse([{ symbol: "AAPL" }, { symbol: "MSFT", price: 410.5, volume: 200 }]);
+    const result = await fetchStockPrices(["AAPL"]);
+    expect(result).toEqual([{ symbol: "MSFT", price: 410.5, volume: 200 }]);
+  });
+
+  it("filters out items with NaN or Infinity price", async () => {
+    mockFetchResponse([
+      { symbol: "BAD1", price: NaN, volume: 0 },
+      { symbol: "BAD2", price: Infinity, volume: 0 },
+      { symbol: "GOOD", price: 100, volume: 50 },
+    ]);
+    const result = await fetchStockPrices(["AAPL"]);
+    expect(result).toEqual([{ symbol: "GOOD", price: 100, volume: 50 }]);
+  });
+
   it("handles partial failures gracefully", async () => {
     vi.spyOn(global, "fetch").mockImplementation(async (url) => {
       const urlStr = url instanceof Request ? url.url : url.toString();
