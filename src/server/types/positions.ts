@@ -28,6 +28,7 @@ export interface ComputedPosition {
   currency: string;
   sharesHeld: number;
   avgEntryPrice: number | null;
+  avgExitPrice: number | null;
   costBasis: number | null;
   lastPrice: number | null;
   marketValue: number | null;

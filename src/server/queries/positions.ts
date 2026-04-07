@@ -12,6 +12,7 @@ import type {
   TransactionInput,
   MarketDataInput,
   FxRateInput,
+  ComputedPosition,
 } from "@/server/types/positions";
 
 export interface ActivePositionRow {
@@ -29,7 +30,19 @@ export interface ActivePositionRow {
   weight: { value: number | null; display: string };
 }
 
-export function getActivePositions(portfolio?: string): ActivePositionRow[] {
+export interface ClosedPositionRow {
+  ticker: string;
+  portfolio: string;
+  avgEntry: { value: number | null; display: string };
+  avgExit: { value: number | null; display: string };
+  lastPrice: { value: number | null; display: string };
+  totalInvested: { value: number | null; display: string };
+  totalProceeds: { value: number | null; display: string };
+  dividends: { value: number | null; display: string };
+  realizedPnl: { value: number | null; display: string };
+}
+
+function computeAllPositions(portfolio?: string): ComputedPosition[] {
   // 1. Fetch transactions
   const txRows = portfolio
     ? db.select().from(transactions).where(eq(transactions.portfolio, portfolio)).all()
@@ -79,12 +92,15 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
     value: row.value,
   }));
 
-  // 4. Compute positions and aggregates (active positions only)
-  const positions = computePositions(txInputs, priceMap, fxRates);
+  // 4. Compute positions
+  return computePositions(txInputs, priceMap, fxRates);
+}
+
+export function getActivePositions(portfolio?: string): ActivePositionRow[] {
+  const positions = computeAllPositions(portfolio);
   const activePositions = positions.filter((p) => !p.isClosed);
   const aggregates = computeAggregates(activePositions);
 
-  // 5. Map to ActivePositionRow with { value, display } pairs
   return aggregates.positions.map((p) => ({
     ticker: p.ticker,
     portfolio: p.portfolio,
@@ -98,5 +114,22 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
     sellProceeds: { value: p.totalSellProceeds, display: formatCurrency(p.totalSellProceeds) },
     pnl: { value: p.totalPnl, display: formatPnL(p.totalPnl) },
     weight: { value: p.weight, display: formatPercent(p.weight) },
+  }));
+}
+
+export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
+  const positions = computeAllPositions(portfolio);
+  const closedPositions = positions.filter((p) => p.isClosed);
+
+  return closedPositions.map((p) => ({
+    ticker: p.ticker,
+    portfolio: p.portfolio,
+    avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
+    avgExit: { value: p.avgExitPrice, display: formatCurrency(p.avgExitPrice) },
+    lastPrice: { value: p.lastPrice, display: formatCurrency(p.lastPrice) },
+    totalInvested: { value: p.totalInvested, display: formatCurrency(p.totalInvested) },
+    totalProceeds: { value: p.totalSellProceeds, display: formatCurrency(p.totalSellProceeds) },
+    dividends: { value: p.totalDividends, display: formatCurrency(p.totalDividends) },
+    realizedPnl: { value: p.totalPnl, display: formatPnL(p.totalPnl) },
   }));
 }

@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
   flexRender,
   type SortingState,
+  type ColumnDef,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import {
@@ -18,22 +20,27 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/domain/empty-state";
-import { activePositionsColumns } from "@/components/domain/positions-columns";
-import type { ActivePositionRow } from "@/server/queries/positions";
 
-interface PositionsTableProps {
-  data: ActivePositionRow[];
-  emptyMessage: string;
+interface PositionsTableProps<TData> {
+  data: TData[];
+  columns: ColumnDef<TData, unknown>[];
+  defaultSort: SortingState;
+  emptyMessage?: string;
+  onRowClick?: (row: TData) => void;
 }
 
-export function PositionsTable({ data, emptyMessage }: PositionsTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "marketValue", desc: true },
-  ]);
+export function PositionsTable<TData>({
+  data,
+  columns,
+  defaultSort,
+  emptyMessage,
+  onRowClick,
+}: PositionsTableProps<TData>) {
+  const [sorting, setSorting] = useState<SortingState>(defaultSort);
 
   const table = useReactTable({
     data,
-    columns: activePositionsColumns,
+    columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
@@ -41,7 +48,10 @@ export function PositionsTable({ data, emptyMessage }: PositionsTableProps) {
   });
 
   if (data.length === 0) {
-    return <EmptyState message={emptyMessage} />;
+    if (emptyMessage) {
+      return <EmptyState message={emptyMessage} />;
+    }
+    return null;
   }
 
   return (
@@ -84,31 +94,70 @@ export function PositionsTable({ data, emptyMessage }: PositionsTableProps) {
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              className={`h-10 border-b border-zinc-100 ${
-                row.original.hasInvalidState ? "bg-amber-50" : ""
-              }`}
-            >
-              {row.getVisibleCells().map((cell) => {
-                const align =
-                  (cell.column.columnDef.meta as { align?: string })?.align;
-                return (
-                  <TableCell
-                    key={cell.id}
-                    className={`text-[14px] text-zinc-900 ${
-                      align === "center" ? "text-center" : ""
-                    }`}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
+          {table.getRowModel().rows.map((row) => {
+            const original = row.original as Record<string, unknown>;
+            const hasInvalidState = Boolean(original.hasInvalidState);
+            return (
+              <TableRow
+                key={row.id}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                className={`h-10 border-b border-zinc-100 ${
+                  hasInvalidState
+                    ? "bg-amber-50 hover:bg-amber-100"
+                    : onRowClick
+                      ? "hover:bg-zinc-100"
+                      : ""
+                } ${onRowClick ? "cursor-pointer" : ""}`}
+              >
+                {row.getVisibleCells().map((cell) => {
+                  const align =
+                    (cell.column.columnDef.meta as { align?: string })?.align;
+                  return (
+                    <TableCell
+                      key={cell.id}
+                      className={`text-[14px] text-zinc-900 ${
+                        align === "center" ? "text-center" : ""
+                      }`}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+interface DrillDownPositionsTableProps<TData extends { ticker: string; portfolio: string }> {
+  data: TData[];
+  columns: ColumnDef<TData, unknown>[];
+  defaultSort: SortingState;
+  emptyMessage?: string;
+}
+
+export function DrillDownPositionsTable<TData extends { ticker: string; portfolio: string }>({
+  data,
+  columns,
+  defaultSort,
+  emptyMessage,
+}: DrillDownPositionsTableProps<TData>) {
+  const router = useRouter();
+
+  return (
+    <PositionsTable
+      data={data}
+      columns={columns}
+      defaultSort={defaultSort}
+      emptyMessage={emptyMessage}
+      onRowClick={(row) =>
+        router.push(
+          `/transactions?ticker=${row.ticker}&portfolio=${encodeURIComponent(row.portfolio)}`
+        )
+      }
+    />
   );
 }

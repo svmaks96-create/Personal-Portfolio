@@ -58,6 +58,8 @@ export function computePositions(
     let totalInvested = new Decimal(0);
     let totalDividends = new Decimal(0);
     let totalSellProceeds = new Decimal(0);
+    let totalSharesBought = new Decimal(0);
+    let totalSharesSold = new Decimal(0);
     let hasInvalidState = false;
     let missingFxRate = false;
 
@@ -74,9 +76,13 @@ export function computePositions(
       if (fxRateValue === null) {
         missingFxRate = true;
         // Still track shares even when FX rate is missing
-        if (t.action === "buy") sharesHeld = sharesHeld.plus(qty);
+        if (t.action === "buy") {
+          sharesHeld = sharesHeld.plus(qty);
+          totalSharesBought = totalSharesBought.plus(qty);
+        }
         if (t.action === "sell") {
           sharesHeld = sharesHeld.minus(qty);
+          totalSharesSold = totalSharesSold.plus(qty);
           if (sharesHeld.lessThan(0)) hasInvalidState = true;
         }
         continue;
@@ -87,6 +93,7 @@ export function computePositions(
         case "buy": {
           const buyCost = price.times(qty).plus(fees).times(rate);
           sharesHeld = sharesHeld.plus(qty);
+          totalSharesBought = totalSharesBought.plus(qty);
           costBasis = costBasis.plus(buyCost);
           totalInvested = totalInvested.plus(buyCost);
           break;
@@ -97,6 +104,7 @@ export function computePositions(
             costBasis = costBasis.minus(reduction);
           }
           sharesHeld = sharesHeld.minus(qty);
+          totalSharesSold = totalSharesSold.plus(qty);
           const sellProceeds = price.times(qty).minus(fees).times(rate);
           totalSellProceeds = totalSellProceeds.plus(sellProceeds);
           if (sharesHeld.lessThan(0)) {
@@ -126,6 +134,7 @@ export function computePositions(
         currency,
         sharesHeld: sharesHeld.toNumber(),
         avgEntryPrice: null,
+        avgExitPrice: null,
         costBasis: null,
         lastPrice: marketData[first.ticker]?.value ?? null,
         marketValue: null,
@@ -141,10 +150,15 @@ export function computePositions(
       continue;
     }
 
-    // Average entry price — guard against division by zero
-    const avgEntryPrice = sharesHeld.greaterThan(0)
-      ? costBasis.div(sharesHeld)
+    // Average entry price (cost-inclusive): totalInvested / totalSharesBought
+    const avgEntryPrice = totalSharesBought.greaterThan(0)
+      ? totalInvested.div(totalSharesBought)
       : new Decimal(0);
+
+    // Average exit price: total sell proceeds / total shares sold
+    const avgExitPrice = totalSharesSold.greaterThan(0)
+      ? totalSellProceeds.div(totalSharesSold)
+      : null;
 
     const isClosed = sharesHeld.isZero() && totalInvested.greaterThan(0);
 
@@ -193,6 +207,7 @@ export function computePositions(
       currency,
       sharesHeld: sharesHeld.toNumber(),
       avgEntryPrice: avgEntryPrice.toNumber(),
+      avgExitPrice: avgExitPrice ? avgExitPrice.toNumber() : null,
       costBasis: costBasis.toNumber(),
       lastPrice,
       marketValue,

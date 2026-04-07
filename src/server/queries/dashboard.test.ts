@@ -29,6 +29,7 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     currency: "USD",
     sharesHeld: 10,
     avgEntryPrice: 150,
+    avgExitPrice: null,
     costBasis: 1500,
     lastPrice: 175,
     marketValue: 1750,

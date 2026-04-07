@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { TriangleAlert } from "lucide-react";
-import type { ActivePositionRow } from "@/server/queries/positions";
+import type { ActivePositionRow, ClosedPositionRow } from "@/server/queries/positions";
 
 function NumericCell({ display }: { display: string }) {
   return <span className="tabular-nums">{display}</span>;
@@ -110,6 +110,90 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     accessorFn: (row) => row.weight.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => <NumericCell display={row.original.weight.display} />,
+    meta: { align: "center" as const },
+  },
+];
+
+export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
+  {
+    accessorKey: "ticker",
+    header: "Ticker",
+    cell: ({ row }) => <span className="font-medium">{row.original.ticker}</span>,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "portfolio",
+    header: "Portfolio",
+    cell: ({ row }) => row.original.portfolio,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "avgEntry",
+    header: "Avg Entry",
+    accessorFn: (row) => row.avgEntry.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => <NumericCell display={row.original.avgEntry.display} />,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "avgExit",
+    header: "Avg Exit",
+    accessorFn: (row) => row.avgExit.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => <NumericCell display={row.original.avgExit.display} />,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "lastPrice",
+    header: "Last Price",
+    accessorFn: (row) => row.lastPrice.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => <NumericCell display={row.original.lastPrice.display} />,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "totalInvested",
+    header: "Total Invested",
+    accessorFn: (row) => row.totalInvested.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => <NumericCell display={row.original.totalInvested.display} />,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "totalProceeds",
+    header: "Total Proceeds",
+    accessorFn: (row) => row.totalProceeds.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => <NumericCell display={row.original.totalProceeds.display} />,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "dividends",
+    header: "Dividends",
+    accessorFn: (row) => row.dividends.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => <NumericCell display={row.original.dividends.display} />,
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "realizedPnl",
+    header: "Realized P&L",
+    accessorFn: (row) => row.realizedPnl.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => {
+      const value = row.original.realizedPnl.value;
+      const colorClass =
+        value === null || value === 0
+          ? ""
+          : value > 0
+            ? "text-emerald-600"
+            : "text-red-600";
+      return (
+        <span className={`tabular-nums ${colorClass}`}>
+          {row.original.realizedPnl.display}
+        </span>
+      );
+    },
     meta: { align: "center" as const },
   },
 ];

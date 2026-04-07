@@ -15,7 +15,7 @@ vi.mock("@/server/services/computation", () => ({
   computeAggregates: vi.fn(),
 }));
 
-import { getActivePositions } from "./positions";
+import { getActivePositions, getClosedPositions } from "./positions";
 import { computePositions, computeAggregates } from "@/server/services/computation";
 import type { AggregateMetrics, ComputedPosition } from "@/server/types/positions";
 
@@ -29,6 +29,7 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     currency: "USD",
     sharesHeld: 10,
     avgEntryPrice: 150,
+    avgExitPrice: null,
     costBasis: 1500,
     lastPrice: 175,
     marketValue: 1750,
@@ -138,5 +139,96 @@ describe("getActivePositions", () => {
     expect(result[0].marketValue).toEqual({ value: null, display: "N/A" });
     expect(result[0].pnl).toEqual({ value: null, display: "N/A" });
     expect(result[0].weight).toEqual({ value: null, display: "N/A" });
+  });
+});
+
+describe("getClosedPositions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns empty array when no positions exist", () => {
+    mockComputePositions.mockReturnValue([]);
+
+    const result = getClosedPositions();
+    expect(result).toEqual([]);
+  });
+
+  it("returns only closed positions with correct formatting", () => {
+    const closedPosition = makePosition({
+      ticker: "TSLA",
+      portfolio: "Schwab",
+      isClosed: true,
+      sharesHeld: 0,
+      avgEntryPrice: 215,
+      avgExitPrice: 240,
+      lastPrice: 180,
+      totalInvested: 2150,
+      totalSellProceeds: 2400,
+      totalDividends: 30,
+      totalPnl: 280,
+    });
+    const activePosition = makePosition({ ticker: "AAPL", isClosed: false });
+
+    mockComputePositions.mockReturnValue([activePosition, closedPosition]);
+
+    const result = getClosedPositions();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].ticker).toBe("TSLA");
+    expect(result[0].portfolio).toBe("Schwab");
+    expect(result[0].avgEntry).toEqual({ value: 215, display: "$215.00" });
+    expect(result[0].avgExit).toEqual({ value: 240, display: "$240.00" });
+    expect(result[0].lastPrice).toEqual({ value: 180, display: "$180.00" });
+    expect(result[0].totalInvested).toEqual({ value: 2150, display: "$2,150.00" });
+    expect(result[0].totalProceeds).toEqual({ value: 2400, display: "$2,400.00" });
+    expect(result[0].dividends).toEqual({ value: 30, display: "$30.00" });
+    expect(result[0].realizedPnl).toEqual({ value: 280, display: "+$280.00" });
+  });
+
+  it("excludes active positions", () => {
+    const active = makePosition({ ticker: "AAPL", isClosed: false });
+    const closed = makePosition({ ticker: "MSFT", isClosed: true, sharesHeld: 0 });
+
+    mockComputePositions.mockReturnValue([active, closed]);
+
+    const result = getClosedPositions();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].ticker).toBe("MSFT");
+  });
+
+  it("does not call computeAggregates", () => {
+    mockComputePositions.mockReturnValue([]);
+
+    getClosedPositions();
+
+    expect(mockComputeAggregates).not.toHaveBeenCalled();
+  });
+
+  it("handles null price-dependent fields with N/A display", () => {
+    const closedNa = makePosition({
+      isClosed: true,
+      sharesHeld: 0,
+      lastPrice: null,
+      totalPnl: null,
+      totalInvested: null,
+      totalSellProceeds: null,
+      totalDividends: null,
+      avgEntryPrice: null,
+      avgExitPrice: null,
+    });
+
+    mockComputePositions.mockReturnValue([closedNa]);
+
+    const result = getClosedPositions();
+
+    expect(result[0].lastPrice).toEqual({ value: null, display: "N/A" });
+    expect(result[0].avgEntry).toEqual({ value: null, display: "N/A" });
+    expect(result[0].avgExit).toEqual({ value: null, display: "N/A" });
+    expect(result[0].totalInvested).toEqual({ value: null, display: "N/A" });
+    expect(result[0].totalProceeds).toEqual({ value: null, display: "N/A" });
+    expect(result[0].dividends).toEqual({ value: null, display: "N/A" });
+    expect(result[0].realizedPnl).toEqual({ value: null, display: "N/A" });
   });
 });

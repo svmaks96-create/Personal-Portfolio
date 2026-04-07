@@ -321,7 +321,8 @@ describe("computePositions", () => {
 
     expect(pos.isClosed).toBe(true);
     expect(pos.sharesHeld).toBe(0);
-    expect(pos.avgEntryPrice).toBe(0); // division-by-zero guard
+    expect(pos.avgEntryPrice).toBeCloseTo(461.84 / 500, 4); // totalInvested / totalSharesBought
+    expect(pos.avgExitPrice).toBeCloseTo(525.42 / 500, 4); // totalSellProceeds / totalSharesSold
     expect(pos.costBasis).toBeCloseTo(0, 2); // fully reduced
     expect(pos.lastPrice).toBe(0.88); // native GBP
     expect(pos.marketValue).toBe(0); // closed
