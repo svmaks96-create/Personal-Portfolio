@@ -1,6 +1,6 @@
 # Story 1.3: Multi-Currency FX Conversion
 
-Status: review
+Status: done
 
 ## Story
 
@@ -56,6 +56,16 @@ So that multi-currency portfolios compute correctly and match broker-reported US
   - [x] Add test: Missing FX rate for non-USD currency → monetary fields null
   - [x] Add test: Mixed-currency `computeAggregates` with all values in USD
   - [x] Verify no regressions: all existing tests still pass with `fxRates = []`
+
+### Review Findings
+
+- [x] [Review][Decision] Market value FX uses "most recent" rate, not "price-date" rate per FR44 — RESOLVED: added `date` field to `MarketDataInput`, FX lookup now uses `md.date` (price-date) when market data available, falls back to most recent for closed positions without market data.
+- [x] [Review][Patch] `isClosed` hardcoded to `false` in missingFxRate path [computation.ts:~138] — FIXED: now computes `isClosed` from `sharesHeld.isZero() && totalInvested.greaterThan(0)`, consistent with normal path.
+- [x] [Review][Defer] Truthiness check on `Decimal(0)` fragile pattern [computation.ts:246-249] — deferred, pre-existing pattern from story 1.2 (extended here to `totalCostBasis`/`totalCashReturned`). `Decimal(0)` is truthy so no current bug, but refactoring to `number` would break.
+- [x] [Review][Defer] FX rate value of zero/negative not validated [computation.ts:lookupFxRate] — deferred, input validation concern; FMP service (Story 2.1) or import validation (Story 5) should ensure positive FX rates.
+- [x] [Review][Defer] Mixed currencies in same ticker+portfolio group amplified by FX conversion [computation.ts:65] — deferred, pre-existing from story 1.2; FX conversion makes the impact worse but root cause is upstream data quality.
+- [x] [Review][Defer] Aggregate null-propagation skips closed positions with null monetary fields [computation.ts:221-231] — deferred, depends on fixing `isClosed` bug first; currently unreachable because missingFxRate forces `isClosed: false`.
+- [x] [Review][Defer] O(n*m) FX lookup performance for large datasets [computation.ts:lookupFxRate] — deferred, negligible with current seed data; may need index/binary search when historical FX rates accumulate.
 
 ## Dev Notes
 

@@ -135,7 +135,7 @@ export function computePositions(
         totalPnl: null,
         currentFxRate: null,
         cashReturned: null,
-        isClosed: false,
+        isClosed: sharesHeld.isZero() && totalInvested.greaterThan(0),
         hasInvalidState,
       });
       continue;
@@ -152,10 +152,11 @@ export function computePositions(
     const md = marketData[first.ticker];
     const lastPrice = md ? md.value : null;
 
-    // Look up current FX rate for market value conversion
-    // For market data, use the most recent available FX rate
-    const currentFxRateValue = lookupFxRate(currency, "9999-12-31", fxRates);
-    const currentFxRate = currentFxRateValue;
+    // Look up FX rate for market value conversion
+    // Use price-date when market data available (FR44); fall back to most recent for informational use
+    const currentFxRate = md
+      ? lookupFxRate(currency, md.date, fxRates)
+      : lookupFxRate(currency, "9999-12-31", fxRates);
 
     let marketValue: number | null = null;
     let totalPnl: number | null = null;

@@ -12,6 +12,7 @@ export interface TransactionInput {
 
 export interface MarketDataInput {
   symbol: string;
+  date: string;    // ISO date string for the price observation
   value: number;
 }
 

@@ -148,7 +148,7 @@ describe("computePositions", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      AAPL: { symbol: "AAPL", value: 215.3 },
+      AAPL: { symbol: "AAPL", date: "2026-04-04", value: 215.3 },
     };
 
     const positions = computePositions(transactions, marketData, []);
@@ -284,8 +284,8 @@ describe("computePositions", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      AAPL: { symbol: "AAPL", value: 215.3 },
-      MSFT: { symbol: "MSFT", value: 365.8 },
+      AAPL: { symbol: "AAPL", date: "2026-04-04", value: 215.3 },
+      MSFT: { symbol: "MSFT", date: "2026-04-04", value: 365.8 },
     };
 
     const positions = computePositions(transactions, marketData, []);
@@ -313,7 +313,7 @@ describe("computePositions", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      "VOD.L": { symbol: "VOD.L", value: 0.88 },
+      "VOD.L": { symbol: "VOD.L", date: "2026-04-04", value: 0.88 },
     };
 
     const positions = computePositions(transactions, marketData, SEED_FX_RATES);
@@ -340,7 +340,7 @@ describe("computePositions", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      "SAP.DE": { symbol: "SAP.DE", value: 178.5 },
+      "SAP.DE": { symbol: "SAP.DE", date: "2026-04-04", value: 178.5 },
     };
 
     const positions = computePositions(transactions, marketData, SEED_FX_RATES);
@@ -373,7 +373,7 @@ describe("computePositions", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      AAPL: { symbol: "AAPL", value: 215.3 },
+      AAPL: { symbol: "AAPL", date: "2026-04-04", value: 215.3 },
     };
 
     // Pass FX rates — USD positions should be unaffected
@@ -445,10 +445,10 @@ describe("computePositions", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      AAPL: { symbol: "AAPL", value: 215.3 },
-      MSFT: { symbol: "MSFT", value: 365.8 },
-      "VOD.L": { symbol: "VOD.L", value: 0.88 },
-      "SAP.DE": { symbol: "SAP.DE", value: 178.5 },
+      AAPL: { symbol: "AAPL", date: "2026-04-04", value: 215.3 },
+      MSFT: { symbol: "MSFT", date: "2026-04-04", value: 365.8 },
+      "VOD.L": { symbol: "VOD.L", date: "2026-04-04", value: 0.88 },
+      "SAP.DE": { symbol: "SAP.DE", date: "2026-04-04", value: 178.5 },
     };
 
     const positions = computePositions(transactions, marketData, SEED_FX_RATES);
@@ -502,8 +502,8 @@ describe("computeAggregates", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      A: { symbol: "A", value: 110 },
-      B: { symbol: "B", value: 55 },
+      A: { symbol: "A", date: "2026-04-04", value: 110 },
+      B: { symbol: "B", date: "2026-04-04", value: 55 },
     };
 
     const positions = computePositions(transactions, marketData, []);
@@ -526,7 +526,7 @@ describe("computeAggregates", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      A: { symbol: "A", value: 110 },
+      A: { symbol: "A", date: "2026-04-04", value: 110 },
       // B has no market data
     };
 
@@ -547,7 +547,7 @@ describe("computeAggregates", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      B: { symbol: "B", value: 25 },
+      B: { symbol: "B", date: "2026-04-04", value: 25 },
     };
 
     const positions = computePositions(transactions, marketData, []);
@@ -580,8 +580,8 @@ describe("computeAggregates", () => {
     ];
 
     const marketData: Record<string, MarketDataInput> = {
-      AAPL: { symbol: "AAPL", value: 215.3 },
-      "SAP.DE": { symbol: "SAP.DE", value: 178.5 },
+      AAPL: { symbol: "AAPL", date: "2026-04-04", value: 215.3 },
+      "SAP.DE": { symbol: "SAP.DE", date: "2026-04-04", value: 178.5 },
     };
 
     const positions = computePositions(transactions, marketData, SEED_FX_RATES);
