@@ -53,7 +53,10 @@ export default async function TransactionsPage({
           actionHref="/transactions"
         />
       ) : (
-        <TransactionsTable data={rows} />
+        <>
+          <p className="text-xs text-zinc-400">Amounts are in each transaction&apos;s respective currency</p>
+          <TransactionsTable data={rows} />
+        </>
       )}
     </div>
   );

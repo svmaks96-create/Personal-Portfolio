@@ -7,6 +7,11 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const amountFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 const sharesFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
@@ -30,6 +35,11 @@ export function formatShares(value: number | null): string {
 export function formatPercent(value: number | null): string {
   if (value === null) return "N/A";
   return `${percentFormatter.format(value)}%`;
+}
+
+export function formatAmount(value: number | null): string {
+  if (value === null) return "N/A";
+  return amountFormatter.format(value);
 }
 
 export function formatPnL(value: number | null): string {

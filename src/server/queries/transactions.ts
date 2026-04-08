@@ -1,7 +1,7 @@
 import { db } from "@/server/db";
 import { transactions } from "@/server/db/schema";
 import { count, eq, and, desc } from "drizzle-orm";
-import { formatDate, formatCurrency, formatShares } from "@/lib/formatting";
+import { formatDate, formatAmount, formatShares } from "@/lib/formatting";
 import Decimal from "decimal.js";
 
 export interface TransactionRow {
@@ -77,16 +77,16 @@ export function getTransactions(
       },
       grossAmount: {
         value: isFee ? null : row.grossAmount,
-        display: isFee ? dash : formatCurrency(row.grossAmount),
+        display: isFee ? dash : formatAmount(row.grossAmount),
       },
       fees: {
         value: isDividend ? null : row.fees,
-        display: isDividend ? dash : formatCurrency(row.fees),
+        display: isDividend ? dash : formatAmount(row.fees),
       },
-      netAmount: { value: netAmount, display: formatCurrency(netAmount) },
+      netAmount: { value: netAmount, display: formatAmount(netAmount) },
       netAvgPrice: {
         value: netAvgPrice,
-        display: netAvgPrice !== null ? formatCurrency(netAvgPrice) : dash,
+        display: netAvgPrice !== null ? formatAmount(netAvgPrice) : dash,
       },
       portfolio: row.portfolio,
       currency: row.currency,

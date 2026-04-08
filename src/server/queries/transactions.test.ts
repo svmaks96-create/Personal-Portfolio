@@ -84,10 +84,10 @@ describe("getTransactions", () => {
     expect(result[0].currency).toBe("USD");
     expect(result[0].date).toEqual({ value: "2025-03-15", display: "Mar 15, 2025" });
     expect(result[0].quantity).toEqual({ value: 10.5, display: "10.5" });
-    expect(result[0].grossAmount).toEqual({ value: 1812.75, display: "$1,812.75" });
-    expect(result[0].fees).toEqual({ value: 4.95, display: "$4.95" });
+    expect(result[0].grossAmount).toEqual({ value: 1812.75, display: "1,812.75" });
+    expect(result[0].fees).toEqual({ value: 4.95, display: "4.95" });
     // net = 1812.75 + 4.95 = 1817.70 (buy: gross + fees)
-    expect(result[0].netAmount).toEqual({ value: 1817.70, display: "$1,817.70" });
+    expect(result[0].netAmount).toEqual({ value: 1817.70, display: "1,817.70" });
     // net avg price = 1817.70 / 10.5 ≈ 173.114...
     expect(result[0].netAvgPrice.value).toBeCloseTo(1817.70 / 10.5, 2);
   });
@@ -147,7 +147,7 @@ describe("getTransactions", () => {
     setupMockReturn([makeDbRow({ fees: 0 })]);
 
     const result = getTransactions();
-    expect(result[0].fees).toEqual({ value: 0, display: "$0.00" });
+    expect(result[0].fees).toEqual({ value: 0, display: "0.00" });
   });
 });
 
