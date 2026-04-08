@@ -117,4 +117,29 @@ describe("updateTransaction", () => {
     await updateTransaction(1, "fees", -10);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
+
+  it("rejects invalid field name", async () => {
+    const result = await updateTransaction(1, "id" as "ticker", "999");
+    expect(result).toEqual({ success: false, error: "Invalid field" });
+    expect(mocks.mockGet).not.toHaveBeenCalled();
+  });
+
+  it("rejects zero quantity on buy via cross-field refinement", async () => {
+    mocks.mockGet.mockReturnValue(existingRow());
+    const result = await updateTransaction(1, "quantity", 0);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.fieldErrors?.quantity).toBeDefined();
+    }
+  });
+
+  it("shows relevant error when cross-field refinement fails on different field", async () => {
+    mocks.mockGet.mockReturnValue({ ...existingRow(), grossAmount: -10 });
+    const result = await updateTransaction(1, "action", "buy");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      // Should show the grossAmount error, not generic "Validation failed"
+      expect(result.error).not.toBe("Validation failed");
+    }
+  });
 });

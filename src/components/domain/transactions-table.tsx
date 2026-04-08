@@ -44,14 +44,25 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
   function handleStartEdit(rowId: number, field: string) {
     setEditingCell({ rowId, field });
-    setCellError(null);
+    // Only clear error if it belongs to the cell being edited
+    setCellError((current) => {
+      if (current?.rowId === rowId && current?.field === field) return null;
+      return current;
+    });
   }
 
   async function handleSave(rowId: number, field: string, value: string | number) {
     const result = await updateTransaction(rowId, field as (typeof EDITABLE_FIELD_ORDER)[number], value);
     if (result.success) {
-      setEditingCell(null);
-      setCellError(null);
+      // Only clear editingCell if it hasn't moved (e.g., via Tab) since save started
+      setEditingCell((current) => {
+        if (current?.rowId === rowId && current?.field === field) return null;
+        return current;
+      });
+      setCellError((current) => {
+        if (current?.rowId === rowId && current?.field === field) return null;
+        return current;
+      });
       const key = `${rowId}-${field}`;
       setHighlightedCells((prev) => new Set(prev).add(key));
       setTimeout(() => {
@@ -68,12 +79,12 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
   function handleCancel() {
     setEditingCell(null);
-    setCellError(null);
+    // Don't clear cellError — it persists until corrected (AC5)
   }
 
   function handleTabToNext(rowId: number, field: string) {
     const idx = EDITABLE_FIELD_ORDER.indexOf(field as (typeof EDITABLE_FIELD_ORDER)[number]);
-    if (idx < EDITABLE_FIELD_ORDER.length - 1) {
+    if (idx >= 0 && idx < EDITABLE_FIELD_ORDER.length - 1) {
       setEditingCell({ rowId, field: EDITABLE_FIELD_ORDER[idx + 1] });
     } else {
       setEditingCell(null);

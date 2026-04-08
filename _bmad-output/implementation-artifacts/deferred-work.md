@@ -71,3 +71,10 @@
 ## Deferred from: code review of 4-1-transaction-ledger-with-filtering-and-sorting (2026-04-07)
 
 - Withholding tax dividend rows have no visual distinction from income dividends — negative `grossAmount` rows display as regular "Dividend" with negative currency values. No visual cue (e.g., "Withholding Tax" label or row styling) to differentiate. UX enhancement beyond story scope.
+
+## Deferred from: code review of 4-2-inline-transaction-editing-with-recomputation (2026-04-08)
+
+- No runtime validation of `id`/`value` types in server action — server actions are public endpoints; `id` could be NaN or a string from a crafted request. try/catch + Zod handles unexpected types gracefully but explicit validation would be defense-in-depth.
+- `useMemo` dependency array in TransactionsTable omits callback functions — `handleSave`, `handleStartEdit`, etc. are not in deps. Functions use stable React setters so practical impact is low; would be flagged by `react-hooks/exhaustive-deps`.
+- Date regex allows semantically invalid dates (e.g., `2024-02-30`, `2024-13-01`) — HTML `<input type="date">` prevents invalid dates client-side but server action is callable directly. Low risk for single-user app.
+- No save-in-progress guard or debounce — rapid edits could fire concurrent `updateTransaction` calls. `better-sqlite3` is synchronous so no data corruption risk; cosmetic state flicker only.

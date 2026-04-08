@@ -1,6 +1,6 @@
 # Story 4.2: Inline Transaction Editing with Recomputation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -467,6 +467,24 @@ Files modified in recent commits relevant to this story:
 - [Source: src/server/db/schema.ts — Transactions table schema]
 - [Source: src/shared/schemas/ — Empty directory, first schema goes here]
 - [Source: _bmad-output/implementation-artifacts/4-1-transaction-ledger-with-filtering-and-sorting.md — Previous story learnings and review findings]
+
+### Review Findings
+
+- [x] [Review][Decision] D1: Zero quantity on buy/sell risks division-by-zero — Fixed: added `.refine()` requiring `quantity > 0` for buy/sell
+- [x] [Review][Decision] D2: Single error state vs. multiple simultaneous errors — Fixed: keep single state but only clear when same cell is re-edited or saved
+- [x] [Review][Patch] P1: onBlur double-save on Enter/Tab/Escape — Fixed: added `handledByKeyboard` ref to skip blur when keyboard handler committed [editable-cell.tsx]
+- [x] [Review][Patch] P2: Async save resolution cancels Tab-to-next-cell — Fixed: functional setState compares current editingCell before clearing [transactions-table.tsx]
+- [x] [Review][Patch] P3: Empty number field saves as zero — Fixed: empty string passes through to Zod for server-side rejection [editable-cell.tsx]
+- [x] [Review][Patch] P4: Server action field param not validated at runtime — Fixed: added `EDITABLE_FIELDS` array and runtime includes check [transactions.ts]
+- [x] [Review][Patch] P5: Cross-field validation error shows "Validation failed" — Fixed: use first available fieldError as fallback [transactions.ts]
+- [x] [Review][Patch] P6: Error cleared on Escape / new cell edit — Fixed: handleStartEdit only clears error for same cell; handleCancel preserves error [transactions-table.tsx]
+- [x] [Review][Patch] P7: In-flight save error displays on wrong cell — Fixed: addressed by P2 functional setState pattern [transactions-table.tsx]
+- [x] [Review][Patch] P8: handleTabToNext silent wrong behavior when field not found — Fixed: added `idx >= 0` guard [transactions-table.tsx]
+- [x] [Review][Patch] P9: Unused transactionId and field props in EditableCell — Fixed: removed from interface and call sites [editable-cell.tsx, transactions-columns.tsx]
+- [x] [Review][Defer] W1: No runtime validation of id/value types in server action — deferred, defense-in-depth; try/catch + Zod handles unexpected types
+- [x] [Review][Defer] W2: useMemo dependency array incomplete — deferred, functions use stable setters; practical impact low
+- [x] [Review][Defer] W3: Date regex allows semantically invalid dates (e.g. 2024-02-30) — deferred, HTML date input prevents client-side; single-user app
+- [x] [Review][Defer] W4: No save-in-progress guard — deferred, better-sqlite3 is synchronous; cosmetic only
 
 ## Dev Agent Record
 

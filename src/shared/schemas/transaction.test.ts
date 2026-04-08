@@ -63,8 +63,26 @@ describe("transactionSchema", () => {
     }
   });
 
-  it("accepts zero quantity", () => {
-    const result = transactionSchema.safeParse(validTransaction({ quantity: 0 }));
+  it("rejects zero quantity on buy", () => {
+    const result = transactionSchema.safeParse(validTransaction({ action: "buy", quantity: 0 }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.includes("quantity"))).toBe(true);
+    }
+  });
+
+  it("rejects zero quantity on sell", () => {
+    const result = transactionSchema.safeParse(validTransaction({ action: "sell", quantity: 0 }));
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts zero quantity on dividend", () => {
+    const result = transactionSchema.safeParse(validTransaction({ action: "dividend", quantity: 0, grossAmount: 50 }));
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts zero quantity on fee", () => {
+    const result = transactionSchema.safeParse(validTransaction({ action: "fee", quantity: 0, grossAmount: 10 }));
     expect(result.success).toBe(true);
   });
 

@@ -32,8 +32,6 @@ function editableCellRenderer(
   const id = row.original.id;
   return (
     <EditableCell
-      transactionId={id}
-      field={field}
       rawValue={rawValue}
       displayValue={displayValue}
       isEditing={ctx.editingCell?.rowId === id && ctx.editingCell?.field === field}

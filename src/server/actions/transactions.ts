@@ -7,21 +7,21 @@ import { eq } from "drizzle-orm";
 import { transactionSchema } from "@/shared/schemas/transaction";
 import type { ActionResult } from "@/server/types/action-result";
 
-type EditableField =
-  | "date"
-  | "ticker"
-  | "action"
-  | "quantity"
-  | "grossAmount"
-  | "fees"
-  | "portfolio"
-  | "currency";
+const EDITABLE_FIELDS = [
+  "date", "ticker", "action", "quantity", "grossAmount", "fees", "portfolio", "currency",
+] as const;
+
+type EditableField = (typeof EDITABLE_FIELDS)[number];
 
 export async function updateTransaction(
   id: number,
   field: EditableField,
   value: string | number,
 ): Promise<ActionResult> {
+  if (!(EDITABLE_FIELDS as readonly string[]).includes(field)) {
+    return { success: false, error: "Invalid field" };
+  }
+
   try {
     const existing = db
       .select()
@@ -42,9 +42,10 @@ export async function updateTransaction(
         const path = issue.path.join(".");
         fieldErrors[path] = issue.message;
       }
+      const firstError = Object.values(fieldErrors)[0];
       return {
         success: false,
-        error: fieldErrors[field] ?? "Validation failed",
+        error: fieldErrors[field] ?? firstError ?? "Validation failed",
         fieldErrors,
       };
     }

@@ -20,4 +20,8 @@ export const transactionSchema = z
   .refine((data) => data.action === "dividend" || data.grossAmount >= 0, {
     message: "Negative amount only allowed for dividends (withholding tax)",
     path: ["grossAmount"],
-  });
+  })
+  .refine(
+    (data) => !["buy", "sell"].includes(data.action) || data.quantity > 0,
+    { message: "Quantity must be greater than zero for buy/sell", path: ["quantity"] },
+  );

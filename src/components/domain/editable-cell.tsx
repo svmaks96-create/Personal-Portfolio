@@ -4,8 +4,6 @@ import { useRef, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface EditableCellProps {
-  transactionId: number;
-  field: string;
   rawValue: string | number;
   displayValue: string;
   isEditing: boolean;
@@ -33,6 +31,7 @@ export function EditableCell({
   onTabToNext,
 }: EditableCellProps) {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
+  const handledByKeyboard = useRef(false);
   const [localValue, setLocalValue] = useState(String(rawValue));
   const [prevEditing, setPrevEditing] = useState(false);
 
@@ -55,8 +54,12 @@ export function EditableCell({
   function commitSave() {
     let parsed: string | number = localValue;
     if (inputType === "number") {
-      const num = Number(localValue);
-      parsed = isNaN(num) ? localValue : num;
+      if (localValue.trim() === "") {
+        parsed = localValue; // let server-side Zod reject empty
+      } else {
+        const num = Number(localValue);
+        parsed = isNaN(num) ? localValue : num;
+      }
     }
     onSave(parsed);
   }
@@ -64,15 +67,25 @@ export function EditableCell({
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") {
       e.preventDefault();
+      handledByKeyboard.current = true;
       commitSave();
     } else if (e.key === "Tab") {
       e.preventDefault();
+      handledByKeyboard.current = true;
       commitSave();
       onTabToNext();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      handledByKeyboard.current = true;
       onCancel();
     }
+  }
+
+  function handleBlur() {
+    if (!handledByKeyboard.current) {
+      commitSave();
+    }
+    handledByKeyboard.current = false;
   }
 
   if (!isEditing) {
@@ -102,7 +115,7 @@ export function EditableCell({
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          onBlur={commitSave}
+          onBlur={handleBlur}
         >
           {selectOptions?.map((opt) => (
             <option key={opt} value={opt}>
