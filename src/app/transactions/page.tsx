@@ -1,8 +1,7 @@
 import { EmptyState } from "@/components/domain/empty-state";
 import { ControlsBar } from "@/components/domain/controls-bar";
-import { PositionsTable } from "@/components/domain/positions-table";
+import { TransactionsTable } from "@/components/domain/transactions-table";
 import { ActiveFilters } from "@/components/domain/active-filters";
-import { transactionsColumns } from "@/components/domain/transactions-columns";
 import { getTransactionCount, getTransactions } from "@/server/queries/transactions";
 import { getUniquePortfolios } from "@/server/queries/portfolios";
 import { getStalestMarketDate } from "@/server/queries/market-data";
@@ -54,12 +53,7 @@ export default async function TransactionsPage({
           actionHref="/transactions"
         />
       ) : (
-        <PositionsTable
-          data={rows}
-          columns={transactionsColumns}
-          defaultSort={[{ id: "date", desc: true }]}
-          emptyMessage={emptyMessage}
-        />
+        <TransactionsTable data={rows} />
       )}
     </div>
   );
