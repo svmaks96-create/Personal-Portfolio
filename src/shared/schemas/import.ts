@@ -23,7 +23,7 @@ export const importRowSchema = z
       .transform((v) => v.toUpperCase()),
     action: z.enum(["buy", "sell", "dividend", "fee"]),
     quantity: z.number().min(0, "Quantity cannot be negative"),
-    grossAmount: z.number(),
+    grossAmount: z.number().refine((v) => !Number.isNaN(v), "Gross amount must be a valid number"),
     fees: z.number().min(0, "Fees cannot be negative").default(0),
     portfolio: z.string().min(1, "Portfolio is required"),
     currency: z

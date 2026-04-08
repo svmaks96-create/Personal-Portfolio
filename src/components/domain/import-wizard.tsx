@@ -97,17 +97,21 @@ export function ImportWizard() {
       dispatch({ type: "SET_FILE", file });
       dispatch({ type: "SET_PROCESSING", isProcessing: true });
 
-      const formData = new FormData();
-      formData.append("file", file);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      const result = await validateImport(formData);
+        const result = await validateImport(formData);
 
-      if (!result.success) {
-        dispatch({ type: "SET_UPLOAD_ERROR", error: result.error });
-        return;
+        if (!result.success) {
+          dispatch({ type: "SET_UPLOAD_ERROR", error: result.error });
+          return;
+        }
+
+        dispatch({ type: "SET_VALIDATION_RESULTS", result: result.data });
+      } catch {
+        dispatch({ type: "SET_UPLOAD_ERROR", error: "Failed to validate file. Please try again." });
       }
-
-      dispatch({ type: "SET_VALIDATION_RESULTS", result: result.data });
     },
     [],
   );
@@ -164,13 +168,9 @@ export function ImportWizard() {
       {state.step === 1 && (
         <div className="space-y-4">
           {/* Download template */}
-          <a
-            href="/template.xlsx"
-            download
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-secondary px-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-          >
-            Download Template
-          </a>
+          <Button variant="secondary" asChild>
+            <a href="/template.xlsx" download>Download Template</a>
+          </Button>
 
           {/* Drop zone */}
           <div

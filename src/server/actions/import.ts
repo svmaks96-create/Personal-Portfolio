@@ -66,11 +66,22 @@ export async function validateImport(
       for (const [fieldName, colIndex] of Object.entries(columnIndexMap)) {
         let value = row.getCell(colIndex).value;
 
-        // Handle ExcelJS rich text
-        if (value && typeof value === "object" && "richText" in value) {
-          value = (value as { richText: Array<{ text: string }> }).richText
-            .map((rt) => rt.text)
-            .join("");
+        // Handle ExcelJS special cell types
+        if (value && typeof value === "object") {
+          if ("richText" in value) {
+            value = (value as { richText: Array<{ text: string }> }).richText
+              .map((rt) => rt.text)
+              .join("");
+          } else if ("result" in value) {
+            // Formula cell — use the computed result
+            value = (value as { result: unknown }).result;
+          } else if ("text" in value) {
+            // Hyperlink cell — use the display text
+            value = (value as { text: string }).text;
+          } else if ("error" in value) {
+            // Error cell (#REF!, #DIV/0!, etc.) — treat as empty
+            value = null;
+          }
         }
 
         if (value !== null && value !== undefined && value !== "") {

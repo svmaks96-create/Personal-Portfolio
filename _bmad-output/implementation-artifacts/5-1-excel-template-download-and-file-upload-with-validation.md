@@ -1,6 +1,6 @@
 # Story 5.1: Excel Template Download & File Upload with Validation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -671,6 +671,17 @@ Claude Opus 4.6 (1M context)
 - Task 5: Replaced import page placeholder with ImportWizard component.
 - Task 6: Created 26 import schema tests and 14 validateImport action tests covering all ACs.
 - Task 7: Lint passes (0 errors), all 187 tests pass across 14 test files.
+
+### Review Findings
+
+- [x] [Review][Patch] Download Template uses bare `<a>` instead of `<Button variant="secondary" asChild>` wrapping `<a>` — spec violation [src/components/domain/import-wizard.tsx] — FIXED
+- [x] [Review][Patch] `handleFile` missing try/catch — unhandled server action rejection leaves UI stuck on "Validating..." [src/components/domain/import-wizard.tsx] — FIXED
+- [x] [Review][Patch] ExcelJS special cell types (formula, error, hyperlink) not handled — cells with formulas return `{ formula, result }`, errors return `{ error }`, hyperlinks return `{ text, hyperlink }`, all produce NaN or `[object Object]` [src/server/actions/import.ts] — FIXED
+- [x] [Review][Patch] NaN `grossAmount` on dividends passes Zod validation — `z.number()` accepts NaN, refine short-circuits on `action === "dividend"`, need explicit NaN guard [src/shared/schemas/import.ts] — FIXED
+- [x] [Review][Defer] Date regex accepts invalid calendar dates (e.g. `2024-02-31`) — pre-existing pattern shared with `transactionSchema`, fix both schemas together
+- [x] [Review][Defer] `rawData as ImportValidationRow["data"]` cast unsafe on error rows — error rows may have `undefined` numeric fields, relevant when Story 5.2 implements inline correction UI
+- [x] [Review][Defer] Sell-more-than-held validates against current position, not historical chronological state — spec design decision, import of historical sells before existing buys passes validation
+- [x] [Review][Defer] Stale validation between validate and commit — between validation and commit (Story 5.3), DB state could change; commit step should re-validate
 
 ### Change Log
 

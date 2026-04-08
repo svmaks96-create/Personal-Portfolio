@@ -78,3 +78,10 @@
 - `useMemo` dependency array in TransactionsTable omits callback functions — `handleSave`, `handleStartEdit`, etc. are not in deps. Functions use stable React setters so practical impact is low; would be flagged by `react-hooks/exhaustive-deps`.
 - Date regex allows semantically invalid dates (e.g., `2024-02-30`, `2024-13-01`) — HTML `<input type="date">` prevents invalid dates client-side but server action is callable directly. Low risk for single-user app.
 - No save-in-progress guard or debounce — rapid edits could fire concurrent `updateTransaction` calls. `better-sqlite3` is synchronous so no data corruption risk; cosmetic state flicker only.
+
+## Deferred from: code review of 5-1-excel-template-download-and-file-upload-with-validation (2026-04-08)
+
+- Date regex accepts invalid calendar dates (e.g. `2024-02-31`, `2024-13-01`) — pre-existing pattern shared with `transactionSchema`; fix both schemas together
+- `rawData as ImportValidationRow["data"]` cast unsafe on error rows — error rows may have `undefined` numeric fields; relevant when Story 5.2 implements inline correction UI
+- Sell-more-than-held validates against current aggregate position, not historical chronological state — spec design decision; import of historical sells before existing buys passes validation
+- Stale validation between validate and commit — between validation and commit (Story 5.3), DB state could change; commit step should re-validate sell-more-than-held
