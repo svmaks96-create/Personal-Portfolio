@@ -313,6 +313,18 @@ export async function commitImport(
     }
 
     // Re-validate all rows with Zod before inserting (stale validation guard)
+    // Use transformed values (uppercased ticker/currency, fees default) for insert
+    const validatedRows: Array<{
+      date: string;
+      ticker: string;
+      action: "buy" | "sell" | "dividend" | "fee";
+      quantity: number;
+      grossAmount: number;
+      fees: number;
+      portfolio: string;
+      currency: string;
+    }> = [];
+
     for (const row of rows) {
       const result = importRowSchema.safeParse(row);
       if (!result.success) {
@@ -324,16 +336,17 @@ export async function commitImport(
           error: `Validation failed for row (${row.ticker} ${row.date}): ${issues}`,
         };
       }
+      validatedRows.push(result.data);
     }
 
     // Atomic insert
     db.transaction((tx) => {
-      for (const row of rows) {
+      for (const row of validatedRows) {
         tx.insert(transactions)
           .values({
             date: row.date,
             ticker: row.ticker,
-            action: row.action as "buy" | "sell" | "dividend" | "fee",
+            action: row.action,
             quantity: row.quantity,
             grossAmount: row.grossAmount,
             fees: row.fees,

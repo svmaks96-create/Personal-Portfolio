@@ -1,6 +1,6 @@
 # Story 5.3: Duplicate Detection Review & Atomic Import
 
-Status: review
+Status: done
 
 ## Story
 
@@ -198,6 +198,14 @@ None — clean implementation, no blocking issues encountered.
   - 11 new unit tests added
 
 ### Review Findings
+
+- [x] [Review][Patch] `commitImport` uses raw `row` values instead of Zod-transformed `result.data` — ticker/currency not uppercased, fees `.default(0)` not applied [`src/server/actions/import.ts:316-344`]
+- [x] [Review][Patch] Step 3 "Continue" and Step 4 "Import" buttons not disabled when `confirmedRows` is empty — user can advance to Step 4 with 0 rows and click Import to get an error [`src/components/domain/import-wizard.tsx:581,371`]
+- [x] [Review][Patch] `initialState` shares a mutable `Set` singleton — `RESET` spreads `initialState` which reuses the same `Set` reference; concurrent StrictMode double-invocations could share state [`src/components/domain/import-wizard.tsx:60`]
+- [x] [Review][Patch] Step 3 "Back" goes to Step 1 when no validation errors existed — user loses all duplicate override selections and must re-upload [`src/components/domain/import-wizard.tsx:571`]
+- [x] [Review][Defer] `commitImport` does not re-check duplicates or sell-more-than-held at commit time (TOCTOU gap) [`src/server/actions/import.ts`] — deferred, single-user localhost app; already noted in 5-1 deferred work
+- [x] [Review][Defer] No upper-bound on `rows` array length in `commitImport` — no size/count limit on client-provided data [`src/server/actions/import.ts`] — deferred, single-user localhost app
+- [x] [Review][Defer] Batch-internal duplicate detection is asymmetric — only second occurrence flagged, user cannot skip first occurrence [`src/server/actions/import.ts:checkDuplicates`] — deferred, pre-existing design decision
 
 ### File List
 

@@ -164,7 +164,18 @@ export function reducer(state: ImportWizardState, action: ImportAction): ImportW
     case "GO_TO_STEP":
       return { ...state, step: action.step };
     case "RESET":
-      return { ...initialState, overriddenDuplicates: new Set() };
+      return {
+        step: 1 as const,
+        file: null,
+        fileName: null,
+        parsedRows: [],
+        validationErrors: [],
+        duplicates: [],
+        confirmedRows: [],
+        overriddenDuplicates: new Set<number>(),
+        isProcessing: false,
+        uploadError: null,
+      };
     default:
       return state;
   }
@@ -369,7 +380,7 @@ function Step4Confirm({
             >
               Back
             </Button>
-            <Button onClick={handleImport} disabled={isPending}>
+            <Button onClick={handleImport} disabled={isPending || state.confirmedRows.length === 0}>
               {isPending ? "Importing..." : "Import"}
             </Button>
           </div>
@@ -568,7 +579,7 @@ export function ImportWizard() {
               onClick={() =>
                 dispatch({
                   type: "GO_TO_STEP",
-                  step: state.validationErrors.length > 0 ? 2 : 1,
+                  step: 2,
                 })
               }
             >
@@ -576,6 +587,7 @@ export function ImportWizard() {
             </Button>
             <Button
               onClick={() => dispatch({ type: "GO_TO_STEP", step: 4 })}
+              disabled={state.confirmedRows.length === 0}
             >
               Continue
             </Button>

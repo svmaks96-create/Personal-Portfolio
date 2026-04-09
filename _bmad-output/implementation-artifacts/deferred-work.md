@@ -92,3 +92,9 @@
 - `EditableCell` non-select `onBlur={commitSave}` bypasses keyboard guard causing double-fire [editable-cell.tsx:140] — Enter/Tab on text/number/date inputs fires `commitSave` twice; mitigated by value-unchanged guard in parent but redundant dispatch occurs
 - Empty string from EditableCell rejected by `z.number()` with unhelpful "Expected number, received string" message [editable-cell.tsx:56-58] — user clearing a number field gets confusing error
 - Select dropdown may display incorrectly for non-matching action values from Excel [editable-cell.tsx:115-126] — if rawValue not in options list, visual and saved value may diverge
+
+## Deferred from: code review of 5-3-duplicate-detection-review-and-atomic-import (2026-04-09)
+
+- `commitImport` does not re-check duplicates or sell-more-than-held at commit time (TOCTOU gap) — between validation and commit, another import could create actual duplicates or invalidate sell-more-than-held. Single-user localhost app makes this low-risk.
+- No upper-bound on `rows` array length in `commitImport` — a malicious or buggy client could send an arbitrarily large array. Single-user localhost app makes this low-risk.
+- Batch-internal duplicate detection is asymmetric — only the second occurrence is flagged as duplicate; user cannot skip the first and keep a later one. Pre-existing design decision in `checkDuplicates`.
