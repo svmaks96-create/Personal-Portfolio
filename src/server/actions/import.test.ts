@@ -17,7 +17,8 @@ vi.mock("@/server/db", () => {
 });
 
 import { db } from "@/server/db";
-import { validateImport } from "./import";
+import { validateImport, revalidateImportRows } from "./import";
+import type { ImportValidationRow } from "@/server/types/import";
 
 const mocks = (db as unknown as { _mocks: Record<string, ReturnType<typeof vi.fn>> })._mocks;
 
@@ -280,6 +281,135 @@ describe("validateImport", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.rows[0].data.fees).toBe(0);
+    }
+  });
+});
+
+function makeRow(
+  rowIndex: number,
+  overrides: Partial<ImportValidationRow["data"]> = {},
+  status: ImportValidationRow["status"] = "valid",
+): ImportValidationRow {
+  return {
+    rowIndex,
+    data: {
+      date: "2025-03-15",
+      ticker: "AAPL",
+      action: "buy",
+      quantity: 10,
+      grossAmount: 1500,
+      fees: 4.95,
+      portfolio: "Main",
+      currency: "USD",
+      ...overrides,
+    },
+    status,
+  };
+}
+
+describe("revalidateImportRows", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockAll.mockReturnValue([]);
+  });
+
+  it("resets statuses and re-validates all rows", async () => {
+    const rows = [
+      makeRow(2, {}, "error"),
+      makeRow(3, { ticker: "MSFT" }),
+    ];
+    rows[0].errors = [{ field: "date", message: "old error" }];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.summary.valid).toBe(2);
+      expect(result.data.summary.errors).toBe(0);
+    }
+  });
+
+  it("catches Zod validation errors on re-validation", async () => {
+    const rows = [makeRow(2, { date: "not-a-date" })];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.summary.errors).toBe(1);
+      expect(result.data.rows[0].errors?.some((e) => e.field === "date")).toBe(true);
+    }
+  });
+
+  it("catches sell-more-than-held on re-validation", async () => {
+    const rows = [makeRow(2, { action: "sell", quantity: 100 })];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.summary.errors).toBe(1);
+      expect(
+        result.data.rows[0].errors?.some((e) =>
+          e.message.includes("Cannot sell more than held"),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("detects duplicates on re-validation", async () => {
+    mocks.mockAll.mockReturnValue([
+      {
+        id: 42,
+        date: "2025-03-15",
+        ticker: "AAPL",
+        action: "buy",
+        quantity: 10,
+        grossAmount: 1500,
+        portfolio: "Main",
+      },
+    ]);
+    const rows = [makeRow(2)];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.summary.duplicates).toBe(1);
+      expect(result.data.rows[0].status).toBe("duplicate");
+    }
+  });
+
+  it("clears previous errors when correction is valid", async () => {
+    // Row had an error, now corrected
+    const rows = [
+      makeRow(2, { date: "2025-03-15" }, "error"),
+    ];
+    rows[0].errors = [{ field: "date", message: "Date must be YYYY-MM-DD format" }];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rows[0].status).toBe("valid");
+      expect(result.data.rows[0].errors).toBeUndefined();
+    }
+  });
+
+  it("uppercases ticker and currency via Zod transforms", async () => {
+    const rows = [makeRow(2, { ticker: "aapl", currency: "usd" })];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rows[0].data.ticker).toBe("AAPL");
+      expect(result.data.rows[0].data.currency).toBe("USD");
+    }
+  });
+
+  it("detects batch duplicates on re-validation", async () => {
+    const rows = [makeRow(2), makeRow(3)];
+
+    const result = await revalidateImportRows(rows);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.summary.valid).toBe(1);
+      expect(result.data.summary.duplicates).toBe(1);
     }
   });
 });

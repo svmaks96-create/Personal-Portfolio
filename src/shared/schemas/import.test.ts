@@ -169,6 +169,53 @@ describe("importRowSchema", () => {
   });
 });
 
+describe("importRowSchema re-validation edge cases", () => {
+  it("correcting an invalid date resolves the error", () => {
+    // First: invalid
+    const bad = importRowSchema.safeParse(validRow({ date: "bad" }));
+    expect(bad.success).toBe(false);
+
+    // Then: corrected
+    const good = importRowSchema.safeParse(validRow({ date: "2025-03-15" }));
+    expect(good.success).toBe(true);
+  });
+
+  it("editing a valid row to have empty ticker introduces an error", () => {
+    const good = importRowSchema.safeParse(validRow());
+    expect(good.success).toBe(true);
+
+    const bad = importRowSchema.safeParse(validRow({ ticker: "" }));
+    expect(bad.success).toBe(false);
+    if (!bad.success) {
+      expect(bad.error.issues.some((i) => i.path.includes("ticker"))).toBe(true);
+    }
+  });
+
+  it("already-uppercased ticker passes through transforms", () => {
+    const result = importRowSchema.safeParse(validRow({ ticker: "AAPL" }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.ticker).toBe("AAPL");
+    }
+  });
+
+  it("changing action from buy to dividend allows zero quantity", () => {
+    const buyZero = importRowSchema.safeParse(validRow({ action: "buy", quantity: 0 }));
+    expect(buyZero.success).toBe(false);
+
+    const divZero = importRowSchema.safeParse(validRow({ action: "dividend", quantity: 0 }));
+    expect(divZero.success).toBe(true);
+  });
+
+  it("changing quantity from negative to positive resolves error", () => {
+    const bad = importRowSchema.safeParse(validRow({ quantity: -5 }));
+    expect(bad.success).toBe(false);
+
+    const good = importRowSchema.safeParse(validRow({ quantity: 5 }));
+    expect(good.success).toBe(true);
+  });
+});
+
 describe("COLUMN_MAP", () => {
   it("maps all 8 required columns", () => {
     expect(Object.keys(COLUMN_MAP)).toHaveLength(8);
