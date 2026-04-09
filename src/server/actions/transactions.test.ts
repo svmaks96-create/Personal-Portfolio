@@ -293,7 +293,7 @@ describe("addTransaction", () => {
     const result = await addTransaction(validAddData());
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBe("Duplicate transaction detected");
+      expect(result.error).toBe("duplicate");
     }
   });
 

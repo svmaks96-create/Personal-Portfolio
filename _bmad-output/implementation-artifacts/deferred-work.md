@@ -98,3 +98,9 @@
 - `commitImport` does not re-check duplicates or sell-more-than-held at commit time (TOCTOU gap) — between validation and commit, another import could create actual duplicates or invalidate sell-more-than-held. Single-user localhost app makes this low-risk.
 - No upper-bound on `rows` array length in `commitImport` — a malicious or buggy client could send an arbitrarily large array. Single-user localhost app makes this low-risk.
 - Batch-internal duplicate detection is asymmetric — only the second occurrence is flagged as duplicate; user cannot skip the first and keep a later one. Pre-existing design decision in `checkDuplicates`.
+
+## Deferred from: code review of 6-1-manual-transaction-add (2026-04-09)
+
+- Floating-point string interpolation in duplicate key comparison — number-to-string coercion of quantity/grossAmount may produce different strings for same value after DB round-trip (e.g. `10.1` vs `10.100000000000001`). Pre-existing pattern from import.ts `checkDuplicates`.
+- Full table scan for sell-check and duplicate-check (no WHERE filter) — `addTransaction` runs two sequential `.all()` calls fetching all transactions on every add. Pre-existing pattern reused from import.ts.
+- Double table scan for sell transactions — sell-more-than-held check and duplicate detection both fetch all rows separately with different column subsets. Could be consolidated into one query. Pre-existing pattern.

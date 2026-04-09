@@ -1,6 +1,6 @@
 # Story 6.1: Manual Transaction Add
 
-Status: review
+Status: done
 
 ## Story
 
@@ -135,6 +135,24 @@ Recommended: Add the button inside `TransactionsTable` above the table `<div>`, 
 - [Source: src/shared/schemas/transaction.ts — transactionSchema]
 - [Source: src/components/domain/transactions-table.tsx — current table implementation]
 - [Source: src/components/domain/editable-cell.tsx — input styling and error display]
+
+### Review Findings
+
+- [x] [Review][Decision] Save/Cancel buttons in separate `<TableRow>` instead of "at end of the row" — **Dismissed**: keep as-is, separate row is a reasonable layout choice
+- [x] [Review][Decision] `handleChange` clears field errors on keystroke — **Dismissed**: keep as-is, clearing on edit is a common form UX pattern
+- [x] [Review][Decision] `handleChange` clears `isDuplicate` on any field edit — **Fixed**: removed eager clearing; duplicate warning now persists until explicit user action
+- [x] [Review][Decision] Sell-more-than-held ignores date ordering — **Dismissed**: keep as-is, total held is sufficient for single-transaction manual add
+- [x] [Review][Patch] `NaN as number` cast — **Fixed**: replaced NaN with -1 sentinel that Zod rejects cleanly
+- [x] [Review][Patch] `saving` flag never reset on thrown exception — **Fixed**: wrapped handleSave body in try/finally
+- [x] [Review][Patch] Double-click can fire concurrent `addTransaction` calls — **Fixed**: added useRef guard for synchronous double-click prevention
+- [x] [Review][Patch] Opening add row while editing a cell leaves `editingCell` orphaned — **Fixed**: clear editingCell when opening add row
+- [x] [Review][Patch] Duplicate response missing `fieldErrors: {}` per Task 1.5 — **Fixed**: added empty fieldErrors to duplicate response
+- [x] [Review][Patch] Duplicate error string should be `"duplicate"` per Task 1.5 — **Fixed**: aligned to `"duplicate"` in server action and client check
+- [x] [Review][Patch] `overrideDuplicate` re-run can show conflicting UI states — **Fixed**: clear isDuplicate when receiving non-duplicate error on override retry
+- [x] [Review][Patch] `colSpan={10}` hardcoded magic number — **Fixed**: extracted to `COLUMN_COUNT` constant
+- [x] [Review][Defer] Floating-point string interpolation in duplicate key comparison — number-to-string coercion may produce different strings for same value after DB round-trip [transactions.ts:149-153] — deferred, pre-existing pattern from import.ts
+- [x] [Review][Defer] Full table scan for sell-check and duplicate-check (no WHERE filter) — two sequential `.all()` calls on every add [transactions.ts:105-113,136-147] — deferred, pre-existing pattern from import.ts
+- [x] [Review][Defer] Double table scan for sell transactions — sell check and duplicate check both fetch all rows separately [transactions.ts:105-113,136-147] — deferred, pre-existing pattern from import.ts
 
 ## Change Log
 

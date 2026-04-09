@@ -125,7 +125,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           variant="secondary"
           size="sm"
           disabled={isAdding}
-          onClick={() => setIsAdding(true)}
+          onClick={() => { setEditingCell(null); setIsAdding(true); }}
         >
           <Plus className="h-4 w-4 mr-1" />
           Add Transaction

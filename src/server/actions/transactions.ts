@@ -153,7 +153,8 @@ export async function addTransaction(
         if (existingKey === newKey) {
           return {
             success: false,
-            error: "Duplicate transaction detected",
+            error: "duplicate",
+            fieldErrors: {},
           };
         }
       }

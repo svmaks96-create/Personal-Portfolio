@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { addTransaction } from "@/server/actions/transactions";
+
+const COLUMN_COUNT = 10;
 
 const ACTION_OPTIONS = ["buy", "sell", "dividend", "fee"] as const;
 
@@ -28,6 +30,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   function handleChange(field: string, value: string) {
     setValues((prev) => ({ ...prev, [field]: value }));
@@ -36,39 +39,48 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
       delete next[field];
       return next;
     });
-    if (isDuplicate) setIsDuplicate(false);
   }
 
   async function handleSave(overrideDuplicate = false) {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setFieldErrors({});
 
-    const data = {
-      date: values.date,
-      ticker: values.ticker,
-      action: values.action,
-      quantity: values.quantity === "" ? (NaN as number) : Number(values.quantity),
-      grossAmount: values.grossAmount === "" ? (NaN as number) : Number(values.grossAmount),
-      fees: values.fees === "" ? 0 : Number(values.fees),
-      portfolio: values.portfolio,
-      currency: values.currency,
-    };
+    try {
+      const qtyNum = Number(values.quantity);
+      const amtNum = Number(values.grossAmount);
+      const feesNum = Number(values.fees);
 
-    const result = await addTransaction(data, overrideDuplicate);
+      const data = {
+        date: values.date,
+        ticker: values.ticker,
+        action: values.action,
+        quantity: values.quantity === "" || Number.isNaN(qtyNum) ? -1 : qtyNum,
+        grossAmount: values.grossAmount === "" || Number.isNaN(amtNum) ? -1 : amtNum,
+        fees: values.fees === "" || Number.isNaN(feesNum) ? -1 : feesNum,
+        portfolio: values.portfolio,
+        currency: values.currency,
+      };
 
-    if (result.success) {
-      onSuccess();
-    } else if (result.error === "Duplicate transaction detected") {
-      setIsDuplicate(true);
-    } else {
-      if (result.fieldErrors) {
-        setFieldErrors(result.fieldErrors);
+      const result = await addTransaction(data, overrideDuplicate);
+
+      if (result.success) {
+        onSuccess();
+      } else if (result.error === "duplicate") {
+        setIsDuplicate(true);
       } else {
-        setFieldErrors({ _form: result.error });
+        setIsDuplicate(false);
+        if (result.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+          setFieldErrors(result.fieldErrors);
+        } else {
+          setFieldErrors({ _form: result.error });
+        }
       }
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
   const inputClasses =
@@ -202,7 +214,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
       {/* Duplicate warning banner */}
       {isDuplicate && (
         <TableRow className="border-b border-zinc-100">
-          <TableCell colSpan={10} className="py-2 px-4">
+          <TableCell colSpan={COLUMN_COUNT} className="py-2 px-4">
             <div className="flex items-center gap-3 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
               <span>A matching transaction already exists.</span>
               <Button
@@ -228,7 +240,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
       {/* Form-level error */}
       {fieldErrors._form && (
         <TableRow className="border-b border-zinc-100">
-          <TableCell colSpan={10} className="py-1 px-4">
+          <TableCell colSpan={COLUMN_COUNT} className="py-1 px-4">
             <span className="text-red-500 text-xs">{fieldErrors._form}</span>
           </TableCell>
         </TableRow>
@@ -237,7 +249,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
       {/* Action buttons row */}
       {!isDuplicate && (
         <TableRow className="border-b border-zinc-200">
-          <TableCell colSpan={10} className="py-2 px-4">
+          <TableCell colSpan={COLUMN_COUNT} className="py-2 px-4">
             <div className="flex gap-2">
               <Button
                 variant="secondary"
