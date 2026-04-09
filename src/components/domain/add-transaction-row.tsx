@@ -5,7 +5,7 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { addTransaction } from "@/server/actions/transactions";
 
-const COLUMN_COUNT = 10;
+const COLUMN_COUNT = 12;
 
 const ACTION_OPTIONS = ["buy", "sell", "dividend", "fee"] as const;
 
@@ -89,6 +89,8 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
   return (
     <>
       <TableRow className="h-10 border-b border-zinc-100 bg-zinc-50/50">
+        {/* Checkbox placeholder */}
+        <TableCell />
         {/* Date */}
         <TableCell className="text-center">
           <input
@@ -209,6 +211,8 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             <span className="block text-red-500 text-xs">{fieldErrors.currency}</span>
           )}
         </TableCell>
+        {/* Delete placeholder */}
+        <TableCell />
       </TableRow>
 
       {/* Duplicate warning banner */}

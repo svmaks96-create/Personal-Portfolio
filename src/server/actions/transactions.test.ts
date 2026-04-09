@@ -21,19 +21,25 @@ vi.mock("@/server/db", () => {
   const mockValues = vi.fn().mockReturnValue({ run: mockInsertRun });
   const mockInsert = vi.fn().mockReturnValue({ values: mockValues });
 
+  // Delete chain: db.delete().where().run()
+  const mockDeleteRun = vi.fn().mockReturnValue({ changes: 0 });
+  const mockDeleteWhere = vi.fn().mockReturnValue({ run: mockDeleteRun });
+  const mockDelete = vi.fn().mockReturnValue({ where: mockDeleteWhere });
+
   return {
     db: {
       select: mockSelect,
       update: mockUpdate,
       insert: mockInsert,
-      _mocks: { mockGet, mockAll, mockUpdateRun, mockSet, mockWhere, mockInsertRun, mockValues },
+      delete: mockDelete,
+      _mocks: { mockGet, mockAll, mockUpdateRun, mockSet, mockWhere, mockInsertRun, mockValues, mockDeleteRun, mockDeleteWhere },
     },
   };
 });
 
 import { db } from "@/server/db";
 import { revalidatePath } from "next/cache";
-import { updateTransaction, addTransaction } from "./transactions";
+import { updateTransaction, addTransaction, deleteTransaction, bulkDeleteTransactions } from "./transactions";
 
 const mocks = (db as unknown as { _mocks: Record<string, ReturnType<typeof vi.fn>> })._mocks;
 
@@ -365,5 +371,90 @@ describe("addTransaction", () => {
     if (!result.success) {
       expect(result.fieldErrors?.currency).toBeDefined();
     }
+  });
+});
+
+describe("deleteTransaction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockGet.mockReturnValue(null);
+  });
+
+  it("returns success when transaction exists", async () => {
+    mocks.mockGet.mockReturnValue(existingRow());
+    const result = await deleteTransaction(1);
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("returns error when transaction not found", async () => {
+    mocks.mockGet.mockReturnValue(null);
+    const result = await deleteTransaction(999);
+    expect(result).toEqual({ success: false, error: "Transaction not found" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid id (zero)", async () => {
+    const result = await deleteTransaction(0);
+    expect(result).toEqual({ success: false, error: "Invalid transaction ID" });
+    expect(mocks.mockGet).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid id (negative)", async () => {
+    const result = await deleteTransaction(-1);
+    expect(result).toEqual({ success: false, error: "Invalid transaction ID" });
+  });
+
+  it("rejects invalid id (non-integer)", async () => {
+    const result = await deleteTransaction(1.5);
+    expect(result).toEqual({ success: false, error: "Invalid transaction ID" });
+  });
+
+  it("does not call revalidatePath on not-found", async () => {
+    mocks.mockGet.mockReturnValue(null);
+    await deleteTransaction(1);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("bulkDeleteTransactions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockDeleteRun.mockReturnValue({ changes: 3 });
+  });
+
+  it("returns success with deletedCount", async () => {
+    mocks.mockDeleteRun.mockReturnValue({ changes: 3 });
+    const result = await bulkDeleteTransactions([1, 2, 3]);
+    expect(result).toEqual({ success: true, data: { deletedCount: 3 } });
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("rejects empty array", async () => {
+    const result = await bulkDeleteTransactions([]);
+    expect(result).toEqual({ success: false, error: "No transaction IDs provided" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects array with invalid id", async () => {
+    const result = await bulkDeleteTransactions([1, -2, 3]);
+    expect(result).toEqual({ success: false, error: "Invalid transaction ID" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects array with non-integer id", async () => {
+    const result = await bulkDeleteTransactions([1, 2.5]);
+    expect(result).toEqual({ success: false, error: "Invalid transaction ID" });
+  });
+
+  it("calls revalidatePath on success", async () => {
+    mocks.mockDeleteRun.mockReturnValue({ changes: 1 });
+    await bulkDeleteTransactions([5]);
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("does not call revalidatePath on validation failure", async () => {
+    await bulkDeleteTransactions([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

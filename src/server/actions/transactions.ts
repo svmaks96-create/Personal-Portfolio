@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import Decimal from "decimal.js";
 import { db } from "@/server/db";
 import { transactions } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { transactionSchema } from "@/shared/schemas/transaction";
 import type { ActionResult } from "@/server/types/action-result";
 
@@ -183,6 +183,69 @@ export async function addTransaction(
     return {
       success: false,
       error: "Failed to add transaction. Please try again.",
+    };
+  }
+}
+
+export async function deleteTransaction(
+  id: number,
+): Promise<ActionResult> {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { success: false, error: "Invalid transaction ID" };
+  }
+
+  try {
+    const existing = db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.id, id))
+      .get();
+
+    if (!existing) {
+      return { success: false, error: "Transaction not found" };
+    }
+
+    db.delete(transactions).where(eq(transactions.id, id)).run();
+
+    revalidatePath("/", "layout");
+
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("deleteTransaction failed:", error);
+    return {
+      success: false,
+      error: "Failed to delete transaction. Please try again.",
+    };
+  }
+}
+
+export async function bulkDeleteTransactions(
+  ids: number[],
+): Promise<ActionResult<{ deletedCount: number }>> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { success: false, error: "No transaction IDs provided" };
+  }
+
+  for (const id of ids) {
+    if (!Number.isInteger(id) || id <= 0) {
+      return { success: false, error: "Invalid transaction ID" };
+    }
+  }
+
+  try {
+    const result = db
+      .delete(transactions)
+      .where(inArray(transactions.id, ids))
+      .run();
+
+    revalidatePath("/", "layout");
+
+    return { success: true, data: { deletedCount: result.changes } };
+  } catch (error) {
+    console.error("bulkDeleteTransactions failed:", error);
+    return {
+      success: false,
+      error: "Failed to delete transactions. Please try again.",
     };
   }
 }

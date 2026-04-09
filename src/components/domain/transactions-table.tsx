@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
   flexRender,
   type SortingState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -19,9 +20,14 @@ import {
 } from "@/components/ui/table";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { updateTransaction } from "@/server/actions/transactions";
+import {
+  updateTransaction,
+  deleteTransaction,
+  bulkDeleteTransactions,
+} from "@/server/actions/transactions";
 import { getTransactionsColumns } from "@/components/domain/transactions-columns";
 import { AddTransactionRow } from "@/components/domain/add-transaction-row";
+import { DeleteConfirmationDialog } from "@/components/domain/delete-confirmation-dialog";
 import type { TransactionRow } from "@/server/queries/transactions";
 
 const EDITABLE_FIELD_ORDER = [
@@ -45,6 +51,11 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   const [cellError, setCellError] = useState<{ rowId: number; field: string; message: string } | null>(null);
   const [highlightedCells, setHighlightedCells] = useState<Set<string>>(new Set());
   const [sorting, setSorting] = useState<SortingState>([{ id: "date", desc: true }]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number } | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deletingRef = useRef(false);
 
   function handleStartEdit(rowId: number, field: string) {
     setEditingCell({ rowId, field });
@@ -95,6 +106,53 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
     }
   }
 
+  function handleDeleteClick(id: number) {
+    setEditingCell(null);
+    setDeleteTarget({ id });
+  }
+
+  async function handleConfirmDelete() {
+    if (deletingRef.current || !deleteTarget) return;
+    deletingRef.current = true;
+    setIsDeleting(true);
+
+    try {
+      const result = await deleteTransaction(deleteTarget.id);
+      if (result.success) {
+        setDeleteTarget(null);
+      } else {
+        console.error("Delete failed:", result.error);
+        setDeleteTarget(null);
+      }
+    } finally {
+      deletingRef.current = false;
+      setIsDeleting(false);
+    }
+  }
+
+  async function handleConfirmBulkDelete() {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setIsDeleting(true);
+
+    try {
+      const selectedIds = Object.keys(rowSelection).map(Number);
+      const result = await bulkDeleteTransactions(selectedIds);
+      if (result.success) {
+        setRowSelection({});
+        setIsBulkDeleting(false);
+      } else {
+        console.error("Bulk delete failed:", result.error);
+        setIsBulkDeleting(false);
+      }
+    } finally {
+      deletingRef.current = false;
+      setIsDeleting(false);
+    }
+  }
+
+  const selectedCount = Object.keys(rowSelection).length;
+
   const columns = useMemo(
     () =>
       getTransactionsColumns({
@@ -105,22 +163,27 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
         onSave: handleSave,
         onCancel: handleCancel,
         onTabToNext: handleTabToNext,
+        onDeleteClick: handleDeleteClick,
+        isDeleting,
       }),
-    [editingCell, cellError, highlightedCells],
+    [editingCell, cellError, highlightedCells, isDeleting],
   );
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection },
     onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
+    getRowId: (row) => String(row.id),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-zinc-200">
-      <div className="flex items-center px-4 py-2 border-b border-zinc-100">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-100">
         <Button
           variant="secondary"
           size="sm"
@@ -130,6 +193,18 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           <Plus className="h-4 w-4 mr-1" />
           Add Transaction
         </Button>
+        {selectedCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-red-600 border-red-600 hover:bg-red-50"
+            disabled={isDeleting}
+            onClick={() => setIsBulkDeleting(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete Selected ({selectedCount})
+          </Button>
+        )}
       </div>
       <Table className="table-fixed">
         <TableHeader>
@@ -201,6 +276,20 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           ))}
         </TableBody>
       </Table>
+
+      <DeleteConfirmationDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        count={1}
+        onConfirm={handleConfirmDelete}
+      />
+
+      <DeleteConfirmationDialog
+        open={isBulkDeleting}
+        onOpenChange={setIsBulkDeleting}
+        count={selectedCount}
+        onConfirm={handleConfirmBulkDelete}
+      />
     </div>
   );
 }

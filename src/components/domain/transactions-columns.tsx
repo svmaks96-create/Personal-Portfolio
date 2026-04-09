@@ -1,6 +1,9 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import type { TransactionRow } from "@/server/queries/transactions";
 import { EditableCell } from "@/components/domain/editable-cell";
 
@@ -18,6 +21,8 @@ interface EditContext {
   onSave: (rowId: number, field: string, value: string | number) => void;
   onCancel: () => void;
   onTabToNext: (rowId: number, field: string) => void;
+  onDeleteClick: (id: number) => void;
+  isDeleting: boolean;
 }
 
 function editableCellRenderer(
@@ -53,6 +58,29 @@ function editableCellRenderer(
 
 export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionRow>[] {
   return [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      meta: { align: "center" as const },
+      size: 40,
+    },
     {
       accessorKey: "date",
       header: "Date",
@@ -159,6 +187,23 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       cell: ({ row }) =>
         editableCellRenderer(row, "currency", row.original.currency, row.original.currency, "text", ctx),
       meta: { align: "center" as const },
+    },
+    {
+      id: "delete",
+      header: () => null,
+      cell: ({ row }) => (
+        <Button
+          variant="outline"
+          className="text-red-600 border-red-600 hover:bg-red-50 h-7 w-7 p-0"
+          disabled={ctx.isDeleting}
+          onClick={() => ctx.onDeleteClick(row.original.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+      enableSorting: false,
+      meta: { align: "center" as const },
+      size: 40,
     },
   ];
 }
