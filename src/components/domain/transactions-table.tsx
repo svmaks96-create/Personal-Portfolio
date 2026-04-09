@@ -17,8 +17,11 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { updateTransaction } from "@/server/actions/transactions";
 import { getTransactionsColumns } from "@/components/domain/transactions-columns";
+import { AddTransactionRow } from "@/components/domain/add-transaction-row";
 import type { TransactionRow } from "@/server/queries/transactions";
 
 const EDITABLE_FIELD_ORDER = [
@@ -37,6 +40,7 @@ interface TransactionsTableProps {
 }
 
 export function TransactionsTable({ data }: TransactionsTableProps) {
+  const [isAdding, setIsAdding] = useState(false);
   const [editingCell, setEditingCell] = useState<{ rowId: number; field: string } | null>(null);
   const [cellError, setCellError] = useState<{ rowId: number; field: string; message: string } | null>(null);
   const [highlightedCells, setHighlightedCells] = useState<Set<string>>(new Set());
@@ -116,6 +120,17 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-zinc-200">
+      <div className="flex items-center px-4 py-2 border-b border-zinc-100">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={isAdding}
+          onClick={() => setIsAdding(true)}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Add Transaction
+        </Button>
+      </div>
       <Table className="table-fixed">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -154,6 +169,12 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           ))}
         </TableHeader>
         <TableBody>
+          {isAdding && (
+            <AddTransactionRow
+              onCancel={() => setIsAdding(false)}
+              onSuccess={() => setIsAdding(false)}
+            />
+          )}
           {table.getRowModel().rows.map((row) => (
             <TableRow
               key={row.id}
