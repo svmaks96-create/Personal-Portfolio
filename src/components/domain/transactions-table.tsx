@@ -222,7 +222,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
                     key={header.id}
                     className={`text-[13px] font-medium text-zinc-500 cursor-pointer select-none ${
                       align === "center" ? "text-center" : ""
-                    }`}
+                    } ${header.column.id === "select" ? "w-10 px-0" : ""}`}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -263,7 +263,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
                     key={cell.id}
                     className={`text-[14px] text-zinc-900 ${
                       align === "center" ? "text-center" : ""
-                    }`}
+                    } ${cell.column.id === "select" ? "w-10 px-0" : ""}`}
                   >
                     {flexRender(
                       cell.column.columnDef.cell,
