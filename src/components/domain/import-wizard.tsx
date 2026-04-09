@@ -330,8 +330,8 @@ export function ImportWizard() {
       {state.step === 1 && (
         <div className="space-y-4">
           {/* Download template */}
-          <Button variant="secondary" asChild>
-            <a href="/template.xlsx" download>Download Template</a>
+          <Button variant="secondary" render={<a href="/template.xlsx" download />}>
+            Download Template
           </Button>
 
           {/* Drop zone */}
