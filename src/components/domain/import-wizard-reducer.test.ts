@@ -3,86 +3,8 @@ import type {
   ImportValidationRow,
   ImportValidationResult,
 } from "@/server/types/import";
-
-// The reducer is not exported from import-wizard.tsx, so we replicate
-// the action types and reducer logic here for unit testing.
-// This tests the UPDATE_ROW, SET_ROW_ERRORS, and REVALIDATE_RESULTS
-// actions that were added in Story 5.2.
-
-type ImportWizardState = {
-  step: 1 | 2 | 3 | 4;
-  file: File | null;
-  fileName: string | null;
-  parsedRows: ImportValidationRow[];
-  validationErrors: ImportValidationRow[];
-  duplicates: ImportValidationRow[];
-  confirmedRows: ImportValidationRow[];
-  isProcessing: boolean;
-  uploadError: string | null;
-};
-
-type ImportAction =
-  | {
-      type: "UPDATE_ROW";
-      rowIndex: number;
-      field: keyof ImportValidationRow["data"];
-      value: string | number;
-    }
-  | {
-      type: "SET_ROW_ERRORS";
-      rowIndex: number;
-      errors: Array<{ field: string; message: string }> | undefined;
-      status: ImportValidationRow["status"];
-    }
-  | { type: "REVALIDATE_RESULTS"; result: ImportValidationResult };
-
-function reducer(
-  state: ImportWizardState,
-  action: ImportAction,
-): ImportWizardState {
-  switch (action.type) {
-    case "UPDATE_ROW": {
-      const updatedRows = state.parsedRows.map((row) => {
-        if (row.rowIndex !== action.rowIndex) return row;
-        return {
-          ...row,
-          data: { ...row.data, [action.field]: action.value },
-        };
-      });
-      return { ...state, parsedRows: updatedRows };
-    }
-    case "SET_ROW_ERRORS": {
-      const updatedRows = state.parsedRows.map((row) => {
-        if (row.rowIndex !== action.rowIndex) return row;
-        return {
-          ...row,
-          status: action.status,
-          errors: action.errors,
-        };
-      });
-      return {
-        ...state,
-        parsedRows: updatedRows,
-        validationErrors: updatedRows.filter((r) => r.status === "error"),
-        confirmedRows: updatedRows.filter((r) => r.status === "valid"),
-        duplicates: updatedRows.filter((r) => r.status === "duplicate"),
-      };
-    }
-    case "REVALIDATE_RESULTS": {
-      const { result } = action;
-      return {
-        ...state,
-        parsedRows: result.rows,
-        validationErrors: result.rows.filter((r) => r.status === "error"),
-        duplicates: result.rows.filter((r) => r.status === "duplicate"),
-        confirmedRows: result.rows.filter((r) => r.status === "valid"),
-        isProcessing: false,
-      };
-    }
-    default:
-      return state;
-  }
-}
+import { reducer } from "./import-wizard";
+import type { ImportWizardState } from "./import-wizard";
 
 function makeRow(
   rowIndex: number,

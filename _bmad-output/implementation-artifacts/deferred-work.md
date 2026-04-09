@@ -85,3 +85,10 @@
 - `rawData as ImportValidationRow["data"]` cast unsafe on error rows — error rows may have `undefined` numeric fields; relevant when Story 5.2 implements inline correction UI
 - Sell-more-than-held validates against current aggregate position, not historical chronological state — spec design decision; import of historical sells before existing buys passes validation
 - Stale validation between validate and commit — between validation and commit (Story 5.3), DB state could change; commit step should re-validate sell-more-than-held
+
+## Deferred from: code review of 5-2-validation-error-display-and-inline-correction (2026-04-09)
+
+- Tier 1 client validation falsely clears sell-more-than-held errors — Zod pass sets row to "valid" removing sell-more-than-held indicator until Tier 2 re-checks on Continue click. Can't validate now, reconsider once MVP ready.
+- `EditableCell` non-select `onBlur={commitSave}` bypasses keyboard guard causing double-fire [editable-cell.tsx:140] — Enter/Tab on text/number/date inputs fires `commitSave` twice; mitigated by value-unchanged guard in parent but redundant dispatch occurs
+- Empty string from EditableCell rejected by `z.number()` with unhelpful "Expected number, received string" message [editable-cell.tsx:56-58] — user clearing a number field gets confusing error
+- Select dropdown may display incorrectly for non-matching action values from Excel [editable-cell.tsx:115-126] — if rawValue not in options list, visual and saved value may diverge

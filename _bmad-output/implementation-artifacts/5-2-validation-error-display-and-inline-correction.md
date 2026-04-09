@@ -1,6 +1,6 @@
 # Story 5.2: Validation Error Display & Inline Correction
 
-Status: review
+Status: done
 
 ## Story
 
@@ -269,6 +269,16 @@ None — clean implementation, all tests passed on first run.
 - All cells are editable on all rows (valid and error), per dev notes
 - Added 7 tests for `revalidateImportRows`, 5 tests for schema re-validation edge cases, 5 tests for reducer actions
 - Final: 0 lint errors, 205 tests passing
+
+### Review Findings
+
+- [x] [Review][Defer] Tier 1 client validation falsely clears sell-more-than-held errors — when user edits a sell row and Zod passes, `SET_ROW_ERRORS` sets status to `"valid"`, removing the sell-more-than-held error indicator until Tier 2 re-checks on Continue click [import-wizard.tsx:~170] — deferred: can't validate now, reconsider once MVP ready
+- [x] [Review][Dismissed] `isProcessing` not reset on error/catch paths in `handleContinue` — false positive: `SET_UPLOAD_ERROR` reducer already resets `isProcessing: false`
+- [x] [Review][Patch] Stale closure in `handleUpdateRow` — fixed: added `parsedRowsRef` to avoid stale closure during rapid sequential edits [import-wizard.tsx]
+- [x] [Review][Patch] Reducer test duplicates production code instead of importing — fixed: exported `reducer`, `ImportWizardState`, `ImportAction` from wizard; test now imports from source [import-wizard.tsx, import-wizard-reducer.test.ts]
+- [x] [Review][Defer] `EditableCell` non-select `onBlur={commitSave}` bypasses keyboard guard causing double-fire [editable-cell.tsx:140] — deferred, pre-existing
+- [x] [Review][Defer] Empty string from EditableCell rejected by `z.number()` with unhelpful "Expected number, received string" message [editable-cell.tsx:56-58] — deferred, pre-existing
+- [x] [Review][Defer] Select dropdown may display incorrectly for non-matching action values from Excel [editable-cell.tsx:115-126] — deferred, pre-existing
 
 ### Change Log
 

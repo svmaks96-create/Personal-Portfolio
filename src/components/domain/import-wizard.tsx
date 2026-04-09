@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useRef, useState, useCallback } from "react";
+import { useReducer, useRef, useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   validateImport,
@@ -14,7 +14,7 @@ import type {
 } from "@/server/types/import";
 import { cn } from "@/lib/utils";
 
-type ImportWizardState = {
+export type ImportWizardState = {
   step: 1 | 2 | 3 | 4;
   file: File | null;
   fileName: string | null;
@@ -26,7 +26,7 @@ type ImportWizardState = {
   uploadError: string | null;
 };
 
-type ImportAction =
+export type ImportAction =
   | { type: "SET_FILE"; file: File }
   | { type: "SET_PROCESSING"; isProcessing: boolean }
   | { type: "SET_UPLOAD_ERROR"; error: string }
@@ -65,7 +65,7 @@ function getNextStep(result: ImportValidationResult): 1 | 2 | 3 | 4 {
   return 4;
 }
 
-function reducer(state: ImportWizardState, action: ImportAction): ImportWizardState {
+export function reducer(state: ImportWizardState, action: ImportAction): ImportWizardState {
   switch (action.type) {
     case "SET_FILE":
       return {
@@ -148,6 +148,12 @@ function Step2Validation({
     (r) => r.status === "error",
   ).length;
 
+  // Keep a ref to latest parsedRows to avoid stale closure in handleUpdateRow
+  const parsedRowsRef = useRef(state.parsedRows);
+  useEffect(() => {
+    parsedRowsRef.current = state.parsedRows;
+  }, [state.parsedRows]);
+
   const handleUpdateRow = useCallback(
     (
       rowIndex: number,
@@ -157,8 +163,8 @@ function Step2Validation({
       // Update the row data in state
       dispatch({ type: "UPDATE_ROW", rowIndex, field, value });
 
-      // Client-side re-validation (Tier 1)
-      const row = state.parsedRows.find((r) => r.rowIndex === rowIndex);
+      // Client-side re-validation (Tier 1) — use ref for latest rows
+      const row = parsedRowsRef.current.find((r) => r.rowIndex === rowIndex);
       if (!row) return;
 
       const updatedData = { ...row.data, [field]: value };
@@ -183,7 +189,7 @@ function Step2Validation({
         });
       }
     },
-    [dispatch, state.parsedRows],
+    [dispatch],
   );
 
   const handleContinue = useCallback(async () => {
