@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import Decimal from "decimal.js";
 import { db } from "@/server/db";
 import { transactions } from "@/server/db/schema";
+import { revalidatePath } from "next/cache";
 import { importRowSchema, COLUMN_MAP, REQUIRED_COLUMNS } from "@/shared/schemas/import";
 import type { ActionResult } from "@/server/types/action-result";
 import type {
@@ -300,5 +301,57 @@ function checkDuplicates(rows: ImportValidationRow[]): void {
     }
 
     batchKeys.set(key, row.rowIndex);
+  }
+}
+
+export async function commitImport(
+  rows: ImportValidationRow["data"][],
+): Promise<ActionResult<{ importedCount: number }>> {
+  try {
+    if (rows.length === 0) {
+      return { success: false, error: "No rows to import" };
+    }
+
+    // Re-validate all rows with Zod before inserting (stale validation guard)
+    for (const row of rows) {
+      const result = importRowSchema.safeParse(row);
+      if (!result.success) {
+        const issues = result.error.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; ");
+        return {
+          success: false,
+          error: `Validation failed for row (${row.ticker} ${row.date}): ${issues}`,
+        };
+      }
+    }
+
+    // Atomic insert
+    db.transaction((tx) => {
+      for (const row of rows) {
+        tx.insert(transactions)
+          .values({
+            date: row.date,
+            ticker: row.ticker,
+            action: row.action as "buy" | "sell" | "dividend" | "fee",
+            quantity: row.quantity,
+            grossAmount: row.grossAmount,
+            fees: row.fees,
+            portfolio: row.portfolio,
+            currency: row.currency,
+          })
+          .run();
+      }
+    });
+
+    revalidatePath("/", "layout");
+
+    return { success: true, data: { importedCount: rows.length } };
+  } catch (error) {
+    console.error("commitImport failed:", error);
+    return {
+      success: false,
+      error: "Failed to import transactions. Please try again.",
+    };
   }
 }

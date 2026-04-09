@@ -28,7 +28,10 @@ function makeRow(
   };
 }
 
-function makeState(rows: ImportValidationRow[]): ImportWizardState {
+function makeState(
+  rows: ImportValidationRow[],
+  overriddenDuplicates: Set<number> = new Set(),
+): ImportWizardState {
   return {
     step: 2,
     file: null,
@@ -36,7 +39,12 @@ function makeState(rows: ImportValidationRow[]): ImportWizardState {
     parsedRows: rows,
     validationErrors: rows.filter((r) => r.status === "error"),
     duplicates: rows.filter((r) => r.status === "duplicate"),
-    confirmedRows: rows.filter((r) => r.status === "valid"),
+    confirmedRows: rows.filter(
+      (r) =>
+        r.status === "valid" ||
+        (r.status === "duplicate" && overriddenDuplicates.has(r.rowIndex)),
+    ),
+    overriddenDuplicates,
     isProcessing: false,
     uploadError: null,
   };
@@ -135,5 +143,70 @@ describe("import wizard reducer — REVALIDATE_RESULTS", () => {
     expect(next.duplicates).toHaveLength(1);
     expect(next.validationErrors).toHaveLength(0);
     expect(next.isProcessing).toBe(false);
+    expect(next.overriddenDuplicates.size).toBe(0);
+  });
+});
+
+describe("import wizard reducer — TOGGLE_DUPLICATE", () => {
+  it("adds rowIndex to overriddenDuplicates and updates confirmedRows", () => {
+    const dupRow = makeRow(2, { ticker: "MSFT" }, "duplicate");
+    dupRow.duplicateOf = { source: "existing", existingId: 42 };
+    const state = makeState([makeRow(3), dupRow]);
+    state.step = 3;
+
+    const next = reducer(state, { type: "TOGGLE_DUPLICATE", rowIndex: 2 });
+
+    expect(next.overriddenDuplicates.has(2)).toBe(true);
+    expect(next.confirmedRows).toHaveLength(2); // valid + overridden
+  });
+
+  it("removes rowIndex from overriddenDuplicates when toggled again", () => {
+    const dupRow = makeRow(2, { ticker: "MSFT" }, "duplicate");
+    dupRow.duplicateOf = { source: "existing", existingId: 42 };
+    const state = makeState([makeRow(3), dupRow], new Set([2]));
+    state.step = 3;
+
+    const next = reducer(state, { type: "TOGGLE_DUPLICATE", rowIndex: 2 });
+
+    expect(next.overriddenDuplicates.has(2)).toBe(false);
+    expect(next.confirmedRows).toHaveLength(1); // only valid
+  });
+
+  it("does not mutate original state", () => {
+    const dupRow = makeRow(2, {}, "duplicate");
+    const state = makeState([makeRow(3), dupRow]);
+
+    reducer(state, { type: "TOGGLE_DUPLICATE", rowIndex: 2 });
+
+    expect(state.overriddenDuplicates.has(2)).toBe(false);
+    expect(state.confirmedRows).toHaveLength(1);
+  });
+
+  it("confirmed rows include valid + overridden, exclude skipped duplicates", () => {
+    const dup1 = makeRow(2, { ticker: "MSFT" }, "duplicate");
+    const dup2 = makeRow(4, { ticker: "GOOG" }, "duplicate");
+    const state = makeState([makeRow(3), dup1, dup2]);
+
+    // Override only dup1
+    const next = reducer(state, { type: "TOGGLE_DUPLICATE", rowIndex: 2 });
+
+    expect(next.confirmedRows).toHaveLength(2); // valid row 3 + overridden row 2
+    expect(next.confirmedRows.map((r) => r.rowIndex)).toEqual(
+      expect.arrayContaining([3, 2]),
+    );
+  });
+});
+
+describe("import wizard reducer — SET_VALIDATION_RESULTS resets overrides", () => {
+  it("clears overriddenDuplicates on new validation results", () => {
+    const state = makeState([], new Set([2, 3]));
+    const result: ImportValidationResult = {
+      rows: [makeRow(2)],
+      summary: { total: 1, valid: 1, errors: 0, duplicates: 0 },
+    };
+
+    const next = reducer(state, { type: "SET_VALIDATION_RESULTS", result });
+
+    expect(next.overriddenDuplicates.size).toBe(0);
   });
 });

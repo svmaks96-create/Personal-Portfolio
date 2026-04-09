@@ -7,17 +7,24 @@ vi.mock("@/server/db", () => {
   const mockAll = vi.fn().mockReturnValue([]);
   const mockFrom = vi.fn().mockReturnValue({ all: mockAll, where: vi.fn().mockReturnValue({ all: mockAll }) });
   const mockSelect = vi.fn().mockReturnValue({ from: mockFrom });
+  const mockRun = vi.fn();
+  const mockValues = vi.fn().mockReturnValue({ run: mockRun });
+  const mockInsert = vi.fn().mockReturnValue({ values: mockValues });
+  const mockTransaction = vi.fn().mockImplementation((fn: (tx: unknown) => void) => {
+    fn({ insert: mockInsert });
+  });
 
   return {
     db: {
       select: mockSelect,
-      _mocks: { mockAll, mockFrom, mockSelect },
+      transaction: mockTransaction,
+      _mocks: { mockAll, mockFrom, mockSelect, mockTransaction, mockInsert, mockValues, mockRun },
     },
   };
 });
 
 import { db } from "@/server/db";
-import { validateImport, revalidateImportRows } from "./import";
+import { validateImport, revalidateImportRows, commitImport } from "./import";
 import type { ImportValidationRow } from "@/server/types/import";
 
 const mocks = (db as unknown as { _mocks: Record<string, ReturnType<typeof vi.fn>> })._mocks;
@@ -411,5 +418,99 @@ describe("revalidateImportRows", () => {
       expect(result.data.summary.valid).toBe(1);
       expect(result.data.summary.duplicates).toBe(1);
     }
+  });
+});
+
+function validRowDataForCommit(overrides: Partial<ImportValidationRow["data"]> = {}): ImportValidationRow["data"] {
+  return {
+    date: "2025-03-15",
+    ticker: "AAPL",
+    action: "buy",
+    quantity: 10,
+    grossAmount: 1500,
+    fees: 4.95,
+    portfolio: "Main",
+    currency: "USD",
+    ...overrides,
+  };
+}
+
+describe("commitImport", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockAll.mockReturnValue([]);
+  });
+
+  it("inserts all rows atomically and returns importedCount", async () => {
+    const rows = [
+      validRowDataForCommit(),
+      validRowDataForCommit({ ticker: "MSFT", grossAmount: 2000 }),
+    ];
+
+    const result = await commitImport(rows);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.importedCount).toBe(2);
+    }
+    expect(mocks.mockTransaction).toHaveBeenCalledTimes(1);
+    expect(mocks.mockInsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns error for empty batch", async () => {
+    const result = await commitImport([]);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("No rows to import");
+    }
+    expect(mocks.mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects rows that fail Zod validation", async () => {
+    const rows = [validRowDataForCommit({ date: "bad-date" })];
+
+    const result = await commitImport(rows);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Validation failed");
+    }
+    expect(mocks.mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns error when transaction throws (atomic rollback)", async () => {
+    mocks.mockTransaction.mockImplementationOnce(() => {
+      throw new Error("DB write error");
+    });
+
+    const rows = [validRowDataForCommit()];
+    const result = await commitImport(rows);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Failed to import");
+    }
+  });
+
+  it("calls revalidatePath after successful import", async () => {
+    const { revalidatePath } = await import("next/cache");
+
+    const rows = [validRowDataForCommit()];
+    await commitImport(rows);
+
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("rejects negative quantity via Zod re-validation", async () => {
+    const rows = [validRowDataForCommit({ quantity: -5 })];
+
+    const result = await commitImport(rows);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Validation failed");
+    }
+    expect(mocks.mockTransaction).not.toHaveBeenCalled();
   });
 });

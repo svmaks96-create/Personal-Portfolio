@@ -1,12 +1,15 @@
 "use client";
 
-import { useReducer, useRef, useState, useCallback, useEffect } from "react";
+import { useReducer, useRef, useState, useCallback, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   validateImport,
   revalidateImportRows,
+  commitImport,
 } from "@/server/actions/import";
 import { ImportValidationTable } from "@/components/domain/import-validation-table";
+import { ImportDuplicateTable } from "@/components/domain/import-duplicate-table";
 import { importRowSchema } from "@/shared/schemas/import";
 import type {
   ImportValidationRow,
@@ -22,6 +25,7 @@ export type ImportWizardState = {
   validationErrors: ImportValidationRow[];
   duplicates: ImportValidationRow[];
   confirmedRows: ImportValidationRow[];
+  overriddenDuplicates: Set<number>;
   isProcessing: boolean;
   uploadError: string | null;
 };
@@ -44,6 +48,7 @@ export type ImportAction =
       status: ImportValidationRow["status"];
     }
   | { type: "REVALIDATE_RESULTS"; result: ImportValidationResult }
+  | { type: "TOGGLE_DUPLICATE"; rowIndex: number }
   | { type: "GO_TO_STEP"; step: 1 | 2 | 3 | 4 }
   | { type: "RESET" };
 
@@ -55,9 +60,21 @@ const initialState: ImportWizardState = {
   validationErrors: [],
   duplicates: [],
   confirmedRows: [],
+  overriddenDuplicates: new Set(),
   isProcessing: false,
   uploadError: null,
 };
+
+function deriveConfirmedRows(
+  rows: ImportValidationRow[],
+  overrides: Set<number>,
+): ImportValidationRow[] {
+  return rows.filter(
+    (r) =>
+      r.status === "valid" ||
+      (r.status === "duplicate" && overrides.has(r.rowIndex)),
+  );
+}
 
 function getNextStep(result: ImportValidationResult): 1 | 2 | 3 | 4 {
   if (result.summary.errors > 0) return 2;
@@ -86,6 +103,7 @@ export function reducer(state: ImportWizardState, action: ImportAction): ImportW
         validationErrors: result.rows.filter((r) => r.status === "error"),
         duplicates: result.rows.filter((r) => r.status === "duplicate"),
         confirmedRows: result.rows.filter((r) => r.status === "valid"),
+        overriddenDuplicates: new Set(),
         isProcessing: false,
         step: getNextStep(result),
       };
@@ -109,12 +127,13 @@ export function reducer(state: ImportWizardState, action: ImportAction): ImportW
           errors: action.errors,
         };
       });
+      const dupes = updatedRows.filter((r) => r.status === "duplicate");
       return {
         ...state,
         parsedRows: updatedRows,
         validationErrors: updatedRows.filter((r) => r.status === "error"),
-        confirmedRows: updatedRows.filter((r) => r.status === "valid"),
-        duplicates: updatedRows.filter((r) => r.status === "duplicate"),
+        confirmedRows: deriveConfirmedRows(updatedRows, state.overriddenDuplicates),
+        duplicates: dupes,
       };
     }
     case "REVALIDATE_RESULTS": {
@@ -125,13 +144,27 @@ export function reducer(state: ImportWizardState, action: ImportAction): ImportW
         validationErrors: result.rows.filter((r) => r.status === "error"),
         duplicates: result.rows.filter((r) => r.status === "duplicate"),
         confirmedRows: result.rows.filter((r) => r.status === "valid"),
+        overriddenDuplicates: new Set(),
         isProcessing: false,
+      };
+    }
+    case "TOGGLE_DUPLICATE": {
+      const nextOverrides = new Set(state.overriddenDuplicates);
+      if (nextOverrides.has(action.rowIndex)) {
+        nextOverrides.delete(action.rowIndex);
+      } else {
+        nextOverrides.add(action.rowIndex);
+      }
+      return {
+        ...state,
+        overriddenDuplicates: nextOverrides,
+        confirmedRows: deriveConfirmedRows(state.parsedRows, nextOverrides),
       };
     }
     case "GO_TO_STEP":
       return { ...state, step: action.step };
     case "RESET":
-      return initialState;
+      return { ...initialState, overriddenDuplicates: new Set() };
     default:
       return state;
   }
@@ -245,6 +278,109 @@ function Step2Validation({
           {state.isProcessing ? "Validating..." : "Continue"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function Step4Confirm({
+  state,
+  dispatch,
+}: {
+  state: ImportWizardState;
+  dispatch: React.Dispatch<ImportAction>;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [importResult, setImportResult] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  // Auto-dismiss success banner after 5s then redirect
+  useEffect(() => {
+    if (importResult?.type !== "success") return;
+    const timer = setTimeout(() => {
+      router.push("/");
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [importResult, router]);
+
+  const handleImport = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const rowData = state.confirmedRows.map((r) => r.data);
+        const result = await commitImport(rowData);
+
+        if (result.success) {
+          setImportResult({
+            type: "success",
+            message: `${result.data.importedCount} transactions imported successfully`,
+          });
+        } else {
+          setImportResult({ type: "error", message: result.error });
+        }
+      } catch {
+        setImportResult({
+          type: "error",
+          message: "Failed to import transactions. Please try again.",
+        });
+      }
+    });
+  }, [state.confirmedRows]);
+
+  const previousStep = state.duplicates.length > 0 ? 3 : 2;
+
+  return (
+    <div className="space-y-4">
+      {importResult?.type === "success" && (
+        <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+          {importResult.message}
+        </div>
+      )}
+
+      {importResult?.type === "error" && (
+        <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{importResult.message}</span>
+          <button
+            onClick={() => setImportResult(null)}
+            className="ml-2 text-red-500 hover:text-red-700"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {!importResult?.type && (
+        <>
+          <p className="text-sm text-zinc-600">
+            {state.confirmedRows.length} transactions ready to import
+          </p>
+
+          <div className="flex items-center justify-between">
+            <Button
+              variant="secondary"
+              onClick={() =>
+                dispatch({
+                  type: "GO_TO_STEP",
+                  step: previousStep as 1 | 2 | 3 | 4,
+                })
+              }
+              disabled={isPending}
+            >
+              Back
+            </Button>
+            <Button onClick={handleImport} disabled={isPending}>
+              {isPending ? "Importing..." : "Import"}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {importResult?.type === "success" && (
+        <p className="text-xs text-zinc-400">
+          Redirecting to dashboard...
+        </p>
+      )}
     </div>
   );
 }
@@ -415,35 +551,41 @@ export function ImportWizard() {
         />
       )}
 
-      {/* Step 3: Duplicates placeholder */}
+      {/* Step 3: Duplicate review */}
       {state.step === 3 && (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-600">
-            {state.duplicates.length} potential duplicates — review coming in
-            Story 5.3
-          </p>
-          <div className="text-sm text-zinc-500">
-            <p>Summary: {state.parsedRows.length} total rows</p>
-            <p>{state.confirmedRows.length} valid</p>
-            <p>{state.duplicates.length} duplicates</p>
+          <ImportDuplicateTable
+            duplicates={state.duplicates}
+            overriddenDuplicates={state.overriddenDuplicates}
+            onToggleDuplicate={(rowIndex) =>
+              dispatch({ type: "TOGGLE_DUPLICATE", rowIndex })
+            }
+          />
+
+          <div className="flex items-center justify-between">
+            <Button
+              variant="secondary"
+              onClick={() =>
+                dispatch({
+                  type: "GO_TO_STEP",
+                  step: state.validationErrors.length > 0 ? 2 : 1,
+                })
+              }
+            >
+              Back
+            </Button>
+            <Button
+              onClick={() => dispatch({ type: "GO_TO_STEP", step: 4 })}
+            >
+              Continue
+            </Button>
           </div>
-          <Button variant="secondary" onClick={() => dispatch({ type: "RESET" })}>
-            Back to Upload
-          </Button>
         </div>
       )}
 
-      {/* Step 4: Confirm placeholder */}
+      {/* Step 4: Confirm & import */}
       {state.step === 4 && (
-        <div className="space-y-4">
-          <p className="text-sm text-zinc-600">
-            {state.confirmedRows.length} transactions ready to import — commit
-            coming in Story 5.3
-          </p>
-          <Button variant="secondary" onClick={() => dispatch({ type: "RESET" })}>
-            Back to Upload
-          </Button>
-        </div>
+        <Step4Confirm state={state} dispatch={dispatch} />
       )}
     </div>
   );
