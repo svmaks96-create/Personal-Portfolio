@@ -1,7 +1,8 @@
 import { db } from "@/server/db";
 import { transactions, marketData } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { computePositions, computeAggregates } from "@/server/services/computation";
+import { format } from "date-fns";
+import { computePositions, computeAggregates, computePortfolioIRR, mergePositionsByTicker } from "@/server/services/computation";
 import type {
   TransactionInput,
   MarketDataInput,
@@ -60,9 +61,16 @@ export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
   }));
 
   // 4. Compute positions and aggregates (active positions only)
-  const positions = computePositions(txInputs, priceMap, fxRates);
+  const today = format(new Date(), "yyyy-MM-dd");
+  const allPositions = computePositions(txInputs, priceMap, fxRates, today);
+  const positions = !portfolio
+    ? mergePositionsByTicker(allPositions, txInputs, fxRates, today)
+    : allPositions;
   const activePositions = positions.filter((p) => !p.isClosed);
   const aggregates = computeAggregates(activePositions);
+
+  // 5. Compute portfolio-level IRR from all transactions (including closed positions)
+  aggregates.irr = computePortfolioIRR(txInputs, positions, fxRates, today);
 
   return aggregates;
 }

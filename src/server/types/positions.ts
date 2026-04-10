@@ -27,6 +27,8 @@ export interface ComputedPosition {
   portfolio: string;
   currency: string;
   sharesHeld: number;
+  totalSharesBought: number;
+  totalSharesSold: number;
   avgEntryPrice: number | null;
   avgExitPrice: number | null;
   costBasis: number | null;
@@ -38,6 +40,7 @@ export interface ComputedPosition {
   totalPnl: number | null;
   currentFxRate: number | null;
   cashReturned: number | null;
+  irr: number | null;
   isClosed: boolean;
   hasInvalidState: boolean;
 }
@@ -47,5 +50,6 @@ export interface AggregateMetrics {
   totalCostBasis: number | null;
   totalPnl: number | null;
   totalCashReturned: number | null;
+  irr: number | null;
   positions: (ComputedPosition & { weight: number | null })[];
 }

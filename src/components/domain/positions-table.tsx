@@ -155,11 +155,13 @@ export function DrillDownPositionsTable<TData extends { ticker: string; portfoli
       columns={columns}
       defaultSort={defaultSort}
       emptyMessage={emptyMessage}
-      onRowClick={(row) =>
-        router.push(
-          `/transactions?ticker=${encodeURIComponent(row.ticker)}&portfolio=${encodeURIComponent(row.portfolio)}`
-        )
-      }
+      onRowClick={(row) => {
+        const params = new URLSearchParams({ ticker: row.ticker });
+        if (row.portfolio !== "All") {
+          params.set("portfolio", row.portfolio);
+        }
+        router.push(`/transactions?${params.toString()}`);
+      }}
     />
   );
 }

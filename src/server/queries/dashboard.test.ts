@@ -13,6 +13,8 @@ vi.mock("@/server/db", () => {
 vi.mock("@/server/services/computation", () => ({
   computePositions: vi.fn(),
   computeAggregates: vi.fn(),
+  computePortfolioIRR: vi.fn().mockReturnValue(null),
+  mergePositionsByTicker: vi.fn((positions: unknown[]) => positions),
 }));
 
 import { getDashboardMetrics } from "./dashboard";
@@ -28,6 +30,8 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     portfolio: "Main",
     currency: "USD",
     sharesHeld: 10,
+    totalSharesBought: 10,
+    totalSharesSold: 0,
     avgEntryPrice: 150,
     avgExitPrice: null,
     costBasis: 1500,
@@ -39,6 +43,7 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     totalPnl: 300,
     currentFxRate: 1,
     cashReturned: 50,
+    irr: null,
     isClosed: false,
     hasInvalidState: false,
     ...overrides,
@@ -57,6 +62,7 @@ describe("getDashboardMetrics", () => {
       totalCostBasis: 1500,
       totalPnl: 300,
       totalCashReturned: 50,
+      irr: null,
       positions: [{ ...activePosition, weight: 100 }],
     };
 
@@ -78,6 +84,7 @@ describe("getDashboardMetrics", () => {
       totalCostBasis: 1500,
       totalPnl: 300,
       totalCashReturned: 50,
+      irr: null,
       positions: [{ ...active, weight: 100 }],
     };
 
@@ -99,6 +106,7 @@ describe("getDashboardMetrics", () => {
       totalCostBasis: null,
       totalPnl: null,
       totalCashReturned: null,
+      irr: null,
       positions: [],
     };
 
@@ -122,6 +130,7 @@ describe("getDashboardMetrics", () => {
       totalCostBasis: 1500,
       totalPnl: null,
       totalCashReturned: 50,
+      irr: null,
       positions: [{ ...naPosition, weight: null }],
     };
 

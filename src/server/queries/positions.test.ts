@@ -13,6 +13,7 @@ vi.mock("@/server/db", () => {
 vi.mock("@/server/services/computation", () => ({
   computePositions: vi.fn(),
   computeAggregates: vi.fn(),
+  mergePositionsByTicker: vi.fn((positions: unknown[]) => positions),
 }));
 
 import { getActivePositions, getClosedPositions } from "./positions";
@@ -28,6 +29,8 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     portfolio: "Main",
     currency: "USD",
     sharesHeld: 10,
+    totalSharesBought: 10,
+    totalSharesSold: 0,
     avgEntryPrice: 150,
     avgExitPrice: null,
     costBasis: 1500,

@@ -1,12 +1,14 @@
 import { db } from "@/server/db";
 import { transactions, marketData } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { computePositions, computeAggregates } from "@/server/services/computation";
+import { computePositions, computeAggregates, mergePositionsByTicker } from "@/server/services/computation";
+import { format } from "date-fns";
 import {
   formatCurrency,
   formatShares,
   formatPercent,
   formatPnL,
+  formatIRR,
 } from "@/lib/formatting";
 import type {
   TransactionInput,
@@ -27,6 +29,7 @@ export interface ActivePositionRow {
   dividends: { value: number | null; display: string };
   sellProceeds: { value: number | null; display: string };
   pnl: { value: number | null; display: string };
+  irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
 
@@ -40,6 +43,7 @@ export interface ClosedPositionRow {
   totalProceeds: { value: number | null; display: string };
   dividends: { value: number | null; display: string };
   realizedPnl: { value: number | null; display: string };
+  irr: { value: number | null; display: string };
 }
 
 function computeAllPositions(portfolio?: string): ComputedPosition[] {
@@ -93,7 +97,14 @@ function computeAllPositions(portfolio?: string): ComputedPosition[] {
   }));
 
   // 4. Compute positions
-  return computePositions(txInputs, priceMap, fxRates);
+  const today = format(new Date(), "yyyy-MM-dd");
+  const positions = computePositions(txInputs, priceMap, fxRates, today);
+
+  // 5. Merge same-ticker positions across portfolios when no filter
+  if (!portfolio) {
+    return mergePositionsByTicker(positions, txInputs, fxRates, today);
+  }
+  return positions;
 }
 
 export function getActivePositions(portfolio?: string): ActivePositionRow[] {
@@ -113,6 +124,7 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
     dividends: { value: p.totalDividends, display: formatCurrency(p.totalDividends) },
     sellProceeds: { value: p.totalSellProceeds, display: formatCurrency(p.totalSellProceeds) },
     pnl: { value: p.totalPnl, display: formatPnL(p.totalPnl) },
+    irr: { value: p.irr, display: formatIRR(p.irr) },
     weight: { value: p.weight, display: formatPercent(p.weight) },
   }));
 }
@@ -131,5 +143,6 @@ export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
     totalProceeds: { value: p.totalSellProceeds, display: formatCurrency(p.totalSellProceeds) },
     dividends: { value: p.totalDividends, display: formatCurrency(p.totalDividends) },
     realizedPnl: { value: p.totalPnl, display: formatPnL(p.totalPnl) },
+    irr: { value: p.irr, display: formatIRR(p.irr) },
   }));
 }
