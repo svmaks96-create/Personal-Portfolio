@@ -77,7 +77,7 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: Manual Transaction Management
-  epic-6: in-progress
+  epic-6: done
   6-1-manual-transaction-add: done
   6-2-transaction-delete-and-bulk-delete: done
   epic-6-retrospective: optional

@@ -105,6 +105,27 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     meta: { align: "center" as const },
   },
   {
+    accessorKey: "irr",
+    header: "IRR",
+    accessorFn: (row) => row.irr.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => {
+      const value = row.original.irr.value;
+      const colorClass =
+        value === null || value === 0
+          ? ""
+          : value > 0
+            ? "text-emerald-600"
+            : "text-red-600";
+      return (
+        <span className={`tabular-nums ${colorClass}`}>
+          {row.original.irr.display}
+        </span>
+      );
+    },
+    meta: { align: "center" as const },
+  },
+  {
     accessorKey: "weight",
     header: "Weight%",
     accessorFn: (row) => row.weight.value ?? undefined,
@@ -191,6 +212,27 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
       return (
         <span className={`tabular-nums ${colorClass}`}>
           {row.original.realizedPnl.display}
+        </span>
+      );
+    },
+    meta: { align: "center" as const },
+  },
+  {
+    accessorKey: "irr",
+    header: "IRR",
+    accessorFn: (row) => row.irr.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => {
+      const value = row.original.irr.value;
+      const colorClass =
+        value === null || value === 0
+          ? ""
+          : value > 0
+            ? "text-emerald-600"
+            : "text-red-600";
+      return (
+        <span className={`tabular-nums ${colorClass}`}>
+          {row.original.irr.display}
         </span>
       );
     },

@@ -54,6 +54,13 @@ export function formatDate(date: string | null): string {
   return format(parseISO(date), "MMM d, yyyy");
 }
 
+export function formatIRR(value: number | null): string {
+  if (value === null) return "N/A";
+  const formatted = percentFormatter.format(Math.abs(value));
+  if (value >= 0) return `+${formatted}%`;
+  return `-${formatted}%`;
+}
+
 export function formatTimestampDate(isoTimestamp: string): string {
   return format(parseISO(isoTimestamp), "MMM d");
 }
