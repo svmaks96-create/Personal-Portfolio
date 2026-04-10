@@ -55,6 +55,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number } | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const deletingRef = useRef(false);
 
   function handleStartEdit(rowId: number, field: string) {
@@ -108,6 +109,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
   function handleDeleteClick(id: number) {
     setEditingCell(null);
+    setDeleteError(null);
     setDeleteTarget({ id });
   }
 
@@ -115,14 +117,19 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
     if (deletingRef.current || !deleteTarget) return;
     deletingRef.current = true;
     setIsDeleting(true);
+    setDeleteError(null);
 
     try {
       const result = await deleteTransaction(deleteTarget.id);
       if (result.success) {
+        setRowSelection((prev) => {
+          const next = { ...prev };
+          delete next[String(deleteTarget.id)];
+          return next;
+        });
         setDeleteTarget(null);
       } else {
-        console.error("Delete failed:", result.error);
-        setDeleteTarget(null);
+        setDeleteError(result.error);
       }
     } finally {
       deletingRef.current = false;
@@ -134,6 +141,8 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
     if (deletingRef.current) return;
     deletingRef.current = true;
     setIsDeleting(true);
+    setDeleteError(null);
+    setEditingCell(null);
 
     try {
       const selectedIds = Object.keys(rowSelection).map(Number);
@@ -142,8 +151,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
         setRowSelection({});
         setIsBulkDeleting(false);
       } else {
-        console.error("Bulk delete failed:", result.error);
-        setIsBulkDeleting(false);
+        setDeleteError(result.error);
       }
     } finally {
       deletingRef.current = false;
@@ -279,17 +287,25 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
       <DeleteConfirmationDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}
         count={1}
         onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
       />
 
       <DeleteConfirmationDialog
         open={isBulkDeleting}
-        onOpenChange={setIsBulkDeleting}
+        onOpenChange={(open) => { if (!open) { setIsBulkDeleting(false); setDeleteError(null); } }}
         count={selectedCount}
         onConfirm={handleConfirmBulkDelete}
+        isDeleting={isDeleting}
       />
+
+      {deleteError && !deleteTarget && !isBulkDeleting && (
+        <div className="px-4 py-2 text-sm text-red-600 bg-red-50 border-t border-red-200">
+          {deleteError}
+        </div>
+      )}
     </div>
   );
 }

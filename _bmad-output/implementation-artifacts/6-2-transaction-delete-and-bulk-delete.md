@@ -1,6 +1,6 @@
 # Story 6.2: Transaction Delete & Bulk Delete
 
-Status: review
+Status: done
 
 ## Story
 
@@ -275,6 +275,19 @@ No issues encountered during implementation.
 - New: `src/components/ui/alert-dialog.tsx` — installed via Shadcn CLI
 - New: `src/components/ui/checkbox.tsx` — installed via Shadcn CLI
 
+### Review Findings
+
+- [x] [Review][Patch] No user-visible error feedback on delete failure — fixed: added deleteError state, inline error banner, errors no longer silently swallowed
+- [x] [Review][Patch] Stale rowSelection keys after single-row delete — fixed: handleConfirmDelete removes deleted row's key from rowSelection
+- [x] [Review][Patch] Dialog Delete button has no disabled/loading state — fixed: added isDeleting prop to dialog, disables action button and shows "Deleting..." text
+- [x] [Review][Patch] Cancel button defaults to outline, spec requires ghost — fixed: passed variant="ghost" to AlertDialogCancel
+- [x] [Review][Patch] Editing cell silently lost when its row is bulk-deleted — fixed: handleConfirmBulkDelete clears editingCell before proceeding
+- [x] [Review][Patch] Bulk delete dialog can briefly show stale count — mitigated: dialog now stays open on error (no premature close), count reflects live state
+- [x] [Review][Defer] No upper bound on bulk delete array size — deferred, pre-existing architectural pattern
+- [x] [Review][Defer] COLUMN_COUNT hardcoded constant — deferred, matches existing pattern from story 6.1
+- [x] [Review][Defer] Select-all is page-scoped with no pagination — deferred, correct for current unpaginated table
+
 ## Change Log
 
+- 2026-04-10: Code review completed — 6 patch findings, 3 deferred
 - 2026-04-09: Implemented story 6.2 — transaction delete and bulk delete with confirmation dialogs, row selection, and full test coverage

@@ -16,6 +16,7 @@ interface DeleteConfirmationDialogProps {
   onOpenChange: (open: boolean) => void;
   count: number;
   onConfirm: () => void;
+  isDeleting: boolean;
 }
 
 export function DeleteConfirmationDialog({
@@ -23,6 +24,7 @@ export function DeleteConfirmationDialog({
   onOpenChange,
   count,
   onConfirm,
+  isDeleting,
 }: DeleteConfirmationDialogProps) {
   const isBulk = count > 1;
 
@@ -40,12 +42,13 @@ export function DeleteConfirmationDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel variant="ghost">Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-red-600 text-white hover:bg-red-700"
+            disabled={isDeleting}
             onClick={onConfirm}
           >
-            {isBulk ? `Delete ${count}` : "Delete"}
+            {isDeleting ? "Deleting..." : isBulk ? `Delete ${count}` : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
