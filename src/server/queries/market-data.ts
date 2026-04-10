@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { marketData } from "@/server/db/schema";
+import { marketData, transactions } from "@/server/db/schema";
 import { and, eq, max, inArray } from "drizzle-orm";
 
 /**
@@ -29,10 +29,24 @@ export function getExistingSymbolDates(
  * Returns a "yyyy-MM-dd" string or null if no market data exists.
  */
 export function getStalestMarketDate(): string | null {
+  // Only consider symbols that currently have transactions
+  const activeTickers = db
+    .selectDistinct({ ticker: transactions.ticker })
+    .from(transactions)
+    .all()
+    .map((r) => r.ticker);
+
+  if (activeTickers.length === 0) return null;
+
   const rows = db
     .select({ symbol: marketData.symbol, latestDate: max(marketData.date) })
     .from(marketData)
-    .where(eq(marketData.type, "stock_price"))
+    .where(
+      and(
+        eq(marketData.type, "stock_price"),
+        inArray(marketData.symbol, activeTickers)
+      )
+    )
     .groupBy(marketData.symbol)
     .all();
 
