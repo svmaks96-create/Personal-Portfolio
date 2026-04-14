@@ -33,3 +33,18 @@ export const marketData = sqliteTable(
     index("market_data_symbol_type_date_idx").on(table.symbol, table.type, table.date),
   ]
 );
+
+export const etfHoldings = sqliteTable(
+  "etf_holdings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    etfSymbol: text("etf_symbol").notNull(),
+    asset: text("asset").notNull(),
+    weightPercentage: real("weight_percentage").notNull(),
+    name: text("name"),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [
+    index("etf_holdings_etf_symbol_idx").on(table.etfSymbol),
+  ]
+);

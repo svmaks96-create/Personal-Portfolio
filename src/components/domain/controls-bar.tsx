@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { refreshPrices, refreshFxRates } from "@/server/actions/market-data";
+import {
+  refreshPrices,
+  refreshFxRates,
+  refreshEtfHoldings,
+} from "@/server/actions/market-data";
 import { PortfolioSelector } from "@/components/domain/portfolio-selector";
 import { RefreshButton } from "@/components/domain/refresh-button";
 import { PriceTimestamp } from "@/components/domain/price-timestamp";
@@ -28,17 +32,22 @@ export function ControlsBar({
       // Next.js dispatches server actions sequentially — call one after the other
       const pricesResult = await refreshPrices();
       const fxResult = await refreshFxRates();
+      const etfResult = await refreshEtfHoldings();
 
       const pricesFailed = !pricesResult?.success;
       const fxFailed = !fxResult?.success;
+      const etfFailed = !etfResult?.success;
 
-      if (pricesFailed || fxFailed) {
+      if (pricesFailed || fxFailed || etfFailed) {
         const errors: string[] = [];
         if (pricesFailed) {
           errors.push((pricesResult as { error: string }).error ?? "Unable to refresh prices.");
         }
         if (fxFailed) {
           errors.push((fxResult as { error: string }).error ?? "Unable to refresh FX rates.");
+        }
+        if (etfFailed) {
+          errors.push((etfResult as { error: string }).error ?? "Unable to refresh ETF holdings.");
         }
         setRefreshError(errors.join(" "));
       }

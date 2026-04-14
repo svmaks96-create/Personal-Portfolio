@@ -7,6 +7,7 @@ import type {
   ComputedPosition,
   AggregateMetrics,
 } from "@/server/types/positions";
+import type { ConcentrationSource } from "@/server/types/concentration";
 
 interface CashFlow {
   date: string;
@@ -574,4 +575,102 @@ export function computeAggregates(
     irr: null,
     positions: weightedPositions,
   };
+}
+
+const CONCENTRATION_TOP_N = 20;
+
+/**
+ * Compute portfolio concentration on a look-through basis.
+ * ETF positions are decomposed into their underlying holdings.
+ * Direct and ETF-sourced weights for the same ticker are combined.
+ * Returns top N holdings sorted by combined weight, with remainder as "Other".
+ */
+export function computeConcentration(
+  positions: (ComputedPosition & { weight: number | null })[],
+  etfHoldingsMap: Record<string, { asset: string; weightPercentage: number }[]>
+): { ticker: string; weight: number; sources: ConcentrationSource[] }[] {
+  // Phase 1: Accumulate per-ticker weights with source tracking
+  const accumulator = new Map<
+    string,
+    { totalWeight: Decimal; sources: ConcentrationSource[] }
+  >();
+
+  for (const pos of positions) {
+    if (pos.weight === null || pos.isClosed) continue;
+
+    const posWeight = new Decimal(pos.weight);
+    const holdings = etfHoldingsMap[pos.ticker];
+
+    if (holdings) {
+      // ETF: decompose into underlying holdings
+      for (const holding of holdings) {
+        const contributedWeight = posWeight
+          .times(holding.weightPercentage)
+          .div(100);
+
+        const existing = accumulator.get(holding.asset);
+        const source: ConcentrationSource = {
+          type: "etf",
+          etfTicker: pos.ticker,
+          weight: contributedWeight.toNumber(),
+        };
+
+        if (existing) {
+          existing.totalWeight = existing.totalWeight.plus(contributedWeight);
+          existing.sources.push(source);
+        } else {
+          accumulator.set(holding.asset, {
+            totalWeight: contributedWeight,
+            sources: [source],
+          });
+        }
+      }
+    } else {
+      // Stock: add weight directly
+      const existing = accumulator.get(pos.ticker);
+      const source: ConcentrationSource = {
+        type: "direct",
+        weight: posWeight.toNumber(),
+      };
+
+      if (existing) {
+        existing.totalWeight = existing.totalWeight.plus(posWeight);
+        existing.sources.push(source);
+      } else {
+        accumulator.set(pos.ticker, {
+          totalWeight: posWeight,
+          sources: [source],
+        });
+      }
+    }
+  }
+
+  // Phase 2: Sort by combined weight descending
+  const sorted = [...accumulator.entries()]
+    .map(([ticker, data]) => ({
+      ticker,
+      weight: data.totalWeight.toNumber(),
+      sources: data.sources,
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  // Phase 3: Top-N cutoff with "Other" bucket
+  if (sorted.length <= CONCENTRATION_TOP_N) {
+    return sorted;
+  }
+
+  const topN = sorted.slice(0, CONCENTRATION_TOP_N);
+  const otherWeight = sorted
+    .slice(CONCENTRATION_TOP_N)
+    .reduce((sum, item) => sum + item.weight, 0);
+
+  if (otherWeight > 0) {
+    topN.push({
+      ticker: "Other",
+      weight: otherWeight,
+      sources: [{ type: "direct", weight: otherWeight }],
+    });
+  }
+
+  return topN;
 }

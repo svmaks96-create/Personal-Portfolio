@@ -1,11 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fromUnixTime } from "date-fns";
+import { differenceInDays, fromUnixTime, parseISO } from "date-fns";
 import { db } from "@/server/db";
-import { transactions, marketData } from "@/server/db/schema";
-import { fetchStockPrices, fetchFxRates } from "@/server/services/fmp";
+import { transactions, marketData, etfHoldings } from "@/server/db/schema";
+import {
+  fetchStockPrices,
+  fetchFxRates,
+  fetchCompanyProfiles,
+  fetchEtfHoldings,
+} from "@/server/services/fmp";
 import { getExistingSymbolDates } from "@/server/queries/market-data";
+import { getEtfHoldingsFetchedAt } from "@/server/queries/etf-holdings";
+import { eq } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type { RefreshResult } from "@/server/types/market-data";
 
@@ -154,6 +161,94 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
     return {
       success: false,
       error: "Unable to fetch FX rates. Please try again.",
+    };
+  }
+}
+
+const ETF_HOLDINGS_STALENESS_DAYS = 7;
+
+/**
+ * Refresh ETF holdings for all ETF tickers in the transactions table.
+ * Detects ETFs via FMP company profile, then fetches holdings for stale/missing ETFs.
+ * Holdings are considered stale after 7 days (ETFs rebalance quarterly).
+ */
+export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>> {
+  try {
+    // 1. Get unique tickers from transactions
+    const rows = db.select({ ticker: transactions.ticker }).from(transactions).all();
+    const allTickers = [...new Set(rows.map((r) => r.ticker))];
+
+    if (allTickers.length === 0) {
+      return { success: true, data: { updated: 0, skipped: 0 } };
+    }
+
+    // 2. Detect which tickers are ETFs via FMP profiles
+    const profiles = await fetchCompanyProfiles(allTickers);
+    const etfTickers = profiles.filter((p) => p.isEtf).map((p) => p.symbol);
+
+    if (etfTickers.length === 0) {
+      return { success: true, data: { updated: 0, skipped: 0 } };
+    }
+
+    // 3. Check staleness and fetch holdings for stale/missing ETFs
+    const now = new Date();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const etfSymbol of etfTickers) {
+      const fetchedAt = getEtfHoldingsFetchedAt(etfSymbol);
+
+      if (fetchedAt !== null) {
+        const daysSinceFetch = differenceInDays(now, parseISO(fetchedAt));
+        if (daysSinceFetch < ETF_HOLDINGS_STALENESS_DAYS) {
+          skipped++;
+          continue;
+        }
+      }
+
+      const holdings = await fetchEtfHoldings(etfSymbol);
+
+      if (holdings.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      const fetchedAtStr = now.toISOString();
+      db.transaction((tx) => {
+        // Delete existing holdings for this ETF
+        tx.delete(etfHoldings)
+          .where(eq(etfHoldings.etfSymbol, etfSymbol))
+          .run();
+
+        // Insert new holdings
+        for (const holding of holdings) {
+          tx.insert(etfHoldings)
+            .values({
+              etfSymbol,
+              asset: holding.asset,
+              weightPercentage: holding.weightPercentage,
+              name: holding.name,
+              fetchedAt: fetchedAtStr,
+            })
+            .run();
+        }
+      });
+
+      updated++;
+    }
+
+    // 4. Revalidate
+    revalidatePath("/", "layout");
+
+    return {
+      success: true,
+      data: { updated, skipped },
+    };
+  } catch (error) {
+    console.error("refreshEtfHoldings failed:", error);
+    return {
+      success: false,
+      error: "Unable to fetch ETF holdings. Please try again.",
     };
   }
 }

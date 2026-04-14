@@ -2,13 +2,16 @@ import { db } from "@/server/db";
 import { transactions, marketData } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { format } from "date-fns";
-import { computePositions, computeAggregates, computePortfolioIRR, mergePositionsByTicker } from "@/server/services/computation";
+import { computePositions, computeAggregates, computePortfolioIRR, mergePositionsByTicker, computeConcentration } from "@/server/services/computation";
+import { getEtfHoldingsMap } from "@/server/queries/etf-holdings";
+import { formatPercent } from "@/lib/formatting";
 import type {
   TransactionInput,
   MarketDataInput,
   FxRateInput,
   AggregateMetrics,
 } from "@/server/types/positions";
+import type { ConcentrationData } from "@/server/types/concentration";
 
 export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
   // 1. Fetch transactions
@@ -73,4 +76,26 @@ export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
   aggregates.irr = computePortfolioIRR(txInputs, positions, fxRates, today);
 
   return aggregates;
+}
+
+export function getConcentrationData(portfolio?: string): ConcentrationData {
+  const metrics = getDashboardMetrics(portfolio);
+  const activePositions = metrics.positions.filter((p) => !p.isClosed);
+
+  // Determine which held tickers have ETF holdings cached
+  const tickers = activePositions.map((p) => p.ticker);
+  const etfHoldingsData = getEtfHoldingsMap(tickers);
+  const etfTickers = Object.keys(etfHoldingsData);
+
+  // Compute look-through concentration
+  const rawHoldings = computeConcentration(activePositions, etfHoldingsData);
+
+  // Format weights for display
+  const holdings = rawHoldings.map((h) => ({
+    ticker: h.ticker,
+    weight: { value: h.weight, display: formatPercent(h.weight) },
+    sources: h.sources,
+  }));
+
+  return { holdings, etfTickers };
 }
