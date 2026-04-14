@@ -1,6 +1,6 @@
 import { config } from "@/server/config";
 import type { FmpQuote, FmpFxQuote } from "@/server/types/market-data";
-import type { FmpCompanyProfile, FmpEtfHolding } from "@/server/types/concentration";
+import type { FmpCompanyProfile, FmpEtfHolding, FmpExchangeVariant } from "@/server/types/concentration";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 
@@ -142,6 +142,38 @@ async function fetchProfile(symbol: string): Promise<FmpCompanyProfile | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Fetch all exchange variants (cross-listed tickers) for a given symbol.
+ * Uses FMP /search-exchange-variants endpoint.
+ * Returns all variant symbols for the same company (e.g., TSM → [TSM, 2330.TW, TSFA.F]).
+ */
+export async function fetchExchangeVariants(
+  ticker: string
+): Promise<FmpExchangeVariant[]> {
+  if (!ticker) return [];
+  if (!config.fmpApiKey) return [];
+
+  try {
+    const url = `${FMP_BASE_URL}/search-exchange-variants?symbol=${encodeURIComponent(ticker)}&apikey=${config.fmpApiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) return [];
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+    return data.filter(isValidExchangeVariant);
+  } catch {
+    return [];
+  }
+}
+
+function isValidExchangeVariant(item: unknown): item is FmpExchangeVariant {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    typeof (item as FmpExchangeVariant).symbol === "string" &&
+    (item as FmpExchangeVariant).symbol.length > 0
+  );
 }
 
 function isValidEtfHolding(item: unknown): item is FmpEtfHolding {

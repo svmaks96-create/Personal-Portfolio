@@ -3,15 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { differenceInDays, fromUnixTime, parseISO } from "date-fns";
 import { db } from "@/server/db";
-import { transactions, marketData, etfHoldings } from "@/server/db/schema";
+import { transactions, marketData, etfHoldings, tickerVariants } from "@/server/db/schema";
 import {
   fetchStockPrices,
   fetchFxRates,
   fetchCompanyProfiles,
   fetchEtfHoldings,
+  fetchExchangeVariants,
 } from "@/server/services/fmp";
 import { getExistingSymbolDates } from "@/server/queries/market-data";
-import { getEtfHoldingsFetchedAt } from "@/server/queries/etf-holdings";
+import { getEtfHoldingsFetchedAt, getVariantsFetchedAt } from "@/server/queries/etf-holdings";
 import { eq } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type { RefreshResult } from "@/server/types/market-data";
@@ -185,16 +186,47 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
     // 2. Detect which tickers are ETFs via FMP profiles
     const profiles = await fetchCompanyProfiles(allTickers);
     const etfTickers = profiles.filter((p) => p.isEtf).map((p) => p.symbol);
+    const stockTickers = profiles.filter((p) => !p.isEtf).map((p) => p.symbol);
 
-    if (etfTickers.length === 0) {
-      return { success: true, data: { updated: 0, skipped: 0 } };
-    }
-
-    // 3. Check staleness and fetch holdings for stale/missing ETFs
     const now = new Date();
     let updated = 0;
     let skipped = 0;
 
+    // 3. Fetch exchange variants for non-ETF tickers (ADR ↔ local share mappings)
+    for (const ticker of stockTickers) {
+      const fetchedAt = getVariantsFetchedAt(ticker);
+
+      if (fetchedAt !== null) {
+        const daysSinceFetch = differenceInDays(now, parseISO(fetchedAt));
+        if (daysSinceFetch < ETF_HOLDINGS_STALENESS_DAYS) {
+          continue;
+        }
+      }
+
+      const variants = await fetchExchangeVariants(ticker);
+
+      if (variants.length <= 1) continue; // Only the ticker itself, no variants
+
+      const fetchedAtStr = now.toISOString();
+      db.transaction((tx) => {
+        tx.delete(tickerVariants)
+          .where(eq(tickerVariants.ticker, ticker))
+          .run();
+
+        for (const variant of variants) {
+          tx.insert(tickerVariants)
+            .values({
+              ticker,
+              variant: variant.symbol,
+              fetchedAt: fetchedAtStr,
+            })
+            .onConflictDoNothing()
+            .run();
+        }
+      });
+    }
+
+    // 4. Check staleness and fetch holdings for stale/missing ETFs
     for (const etfSymbol of etfTickers) {
       const fetchedAt = getEtfHoldingsFetchedAt(etfSymbol);
 
@@ -237,7 +269,7 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
       updated++;
     }
 
-    // 4. Revalidate
+    // 5. Revalidate
     revalidatePath("/", "layout");
 
     return {

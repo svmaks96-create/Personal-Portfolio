@@ -3,7 +3,7 @@ import { transactions, marketData } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { computePositions, computeAggregates, computePortfolioIRR, mergePositionsByTicker, computeConcentration } from "@/server/services/computation";
-import { getEtfHoldingsMap } from "@/server/queries/etf-holdings";
+import { getEtfHoldingsMap, getVariantToTickerMap } from "@/server/queries/etf-holdings";
 import { formatPercent } from "@/lib/formatting";
 import type {
   TransactionInput,
@@ -87,8 +87,11 @@ export function getConcentrationData(portfolio?: string): ConcentrationData {
   const etfHoldingsData = getEtfHoldingsMap(tickers);
   const etfTickers = Object.keys(etfHoldingsData);
 
-  // Compute look-through concentration
-  const rawHoldings = computeConcentration(activePositions, etfHoldingsData);
+  // Get variant mappings for cross-listed securities (e.g., 2330.TW → TSM)
+  const variantToTicker = getVariantToTickerMap(tickers);
+
+  // Compute look-through concentration with variant resolution
+  const rawHoldings = computeConcentration(activePositions, etfHoldingsData, variantToTicker);
 
   // Format weights for display
   const holdings = rawHoldings.map((h) => ({

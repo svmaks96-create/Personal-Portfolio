@@ -583,17 +583,30 @@ const CONCENTRATION_TOP_N = 20;
  * Compute portfolio concentration on a look-through basis.
  * ETF positions are decomposed into their underlying holdings.
  * Direct and ETF-sourced weights for the same ticker are combined.
+ * Uses variantToTicker mapping to consolidate cross-listed securities
+ * (e.g., 2330.TW in an ETF is mapped to the user's TSM holding).
  * Returns top N holdings sorted by combined weight, with remainder as "Other".
  */
 export function computeConcentration(
   positions: (ComputedPosition & { weight: number | null })[],
-  etfHoldingsMap: Record<string, { asset: string; weightPercentage: number }[]>
+  etfHoldingsMap: Record<string, { asset: string; weightPercentage: number }[]>,
+  variantToTicker: Record<string, string> = {}
 ): { ticker: string; weight: number; sources: ConcentrationSource[] }[] {
   // Phase 1: Accumulate per-ticker weights with source tracking
   const accumulator = new Map<
     string,
     { totalWeight: Decimal; sources: ConcentrationSource[] }
   >();
+
+  function addWeight(ticker: string, weight: Decimal, source: ConcentrationSource) {
+    const existing = accumulator.get(ticker);
+    if (existing) {
+      existing.totalWeight = existing.totalWeight.plus(weight);
+      existing.sources.push(source);
+    } else {
+      accumulator.set(ticker, { totalWeight: weight, sources: [source] });
+    }
+  }
 
   for (const pos of positions) {
     if (pos.weight === null || pos.isClosed) continue;
@@ -608,40 +621,25 @@ export function computeConcentration(
           .times(holding.weightPercentage)
           .div(100);
 
-        const existing = accumulator.get(holding.asset);
+        // Resolve variant ticker to user's ticker (e.g., 2330.TW → TSM)
+        const resolvedTicker = variantToTicker[holding.asset] ?? holding.asset;
+
         const source: ConcentrationSource = {
           type: "etf",
           etfTicker: pos.ticker,
           weight: contributedWeight.toNumber(),
         };
 
-        if (existing) {
-          existing.totalWeight = existing.totalWeight.plus(contributedWeight);
-          existing.sources.push(source);
-        } else {
-          accumulator.set(holding.asset, {
-            totalWeight: contributedWeight,
-            sources: [source],
-          });
-        }
+        addWeight(resolvedTicker, contributedWeight, source);
       }
     } else {
       // Stock: add weight directly
-      const existing = accumulator.get(pos.ticker);
       const source: ConcentrationSource = {
         type: "direct",
         weight: posWeight.toNumber(),
       };
 
-      if (existing) {
-        existing.totalWeight = existing.totalWeight.plus(posWeight);
-        existing.sources.push(source);
-      } else {
-        accumulator.set(pos.ticker, {
-          totalWeight: posWeight,
-          sources: [source],
-        });
-      }
+      addWeight(pos.ticker, posWeight, source);
     }
   }
 

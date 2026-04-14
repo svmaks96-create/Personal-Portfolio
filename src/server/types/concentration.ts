@@ -12,6 +12,11 @@ export interface FmpEtfHolding {
   name: string;
 }
 
+/** Raw response item from FMP /search-exchange-variants endpoint */
+export interface FmpExchangeVariant {
+  symbol: string;
+}
+
 /** Tracks how a ticker's weight is attributed (direct holding vs ETF exposure) */
 export interface ConcentrationSource {
   type: "direct" | "etf";

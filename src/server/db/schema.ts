@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const transactions = sqliteTable(
   "transactions",
@@ -46,5 +46,19 @@ export const etfHoldings = sqliteTable(
   },
   (table) => [
     index("etf_holdings_etf_symbol_idx").on(table.etfSymbol),
+  ]
+);
+
+export const tickerVariants = sqliteTable(
+  "ticker_variants",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticker: text("ticker").notNull(),
+    variant: text("variant").notNull(),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [
+    index("ticker_variants_ticker_idx").on(table.ticker),
+    uniqueIndex("ticker_variants_variant_idx").on(table.variant),
   ]
 );

@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { etfHoldings } from "@/server/db/schema";
+import { etfHoldings, tickerVariants } from "@/server/db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 /**
@@ -43,6 +43,51 @@ export function getEtfHoldingsFetchedAt(etfSymbol: string): string | null {
     .select({ fetchedAt: etfHoldings.fetchedAt })
     .from(etfHoldings)
     .where(eq(etfHoldings.etfSymbol, etfSymbol))
+    .limit(1)
+    .all();
+
+  return row.length > 0 ? row[0].fetchedAt : null;
+}
+
+/**
+ * Get a reverse mapping from variant symbols to user tickers.
+ * E.g., { "2330.TW": "TSM", "TSFA.F": "TSM", "ASML.AS": "ASML" }
+ * Used during look-through to map ETF holdings back to user's tickers.
+ */
+export function getVariantToTickerMap(
+  tickers: string[]
+): Record<string, string> {
+  if (tickers.length === 0) return {};
+
+  const rows = db
+    .select({
+      ticker: tickerVariants.ticker,
+      variant: tickerVariants.variant,
+    })
+    .from(tickerVariants)
+    .where(inArray(tickerVariants.ticker, tickers))
+    .all();
+
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    // Don't map the ticker to itself — that's handled directly
+    if (row.variant !== row.ticker) {
+      map[row.variant] = row.ticker;
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Get the fetchedAt timestamp for a ticker's cached variants.
+ * Returns null if no variants are cached.
+ */
+export function getVariantsFetchedAt(ticker: string): string | null {
+  const row = db
+    .select({ fetchedAt: tickerVariants.fetchedAt })
+    .from(tickerVariants)
+    .where(eq(tickerVariants.ticker, ticker))
     .limit(1)
     .all();
 
