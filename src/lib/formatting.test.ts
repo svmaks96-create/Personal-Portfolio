@@ -6,6 +6,7 @@ import {
   formatPnL,
   formatDate,
   formatTimestampDate,
+  formatIRR,
 } from "./formatting";
 
 describe("formatCurrency", () => {
@@ -115,6 +116,24 @@ describe("formatDate", () => {
 
   it("returns N/A for null", () => {
     expect(formatDate(null)).toBe("N/A");
+  });
+});
+
+describe("formatIRR", () => {
+  it("formats positive value with + prefix and % suffix", () => {
+    expect(formatIRR(12.5)).toBe("+12.5%");
+  });
+
+  it("formats negative value with - prefix and % suffix", () => {
+    expect(formatIRR(-3.75)).toBe("-3.8%");
+  });
+
+  it("formats zero as positive", () => {
+    expect(formatIRR(0)).toBe("+0.0%");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatIRR(null)).toBe("N/A");
   });
 });
 

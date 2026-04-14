@@ -14,7 +14,8 @@ function MetricCardSkeleton() {
 
 export function MetricCardsSkeleton() {
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-5 gap-4">
+      <MetricCardSkeleton />
       <MetricCardSkeleton />
       <MetricCardSkeleton />
       <MetricCardSkeleton />
