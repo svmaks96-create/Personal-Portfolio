@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { marketData, transactions } from "@/server/db/schema";
-import { and, eq, max, inArray } from "drizzle-orm";
+import { and, eq, max, inArray, sum, gt, sql } from "drizzle-orm";
 
 /**
  * Get existing (symbol, date) pairs for given symbols and type.
@@ -29,10 +29,19 @@ export function getExistingSymbolDates(
  * Returns a "yyyy-MM-dd" string or null if no market data exists.
  */
 export function getStalestMarketDate(): string | null {
-  // Only consider symbols that currently have transactions
+  // Only consider symbols with open positions (net shares > 0)
   const activeTickers = db
-    .selectDistinct({ ticker: transactions.ticker })
+    .select({ ticker: transactions.ticker })
     .from(transactions)
+    .groupBy(transactions.ticker)
+    .having(
+      gt(
+        sum(
+          sql`CASE WHEN ${transactions.action} = 'buy' THEN ${transactions.quantity} WHEN ${transactions.action} = 'sell' THEN -${transactions.quantity} ELSE 0 END`
+        ),
+        0
+      )
+    )
     .all()
     .map((r) => r.ticker);
 
