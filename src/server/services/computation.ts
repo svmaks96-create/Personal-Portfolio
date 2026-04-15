@@ -256,6 +256,8 @@ export function computePositions(
         totalSellProceeds: null,
         totalInvested: null,
         totalPnl: null,
+        realizedPnl: null,
+        unrealizedPnl: null,
         currentFxRate: null,
         cashReturned: null,
         irr: null,
@@ -289,23 +291,33 @@ export function computePositions(
 
     let marketValue: number | null = null;
     let totalPnl: number | null = null;
+    let realizedPnl: number | null = null;
+    let unrealizedPnl: number | null = null;
 
     if (lastPrice !== null && !isClosed) {
       if (currentFxRate === null) {
         // Non-USD position with no FX rate for market value conversion
         marketValue = null;
         totalPnl = null;
+        realizedPnl = null;
+        unrealizedPnl = null;
       } else {
         const lastPriceDec = new Decimal(lastPrice);
         const fxDec = new Decimal(currentFxRate);
-        marketValue = lastPriceDec.times(sharesHeld).times(fxDec).toNumber();
-        totalPnl = lastPriceDec
-          .times(sharesHeld)
-          .times(fxDec)
+        const mv = lastPriceDec.times(sharesHeld).times(fxDec);
+        marketValue = mv.toNumber();
+        totalPnl = mv
           .plus(totalDividends)
           .plus(totalSellProceeds)
           .minus(totalInvested)
           .toNumber();
+        // Realized = sellProceeds + dividends - (totalInvested - costBasis)
+        realizedPnl = totalSellProceeds
+          .plus(totalDividends)
+          .minus(totalInvested.minus(costBasis))
+          .toNumber();
+        // Unrealized = marketValue - costBasis
+        unrealizedPnl = mv.minus(costBasis).toNumber();
       }
     } else if (isClosed) {
       // Closed positions: market value is 0, P&L is fully realized
@@ -314,6 +326,8 @@ export function computePositions(
         .plus(totalDividends)
         .minus(totalInvested)
         .toNumber();
+      realizedPnl = totalPnl;
+      unrealizedPnl = 0;
     }
 
     // Compute position-level IRR from cash flows + terminal value
@@ -339,6 +353,8 @@ export function computePositions(
       totalSellProceeds: totalSellProceeds.toNumber(),
       totalInvested: totalInvested.toNumber(),
       totalPnl,
+      realizedPnl,
+      unrealizedPnl,
       currentFxRate,
       cashReturned: totalDividends.plus(totalSellProceeds).toNumber(),
       irr,
@@ -388,6 +404,8 @@ export function mergePositionsByTicker(
     let sumSellProceeds: Decimal | null = new Decimal(0);
     let sumInvested: Decimal | null = new Decimal(0);
     let sumCashReturned: Decimal | null = new Decimal(0);
+    let sumRealizedPnl: Decimal | null = new Decimal(0);
+    let sumUnrealizedPnl: Decimal | null = new Decimal(0);
     let hasInvalidState = false;
     let allClosed = true;
 
@@ -433,6 +451,18 @@ export function mergePositionsByTicker(
         sumCashReturned = sumCashReturned.plus(pos.cashReturned);
       } else if (!pos.isClosed) {
         sumCashReturned = null;
+      }
+
+      if (pos.realizedPnl !== null && sumRealizedPnl !== null) {
+        sumRealizedPnl = sumRealizedPnl.plus(pos.realizedPnl);
+      } else if (!pos.isClosed) {
+        sumRealizedPnl = null;
+      }
+
+      if (pos.unrealizedPnl !== null && sumUnrealizedPnl !== null) {
+        sumUnrealizedPnl = sumUnrealizedPnl.plus(pos.unrealizedPnl);
+      } else if (!pos.isClosed) {
+        sumUnrealizedPnl = null;
       }
     }
 
@@ -487,6 +517,8 @@ export function mergePositionsByTicker(
       totalSellProceeds: sumSellProceeds ? sumSellProceeds.toNumber() : null,
       totalInvested: sumInvested ? sumInvested.toNumber() : null,
       totalPnl,
+      realizedPnl: sumRealizedPnl ? sumRealizedPnl.toNumber() : null,
+      unrealizedPnl: sumUnrealizedPnl ? sumUnrealizedPnl.toNumber() : null,
       currentFxRate: first.currentFxRate,
       cashReturned: sumCashReturned ? sumCashReturned.toNumber() : null,
       irr,
@@ -521,9 +553,9 @@ export function computeAggregates(
   positions: ComputedPosition[]
 ): AggregateMetrics {
   let totalCostBasis: Decimal | null = new Decimal(0);
-  let totalCashReturned: Decimal | null = new Decimal(0);
   let totalValue: Decimal | null = new Decimal(0);
-  let totalPnl: Decimal | null = new Decimal(0);
+  let totalRealizedPnl: Decimal | null = new Decimal(0);
+  let totalUnrealizedPnl: Decimal | null = new Decimal(0);
 
   for (const pos of positions) {
     if (pos.costBasis !== null && totalCostBasis !== null) {
@@ -532,29 +564,29 @@ export function computeAggregates(
       totalCostBasis = null;
     }
 
-    if (pos.cashReturned !== null && totalCashReturned !== null) {
-      totalCashReturned = totalCashReturned.plus(pos.cashReturned);
-    } else if (!pos.isClosed) {
-      totalCashReturned = null;
-    }
-
     if (pos.marketValue !== null && totalValue !== null) {
       totalValue = totalValue.plus(pos.marketValue);
     } else if (!pos.isClosed) {
       totalValue = null;
     }
 
-    if (pos.totalPnl !== null && totalPnl !== null) {
-      totalPnl = totalPnl.plus(pos.totalPnl);
+    if (pos.realizedPnl !== null && totalRealizedPnl !== null) {
+      totalRealizedPnl = totalRealizedPnl.plus(pos.realizedPnl);
     } else if (!pos.isClosed) {
-      totalPnl = null;
+      totalRealizedPnl = null;
+    }
+
+    if (pos.unrealizedPnl !== null && totalUnrealizedPnl !== null) {
+      totalUnrealizedPnl = totalUnrealizedPnl.plus(pos.unrealizedPnl);
+    } else if (!pos.isClosed) {
+      totalUnrealizedPnl = null;
     }
   }
 
   const totalValueNum = totalValue ? totalValue.toNumber() : null;
-  const totalPnlNum = totalPnl ? totalPnl.toNumber() : null;
   const totalCostBasisNum = totalCostBasis ? totalCostBasis.toNumber() : null;
-  const totalCashReturnedNum = totalCashReturned ? totalCashReturned.toNumber() : null;
+  const totalRealizedPnlNum = totalRealizedPnl ? totalRealizedPnl.toNumber() : null;
+  const totalUnrealizedPnlNum = totalUnrealizedPnl ? totalUnrealizedPnl.toNumber() : null;
 
   const weightedPositions = positions.map((pos) => {
     let weight: number | null = null;
@@ -570,8 +602,8 @@ export function computeAggregates(
   return {
     totalValue: totalValueNum,
     totalCostBasis: totalCostBasisNum,
-    totalPnl: totalPnlNum,
-    totalCashReturned: totalCashReturnedNum,
+    totalRealizedPnl: totalRealizedPnlNum,
+    totalUnrealizedPnl: totalUnrealizedPnlNum,
     irr: null,
     positions: weightedPositions,
   };

@@ -40,6 +40,8 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     totalSellProceeds: 0,
     totalInvested: 1500,
     totalPnl: 300,
+    realizedPnl: 50,
+    unrealizedPnl: 250,
     currentFxRate: 1,
     cashReturned: 50,
     isClosed: false,
@@ -58,8 +60,8 @@ describe("getActivePositions", () => {
     mockComputeAggregates.mockReturnValue({
       totalValue: null,
       totalCostBasis: null,
-      totalPnl: null,
-      totalCashReturned: null,
+      totalRealizedPnl: null,
+      totalUnrealizedPnl: null,
       positions: [],
     });
 
@@ -72,8 +74,8 @@ describe("getActivePositions", () => {
     const aggregates: AggregateMetrics = {
       totalValue: 1750,
       totalCostBasis: 1500,
-      totalPnl: 300,
-      totalCashReturned: 50,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 250,
       positions: [{ ...activePosition, weight: 57.3 }],
     };
 
@@ -105,8 +107,8 @@ describe("getActivePositions", () => {
     mockComputeAggregates.mockReturnValue({
       totalValue: 1750,
       totalCostBasis: 1500,
-      totalPnl: 300,
-      totalCashReturned: 50,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 250,
       positions: [{ ...active, weight: 100 }],
     });
 
@@ -131,8 +133,8 @@ describe("getActivePositions", () => {
     mockComputeAggregates.mockReturnValue({
       totalValue: null,
       totalCostBasis: 1500,
-      totalPnl: null,
-      totalCashReturned: 50,
+      totalRealizedPnl: null,
+      totalUnrealizedPnl: null,
       positions: [{ ...naPosition, weight: null }],
     });
 

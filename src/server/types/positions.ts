@@ -38,6 +38,8 @@ export interface ComputedPosition {
   totalSellProceeds: number | null;
   totalInvested: number | null;
   totalPnl: number | null;
+  realizedPnl: number | null;
+  unrealizedPnl: number | null;
   currentFxRate: number | null;
   cashReturned: number | null;
   irr: number | null;
@@ -48,8 +50,8 @@ export interface ComputedPosition {
 export interface AggregateMetrics {
   totalValue: number | null;
   totalCostBasis: number | null;
-  totalPnl: number | null;
-  totalCashReturned: number | null;
+  totalRealizedPnl: number | null;
+  totalUnrealizedPnl: number | null;
   irr: number | null;
   positions: (ComputedPosition & { weight: number | null })[];
 }

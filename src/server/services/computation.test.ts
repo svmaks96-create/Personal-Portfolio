@@ -162,6 +162,13 @@ describe("computePositions", () => {
     // totalPnl = (marketValue + dividends + sellProceeds) - totalInvested
     // = (12918 + 15 + 4210.01) - 15044.98 = 2098.03
     expect(pos.totalPnl).toBeCloseTo(2098.03, 2);
+    // realizedPnl = sellProceeds + dividends - (totalInvested - costBasis)
+    // = 4210.01 + 15 - (15044.98 - 11283.735) = 4225.01 - 3761.245 = 463.765
+    expect(pos.realizedPnl).toBeCloseTo(463.765, 2);
+    // unrealizedPnl = marketValue - costBasis = 12918 - 11283.735 = 1634.265
+    expect(pos.unrealizedPnl).toBeCloseTo(1634.265, 2);
+    // identity: realized + unrealized = totalPnl
+    expect(pos.realizedPnl! + pos.unrealizedPnl!).toBeCloseTo(pos.totalPnl!, 2);
     expect(pos.cashReturned).toBeCloseTo(15 + 4210.01, 2);
   });
 
@@ -176,6 +183,8 @@ describe("computePositions", () => {
     expect(pos.lastPrice).toBeNull();
     expect(pos.marketValue).toBeNull();
     expect(pos.totalPnl).toBeNull();
+    expect(pos.realizedPnl).toBeNull();
+    expect(pos.unrealizedPnl).toBeNull();
   });
 
   it("isolates same ticker across different portfolios", () => {
@@ -338,6 +347,8 @@ describe("computePositions", () => {
     expect(pos.totalSellProceeds).toBeCloseTo(525.42, 2);
     expect(pos.totalInvested).toBeCloseTo(461.84, 2);
     expect(pos.totalPnl).toBeCloseTo(76.28, 2);
+    expect(pos.realizedPnl).toBeCloseTo(76.28, 2); // closed: all realized
+    expect(pos.unrealizedPnl).toBe(0); // closed: no unrealized
     expect(pos.cashReturned).toBeCloseTo(538.12, 2);
     expect(pos.currentFxRate).toBe(1.285); // most recent GBPUSD
   });
@@ -371,6 +382,11 @@ describe("computePositions", () => {
     expect(pos.totalInvested).toBeCloseTo(7207.5465, 2);
     // P&L = (7796.88 + 94.60 + 0) - 7207.5465 = 683.9335
     expect(pos.totalPnl).toBeCloseTo(683.9335, 2);
+    // realizedPnl = 0 + 94.6 - (7207.5465 - 7207.5465) = 94.6
+    expect(pos.realizedPnl).toBeCloseTo(94.6, 2);
+    // unrealizedPnl = 7796.88 - 7207.5465 = 589.3335
+    expect(pos.unrealizedPnl).toBeCloseTo(589.3335, 2);
+    expect(pos.realizedPnl! + pos.unrealizedPnl!).toBeCloseTo(pos.totalPnl!, 2);
     expect(pos.cashReturned).toBeCloseTo(94.6, 2);
     expect(pos.currentFxRate).toBe(1.092);
   });
@@ -429,6 +445,8 @@ describe("computePositions", () => {
     expect(pos.totalSellProceeds).toBeNull();
     expect(pos.totalInvested).toBeNull();
     expect(pos.totalPnl).toBeNull();
+    expect(pos.realizedPnl).toBeNull();
+    expect(pos.unrealizedPnl).toBeNull();
     expect(pos.cashReturned).toBeNull();
     expect(pos.currentFxRate).toBeNull();
   });
@@ -523,14 +541,16 @@ describe("computeAggregates", () => {
     // totalValue = 50*110 + 100*55 = 5500 + 5500 = 11000
     expect(agg.totalValue).toBeCloseTo(11000, 2);
     expect(agg.totalCostBasis).toBeCloseTo(10000, 2);
-    expect(agg.totalPnl).toBeCloseTo(1000, 2);
+    // Both positions: no sells, no dividends → realized = 0, unrealized = totalPnl
+    expect(agg.totalRealizedPnl).toBeCloseTo(0, 2);
+    expect(agg.totalUnrealizedPnl).toBeCloseTo(1000, 2);
     expect(agg.positions).toHaveLength(2);
     // equal weight = 50%
     expect(agg.positions[0].weight).toBeCloseTo(50, 1);
     expect(agg.positions[1].weight).toBeCloseTo(50, 1);
   });
 
-  it("returns null totalValue/totalPnl when any position has no market data", () => {
+  it("returns null totalValue/P&L when any position has no market data", () => {
     const transactions: TransactionInput[] = [
       tx({ id: 1, action: "buy", quantity: 10, grossAmount: 1000, fees: 0, ticker: "A", portfolio: "P1" }),
       tx({ id: 2, action: "buy", quantity: 20, grossAmount: 1000, fees: 0, ticker: "B", portfolio: "P1" }),
@@ -545,7 +565,8 @@ describe("computeAggregates", () => {
     const agg = computeAggregates(positions);
 
     expect(agg.totalValue).toBeNull();
-    expect(agg.totalPnl).toBeNull();
+    expect(agg.totalRealizedPnl).toBeNull();
+    expect(agg.totalUnrealizedPnl).toBeNull();
     // Weights null when totalValue is null
     expect(agg.positions.find((p) => p.ticker === "A")!.weight).toBeNull();
   });
@@ -564,12 +585,12 @@ describe("computeAggregates", () => {
     const positions = computePositions(transactions, marketData, [], "2026-04-10");
     const agg = computeAggregates(positions);
 
-    // A: closed, realized P&L = (0 + 0 + 1500) - 1000 = 500
-    // B: open, marketValue = 1250, P&L = 1250 - 1000 = 250
+    // A: closed, realizedPnl = 500, unrealizedPnl = 0
+    // B: open, no sells/dividends, realizedPnl = 0, unrealizedPnl = 1250 - 1000 = 250
     // totalValue = 0 + 1250 = 1250
     expect(agg.totalValue).toBeCloseTo(1250, 2);
-    expect(agg.totalPnl).toBeCloseTo(750, 2);
-    expect(agg.totalCashReturned).toBeCloseTo(1500, 2);
+    expect(agg.totalRealizedPnl).toBeCloseTo(500, 2);
+    expect(agg.totalUnrealizedPnl).toBeCloseTo(250, 2);
   });
 
   it("handles empty positions array", () => {
@@ -577,8 +598,8 @@ describe("computeAggregates", () => {
 
     expect(agg.totalValue).toBe(0);
     expect(agg.totalCostBasis).toBe(0);
-    expect(agg.totalPnl).toBe(0);
-    expect(agg.totalCashReturned).toBe(0);
+    expect(agg.totalRealizedPnl).toBe(0);
+    expect(agg.totalUnrealizedPnl).toBe(0);
     expect(agg.positions).toHaveLength(0);
   });
 
@@ -602,7 +623,8 @@ describe("computeAggregates", () => {
     // SAP: costBasis=6618.5*1.089=7207.5465, marketValue=40*178.5*1.092=7796.88
     expect(agg.totalCostBasis).toBeCloseTo(9279.99 + 7207.5465, 1);
     expect(agg.totalValue).toBeCloseTo(10765 + 7796.88, 1);
-    expect(agg.totalPnl).not.toBeNull();
+    expect(agg.totalRealizedPnl).not.toBeNull();
+    expect(agg.totalUnrealizedPnl).not.toBeNull();
     expect(agg.positions).toHaveLength(2);
     // Weights should sum to ~100%
     const totalWeight = agg.positions.reduce((sum, p) => sum + (p.weight ?? 0), 0);

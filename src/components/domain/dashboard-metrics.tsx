@@ -9,10 +9,17 @@ interface DashboardMetricsProps {
 export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
   const metrics = getDashboardMetrics(portfolio);
 
-  const pnlDirection =
-    metrics.totalPnl === null || metrics.totalPnl === 0
+  const realizedPnlDirection =
+    metrics.totalRealizedPnl === null || metrics.totalRealizedPnl === 0
       ? null
-      : metrics.totalPnl > 0
+      : metrics.totalRealizedPnl > 0
+        ? "positive"
+        : "negative";
+
+  const unrealizedPnlDirection =
+    metrics.totalUnrealizedPnl === null || metrics.totalUnrealizedPnl === 0
+      ? null
+      : metrics.totalUnrealizedPnl > 0
         ? "positive"
         : "negative";
 
@@ -34,20 +41,22 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
         value={formatCurrency(metrics.totalCostBasis)}
       />
       <MetricCard
-        label="Total P&L"
-        value={formatPnL(metrics.totalPnl)}
+        label="Realized P&L"
+        value={formatPnL(metrics.totalRealizedPnl)}
         variant="pnl"
-        pnlDirection={pnlDirection}
+        pnlDirection={realizedPnlDirection}
+      />
+      <MetricCard
+        label="Unrealized P&L"
+        value={formatPnL(metrics.totalUnrealizedPnl)}
+        variant="pnl"
+        pnlDirection={unrealizedPnlDirection}
       />
       <MetricCard
         label="IRR"
         value={formatIRR(metrics.irr)}
         variant="pnl"
         pnlDirection={irrDirection}
-      />
-      <MetricCard
-        label="Cash Returned"
-        value={formatCurrency(metrics.totalCashReturned)}
       />
     </div>
   );

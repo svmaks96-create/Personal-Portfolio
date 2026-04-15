@@ -41,6 +41,8 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     totalSellProceeds: 0,
     totalInvested: 1500,
     totalPnl: 300,
+    realizedPnl: 50,
+    unrealizedPnl: 250,
     currentFxRate: 1,
     cashReturned: 50,
     irr: null,
@@ -60,8 +62,8 @@ describe("getDashboardMetrics", () => {
     const expectedAggregates: AggregateMetrics = {
       totalValue: 1750,
       totalCostBasis: 1500,
-      totalPnl: 300,
-      totalCashReturned: 50,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 250,
       irr: null,
       positions: [{ ...activePosition, weight: 100 }],
     };
@@ -82,8 +84,8 @@ describe("getDashboardMetrics", () => {
     const expectedAggregates: AggregateMetrics = {
       totalValue: 1750,
       totalCostBasis: 1500,
-      totalPnl: 300,
-      totalCashReturned: 50,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 250,
       irr: null,
       positions: [{ ...active, weight: 100 }],
     };
@@ -104,8 +106,8 @@ describe("getDashboardMetrics", () => {
     const emptyAggregates: AggregateMetrics = {
       totalValue: null,
       totalCostBasis: null,
-      totalPnl: null,
-      totalCashReturned: null,
+      totalRealizedPnl: null,
+      totalUnrealizedPnl: null,
       irr: null,
       positions: [],
     };
@@ -123,13 +125,15 @@ describe("getDashboardMetrics", () => {
     const naPosition = makePosition({
       marketValue: null,
       totalPnl: null,
+      realizedPnl: null,
+      unrealizedPnl: null,
       lastPrice: null,
     });
     const expectedAggregates: AggregateMetrics = {
       totalValue: null,
       totalCostBasis: 1500,
-      totalPnl: null,
-      totalCashReturned: 50,
+      totalRealizedPnl: null,
+      totalUnrealizedPnl: null,
       irr: null,
       positions: [{ ...naPosition, weight: null }],
     };
@@ -140,7 +144,7 @@ describe("getDashboardMetrics", () => {
     const result = getDashboardMetrics();
 
     expect(result.totalValue).toBeNull();
-    expect(result.totalPnl).toBeNull();
+    expect(result.totalRealizedPnl).toBeNull();
     expect(result.totalCostBasis).toBe(1500);
   });
 });
