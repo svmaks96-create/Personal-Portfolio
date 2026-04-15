@@ -14,7 +14,6 @@ import type {
   TransactionInput,
   MarketDataInput,
   FxRateInput,
-  ComputedPosition,
 } from "@/server/types/positions";
 
 export interface ActivePositionRow {
@@ -46,7 +45,7 @@ export interface ClosedPositionRow {
   irr: { value: number | null; display: string };
 }
 
-function computeAllPositions(portfolio?: string): ComputedPosition[] {
+function fetchPositionInputs(portfolio?: string) {
   // 1. Fetch transactions
   const txRows = portfolio
     ? db.select().from(transactions).where(eq(transactions.portfolio, portfolio)).all()
@@ -96,21 +95,21 @@ function computeAllPositions(portfolio?: string): ComputedPosition[] {
     value: row.value,
   }));
 
-  // 4. Compute positions
   const today = format(new Date(), "yyyy-MM-dd");
   const positions = computePositions(txInputs, priceMap, fxRates, today);
 
-  // 5. Merge same-ticker positions across portfolios when no filter
-  if (!portfolio) {
-    return mergePositionsByTicker(positions, txInputs, fxRates, today);
-  }
-  return positions;
+  return { txInputs, fxRates, today, positions };
 }
 
 export function getActivePositions(portfolio?: string): ActivePositionRow[] {
-  const positions = computeAllPositions(portfolio);
+  const { txInputs, fxRates, today, positions } = fetchPositionInputs(portfolio);
+  // Filter to active BEFORE merging so closed sub-positions from one portfolio
+  // don't inflate the merged ticker's P&L in the "All Portfolios" view.
   const activePositions = positions.filter((p) => !p.isClosed);
-  const aggregates = computeAggregates(activePositions);
+  const merged = !portfolio
+    ? mergePositionsByTicker(activePositions, txInputs, fxRates, today)
+    : activePositions;
+  const aggregates = computeAggregates(merged);
 
   return aggregates.positions.map((p) => ({
     ticker: p.ticker,
@@ -130,10 +129,15 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
 }
 
 export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
-  const positions = computeAllPositions(portfolio);
+  const { txInputs, fxRates, today, positions } = fetchPositionInputs(portfolio);
+  // Filter to closed BEFORE merging so only fully-closed-across-all-portfolios
+  // tickers appear as merged closed rows in the "All Portfolios" view.
   const closedPositions = positions.filter((p) => p.isClosed);
+  const merged = !portfolio
+    ? mergePositionsByTicker(closedPositions, txInputs, fxRates, today)
+    : closedPositions;
 
-  return closedPositions.map((p) => ({
+  return merged.map((p) => ({
     ticker: p.ticker,
     portfolio: p.portfolio,
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },

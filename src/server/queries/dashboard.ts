@@ -66,14 +66,16 @@ export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
   // 4. Compute positions and aggregates (active positions only)
   const today = format(new Date(), "yyyy-MM-dd");
   const allPositions = computePositions(txInputs, priceMap, fxRates, today);
+  // Filter to active positions BEFORE merging so that closed sub-positions
+  // from one portfolio don't inflate the merged ticker's P&L in the "All" view.
+  const activePositions = allPositions.filter((p) => !p.isClosed);
   const positions = !portfolio
-    ? mergePositionsByTicker(allPositions, txInputs, fxRates, today)
-    : allPositions;
-  const activePositions = positions.filter((p) => !p.isClosed);
-  const aggregates = computeAggregates(activePositions);
+    ? mergePositionsByTicker(activePositions, txInputs, fxRates, today)
+    : activePositions;
+  const aggregates = computeAggregates(positions);
 
   // 5. Compute portfolio-level IRR from all transactions (including closed positions)
-  aggregates.irr = computePortfolioIRR(txInputs, positions, fxRates, today);
+  aggregates.irr = computePortfolioIRR(txInputs, allPositions, fxRates, today);
 
   return aggregates;
 }
