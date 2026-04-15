@@ -27,6 +27,7 @@ function createTestDb() {
       type TEXT NOT NULL,
       date TEXT NOT NULL,
       value REAL NOT NULL,
+      name TEXT,
       fetched_at TEXT NOT NULL
     );
   `);

@@ -27,6 +27,7 @@ export const marketData = sqliteTable(
     type: text("type").$type<"stock_price" | "fx_rate">().notNull(),
     date: text("date").notNull(),
     value: real("value").notNull(),
+    name: text("name"),
     fetchedAt: text("fetched_at").notNull(),
   },
   (table) => [

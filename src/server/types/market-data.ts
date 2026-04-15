@@ -1,6 +1,7 @@
 /** Raw response from FMP /quote endpoint */
 export interface FmpQuote {
   symbol: string;
+  name?: string;
   price: number;
   volume: number;
   timestamp: number;

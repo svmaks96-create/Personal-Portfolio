@@ -86,16 +86,16 @@ describe("getActivePositions", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].ticker).toBe("AAPL");
-    expect(result[0].portfolio).toBe("Main");
+    expect(result[0].companyName).toBeNull();
     expect(result[0].hasInvalidState).toBe(false);
     expect(result[0].shares).toEqual({ value: 10, display: "10.0" });
     expect(result[0].avgEntry).toEqual({ value: 150, display: "$150.00" });
     expect(result[0].lastPrice).toEqual({ value: 175, display: "$175.00" });
-    expect(result[0].costBasis).toEqual({ value: 1500, display: "$1,500.00" });
-    expect(result[0].marketValue).toEqual({ value: 1750, display: "$1,750.00" });
-    expect(result[0].dividends).toEqual({ value: 50, display: "$50.00" });
-    expect(result[0].sellProceeds).toEqual({ value: 0, display: "$0.00" });
-    expect(result[0].pnl).toEqual({ value: 300, display: "+$300.00" });
+    expect(result[0].costBasis).toEqual({ value: 1500, display: "$1,500" });
+    expect(result[0].marketValue).toEqual({ value: 1750, display: "$1,750" });
+    expect(result[0].dividends).toEqual({ value: 50, display: "$50" });
+    expect(result[0].sellProceeds).toEqual({ value: 0, display: "$0" });
+    expect(result[0].pnl).toEqual({ value: 300, display: "+$300" });
     expect(result[0].weight).toEqual({ value: 57.3, display: "57.3%" });
   });
 
@@ -181,14 +181,14 @@ describe("getClosedPositions", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].ticker).toBe("TSLA");
-    expect(result[0].portfolio).toBe("Schwab");
+    expect(result[0].companyName).toBeNull();
     expect(result[0].avgEntry).toEqual({ value: 215, display: "$215.00" });
     expect(result[0].avgExit).toEqual({ value: 240, display: "$240.00" });
     expect(result[0].lastPrice).toEqual({ value: 180, display: "$180.00" });
-    expect(result[0].totalInvested).toEqual({ value: 2150, display: "$2,150.00" });
-    expect(result[0].totalProceeds).toEqual({ value: 2400, display: "$2,400.00" });
-    expect(result[0].dividends).toEqual({ value: 30, display: "$30.00" });
-    expect(result[0].realizedPnl).toEqual({ value: 280, display: "+$280.00" });
+    expect(result[0].totalInvested).toEqual({ value: 2150, display: "$2,150" });
+    expect(result[0].totalProceeds).toEqual({ value: 2400, display: "$2,400" });
+    expect(result[0].dividends).toEqual({ value: 30, display: "$30" });
+    expect(result[0].realizedPnl).toEqual({ value: 280, display: "+$280" });
   });
 
   it("excludes active positions", () => {

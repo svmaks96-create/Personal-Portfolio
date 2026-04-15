@@ -5,10 +5,11 @@ import { computePositions, computeAggregates, mergePositionsByTicker } from "@/s
 import { format } from "date-fns";
 import {
   formatCurrency,
+  formatCurrencyRounded,
   formatShares,
   formatPercent,
-  formatPnL,
-  formatIRR,
+  formatPnLRounded,
+  formatIRRRounded,
 } from "@/lib/formatting";
 import type {
   TransactionInput,
@@ -18,7 +19,7 @@ import type {
 
 export interface ActivePositionRow {
   ticker: string;
-  portfolio: string;
+  companyName: string | null;
   hasInvalidState: boolean;
   shares: { value: number; display: string };
   avgEntry: { value: number | null; display: string };
@@ -34,7 +35,7 @@ export interface ActivePositionRow {
 
 export interface ClosedPositionRow {
   ticker: string;
-  portfolio: string;
+  companyName: string | null;
   avgEntry: { value: number | null; display: string };
   avgExit: { value: number | null; display: string };
   lastPrice: { value: number | null; display: string };
@@ -72,6 +73,7 @@ function fetchPositionInputs(portfolio?: string) {
     .all();
 
   const priceMap: Record<string, MarketDataInput> = {};
+  const nameMap: Record<string, string> = {};
   for (const row of priceRows) {
     if (!(row.symbol in priceMap)) {
       priceMap[row.symbol] = {
@@ -79,6 +81,9 @@ function fetchPositionInputs(portfolio?: string) {
         date: row.date,
         value: row.value,
       };
+      if (row.name) {
+        nameMap[row.symbol] = row.name;
+      }
     }
   }
 
@@ -98,11 +103,11 @@ function fetchPositionInputs(portfolio?: string) {
   const today = format(new Date(), "yyyy-MM-dd");
   const positions = computePositions(txInputs, priceMap, fxRates, today);
 
-  return { txInputs, fxRates, today, positions };
+  return { txInputs, fxRates, today, positions, nameMap };
 }
 
 export function getActivePositions(portfolio?: string): ActivePositionRow[] {
-  const { txInputs, fxRates, today, positions } = fetchPositionInputs(portfolio);
+  const { txInputs, fxRates, today, positions, nameMap } = fetchPositionInputs(portfolio);
   // Merge all positions by ticker FIRST so that a ticker active in one portfolio
   // but closed in another resolves to a single row, then split active/closed.
   const merged = !portfolio
@@ -113,23 +118,23 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
 
   return aggregates.positions.map((p) => ({
     ticker: p.ticker,
-    portfolio: p.portfolio,
+    companyName: nameMap[p.ticker] ?? null,
     hasInvalidState: p.hasInvalidState,
     shares: { value: p.sharesHeld, display: formatShares(p.sharesHeld) },
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
     lastPrice: { value: p.lastPrice, display: formatCurrency(p.lastPrice) },
-    costBasis: { value: p.costBasis, display: formatCurrency(p.costBasis) },
-    marketValue: { value: p.marketValue, display: formatCurrency(p.marketValue) },
-    dividends: { value: p.totalDividends, display: formatCurrency(p.totalDividends) },
-    sellProceeds: { value: p.totalSellProceeds, display: formatCurrency(p.totalSellProceeds) },
-    pnl: { value: p.totalPnl, display: formatPnL(p.totalPnl) },
-    irr: { value: p.irr, display: formatIRR(p.irr) },
+    costBasis: { value: p.costBasis, display: formatCurrencyRounded(p.costBasis) },
+    marketValue: { value: p.marketValue, display: formatCurrencyRounded(p.marketValue) },
+    dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },
+    sellProceeds: { value: p.totalSellProceeds, display: formatCurrencyRounded(p.totalSellProceeds) },
+    pnl: { value: p.totalPnl, display: formatPnLRounded(p.totalPnl) },
+    irr: { value: p.irr, display: formatIRRRounded(p.irr) },
     weight: { value: p.weight, display: formatPercent(p.weight) },
   }));
 }
 
 export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
-  const { txInputs, fxRates, today, positions } = fetchPositionInputs(portfolio);
+  const { txInputs, fxRates, today, positions, nameMap } = fetchPositionInputs(portfolio);
   // Merge all positions by ticker FIRST so that a ticker active in one portfolio
   // but closed in another resolves to a single row, then split active/closed.
   const merged = !portfolio
@@ -139,14 +144,14 @@ export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
 
   return closedPositions.map((p) => ({
     ticker: p.ticker,
-    portfolio: p.portfolio,
+    companyName: nameMap[p.ticker] ?? null,
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
     avgExit: { value: p.avgExitPrice, display: formatCurrency(p.avgExitPrice) },
     lastPrice: { value: p.lastPrice, display: formatCurrency(p.lastPrice) },
-    totalInvested: { value: p.totalInvested, display: formatCurrency(p.totalInvested) },
-    totalProceeds: { value: p.totalSellProceeds, display: formatCurrency(p.totalSellProceeds) },
-    dividends: { value: p.totalDividends, display: formatCurrency(p.totalDividends) },
-    realizedPnl: { value: p.totalPnl, display: formatPnL(p.totalPnl) },
-    irr: { value: p.irr, display: formatIRR(p.irr) },
+    totalInvested: { value: p.totalInvested, display: formatCurrencyRounded(p.totalInvested) },
+    totalProceeds: { value: p.totalSellProceeds, display: formatCurrencyRounded(p.totalSellProceeds) },
+    dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },
+    realizedPnl: { value: p.totalPnl, display: formatPnLRounded(p.totalPnl) },
+    irr: { value: p.irr, display: formatIRRRounded(p.irr) },
   }));
 }

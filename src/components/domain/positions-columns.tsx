@@ -13,19 +13,20 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     accessorKey: "ticker",
     header: "Ticker",
     cell: ({ row }) => (
-      <span className="font-medium">
-        {row.original.hasInvalidState && (
-          <TriangleAlert className="inline mr-1 h-4 w-4 text-amber-600" />
+      <div>
+        <span className="font-medium">
+          {row.original.hasInvalidState && (
+            <TriangleAlert className="inline mr-1 h-4 w-4 text-amber-600" />
+          )}
+          {row.original.ticker}
+        </span>
+        {row.original.companyName && (
+          <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+            {row.original.companyName}
+          </p>
         )}
-        {row.original.ticker}
-      </span>
+      </div>
     ),
-    meta: { align: "center" as const },
-  },
-  {
-    accessorKey: "portfolio",
-    header: "Portfolio",
-    cell: ({ row }) => row.original.portfolio,
     meta: { align: "center" as const },
   },
   {
@@ -139,13 +140,16 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
   {
     accessorKey: "ticker",
     header: "Ticker",
-    cell: ({ row }) => <span className="font-medium">{row.original.ticker}</span>,
-    meta: { align: "center" as const },
-  },
-  {
-    accessorKey: "portfolio",
-    header: "Portfolio",
-    cell: ({ row }) => row.original.portfolio,
+    cell: ({ row }) => (
+      <div>
+        <span className="font-medium">{row.original.ticker}</span>
+        {row.original.companyName && (
+          <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+            {row.original.companyName}
+          </p>
+        )}
+      </div>
+    ),
     meta: { align: "center" as const },
   },
   {

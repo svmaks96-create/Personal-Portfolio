@@ -68,6 +68,7 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
             type: "stock_price",
             date: quoteDate,
             value: quote.price,
+            name: quote.name ?? null,
             fetchedAt,
           })
           .run();

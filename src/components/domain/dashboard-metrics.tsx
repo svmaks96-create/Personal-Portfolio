@@ -1,5 +1,5 @@
 import { getDashboardMetrics } from "@/server/queries/dashboard";
-import { formatCurrency, formatPnL, formatIRR } from "@/lib/formatting";
+import { formatCurrencyRounded, formatPnLRounded, formatIRRRounded } from "@/lib/formatting";
 import { MetricCard } from "@/components/domain/metric-card";
 
 interface DashboardMetricsProps {
@@ -34,27 +34,27 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
     <div className="grid grid-cols-5 gap-4">
       <MetricCard
         label="Total Value"
-        value={formatCurrency(metrics.totalValue)}
+        value={formatCurrencyRounded(metrics.totalValue)}
       />
       <MetricCard
         label="Cost Basis"
-        value={formatCurrency(metrics.totalCostBasis)}
+        value={formatCurrencyRounded(metrics.totalCostBasis)}
       />
       <MetricCard
         label="Realized P&L"
-        value={formatPnL(metrics.totalRealizedPnl)}
+        value={formatPnLRounded(metrics.totalRealizedPnl)}
         variant="pnl"
         pnlDirection={realizedPnlDirection}
       />
       <MetricCard
         label="Unrealized P&L"
-        value={formatPnL(metrics.totalUnrealizedPnl)}
+        value={formatPnLRounded(metrics.totalUnrealizedPnl)}
         variant="pnl"
         pnlDirection={unrealizedPnlDirection}
       />
       <MetricCard
         label="IRR"
-        value={formatIRR(metrics.irr)}
+        value={formatIRRRounded(metrics.irr)}
         variant="pnl"
         pnlDirection={irrDirection}
       />
