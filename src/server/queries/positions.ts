@@ -103,13 +103,13 @@ function fetchPositionInputs(portfolio?: string) {
 
 export function getActivePositions(portfolio?: string): ActivePositionRow[] {
   const { txInputs, fxRates, today, positions } = fetchPositionInputs(portfolio);
-  // Filter to active BEFORE merging so closed sub-positions from one portfolio
-  // don't inflate the merged ticker's P&L in the "All Portfolios" view.
-  const activePositions = positions.filter((p) => !p.isClosed);
+  // Merge all positions by ticker FIRST so that a ticker active in one portfolio
+  // but closed in another resolves to a single row, then split active/closed.
   const merged = !portfolio
-    ? mergePositionsByTicker(activePositions, txInputs, fxRates, today)
-    : activePositions;
-  const aggregates = computeAggregates(merged);
+    ? mergePositionsByTicker(positions, txInputs, fxRates, today)
+    : positions;
+  const activePositions = merged.filter((p) => !p.isClosed);
+  const aggregates = computeAggregates(activePositions);
 
   return aggregates.positions.map((p) => ({
     ticker: p.ticker,
@@ -130,14 +130,14 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
 
 export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
   const { txInputs, fxRates, today, positions } = fetchPositionInputs(portfolio);
-  // Filter to closed BEFORE merging so only fully-closed-across-all-portfolios
-  // tickers appear as merged closed rows in the "All Portfolios" view.
-  const closedPositions = positions.filter((p) => p.isClosed);
+  // Merge all positions by ticker FIRST so that a ticker active in one portfolio
+  // but closed in another resolves to a single row, then split active/closed.
   const merged = !portfolio
-    ? mergePositionsByTicker(closedPositions, txInputs, fxRates, today)
-    : closedPositions;
+    ? mergePositionsByTicker(positions, txInputs, fxRates, today)
+    : positions;
+  const closedPositions = merged.filter((p) => p.isClosed);
 
-  return merged.map((p) => ({
+  return closedPositions.map((p) => ({
     ticker: p.ticker,
     portfolio: p.portfolio,
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
