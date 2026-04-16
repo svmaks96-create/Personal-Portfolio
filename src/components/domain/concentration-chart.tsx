@@ -18,7 +18,7 @@ function buildTooltip(sources: { type: "direct" | "etf"; etfTicker?: string; wei
 export function ConcentrationChart({ data }: ConcentrationChartProps) {
   if (data.holdings.length === 0) {
     return (
-      <Card className="bg-white shadow-sm ring-0">
+      <Card className="bg-card shadow-sm ring-0">
         <CardHeader>
           <CardTitle>Portfolio Concentration</CardTitle>
         </CardHeader>
@@ -34,7 +34,7 @@ export function ConcentrationChart({ data }: ConcentrationChartProps) {
   const maxWeight = data.holdings[0].weight.value;
 
   return (
-    <Card className="bg-white shadow-sm ring-0">
+    <Card className="bg-card shadow-sm ring-0">
       <CardHeader>
         <CardTitle>Portfolio Concentration</CardTitle>
         {data.etfTickers.length > 0 && (

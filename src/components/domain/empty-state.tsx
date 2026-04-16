@@ -9,11 +9,11 @@ interface EmptyStateProps {
 export function EmptyState({ message, actionLabel, actionHref }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-24">
-      <p className="text-zinc-500 text-base">{message}</p>
+      <p className="text-muted-foreground text-base">{message}</p>
       {actionLabel && actionHref && (
         <Link
           href={actionHref}
-          className="mt-4 inline-flex items-center px-4 py-2 rounded-md bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors"
+          className="mt-4 inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           {actionLabel}
         </Link>

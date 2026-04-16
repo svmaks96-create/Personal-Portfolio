@@ -125,7 +125,7 @@ export function ImportValidationTable({
   return (
     <div className="space-y-3">
       {errorCount > 0 && (
-        <p className="text-sm font-medium text-red-600">
+        <p className="text-sm font-medium text-red-600 dark:text-red-400">
           {errorCount} {errorCount === 1 ? "row needs" : "rows need"} attention
         </p>
       )}
@@ -146,9 +146,9 @@ export function ImportValidationTable({
             return (
               <TableRow
                 key={row.rowIndex}
-                className={cn(isError && "bg-red-50 hover:bg-red-50")}
+                className={cn(isError && "bg-red-50 dark:bg-red-950 hover:bg-red-50 dark:hover:bg-red-950")}
               >
-                <TableCell className="tabular-nums text-zinc-500">
+                <TableCell className="tabular-nums text-muted-foreground">
                   {row.rowIndex}
                 </TableCell>
                 {FIELD_COLUMNS.map((field, fieldIdx) => {
@@ -161,7 +161,7 @@ export function ImportValidationTable({
                     <TableCell
                       key={field}
                       className={cn(
-                        fieldError && !isEditing && "ring-1 ring-red-500 rounded",
+                        fieldError && !isEditing && "ring-1 ring-red-500 dark:ring-red-400 rounded",
                       )}
                     >
                       <EditableCell
@@ -191,10 +191,10 @@ export function ImportValidationTable({
                     className={cn(
                       "text-xs font-medium",
                       isError
-                        ? "text-red-600"
+                        ? "text-red-600 dark:text-red-400"
                         : row.status === "duplicate"
-                          ? "text-amber-600"
-                          : "text-green-600",
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-green-600 dark:text-green-400",
                     )}
                   >
                     {row.status}

@@ -93,18 +93,18 @@ export function EditableCell({
       <div
         className={cn(
           "cursor-pointer px-1 -mx-1 rounded transition-colors duration-700",
-          isHighlighted && "bg-green-50",
+          isHighlighted && "bg-green-50 dark:bg-green-950",
         )}
         onClick={onStartEdit}
       >
         {displayValue}
-        {error && <span className="block text-red-500 text-xs">{error}</span>}
+        {error && <span className="block text-red-500 dark:text-red-400 text-xs">{error}</span>}
       </div>
     );
   }
 
   const inputClasses =
-    "w-full h-7 px-1 text-[14px] bg-white rounded ring-1 ring-zinc-900 outline-none";
+    "w-full h-7 px-1 text-[14px] bg-card rounded ring-1 ring-foreground outline-none";
 
   if (inputType === "select") {
     return (
@@ -123,7 +123,7 @@ export function EditableCell({
             </option>
           ))}
         </select>
-        {error && <span className="block text-red-500 text-xs">{error}</span>}
+        {error && <span className="block text-red-500 dark:text-red-400 text-xs">{error}</span>}
       </div>
     );
   }
@@ -139,7 +139,7 @@ export function EditableCell({
         onKeyDown={handleKeyDown}
         onBlur={commitSave}
       />
-      {error && <span className="block text-red-500 text-xs">{error}</span>}
+      {error && <span className="block text-red-500 dark:text-red-400 text-xs">{error}</span>}
     </div>
   );
 }

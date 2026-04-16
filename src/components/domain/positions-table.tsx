@@ -56,13 +56,13 @@ export function PositionsTable<TData>({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-zinc-200">
+    <div className="bg-card rounded-lg shadow-sm border border-border">
       <Table className="table-fixed">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow
               key={headerGroup.id}
-              className="bg-zinc-50 border-b border-zinc-200 hover:bg-zinc-50"
+              className="bg-muted border-b border-border hover:bg-muted"
             >
               {headerGroup.headers.map((header) => {
                 const align =
@@ -71,7 +71,7 @@ export function PositionsTable<TData>({
                 return (
                   <TableHead
                     key={header.id}
-                    className={`text-[13px] font-medium text-zinc-500 cursor-pointer select-none ${
+                    className={`text-[13px] font-medium text-muted-foreground cursor-pointer select-none ${
                       align === "center" ? "text-center" : ""
                     }`}
                     onClick={header.column.getToggleSortingHandler()}
@@ -104,10 +104,10 @@ export function PositionsTable<TData>({
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 className={cn(
-                  "h-10 border-b border-zinc-100",
+                  "h-10 border-b border-border",
                   hasInvalidState
-                    ? "bg-amber-50 hover:bg-amber-100"
-                    : onRowClick && "hover:bg-zinc-100",
+                    ? "bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
+                    : onRowClick && "hover:bg-muted",
                   onRowClick && "cursor-pointer"
                 )}
               >
@@ -117,7 +117,7 @@ export function PositionsTable<TData>({
                   return (
                     <TableCell
                       key={cell.id}
-                      className={`text-[14px] text-zinc-900 ${
+                      className={`text-[14px] text-foreground ${
                         align === "center" ? "text-center" : ""
                       }`}
                     >

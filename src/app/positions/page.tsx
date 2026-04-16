@@ -46,7 +46,7 @@ export default async function PositionsPage({
       />
       {closedPositions.length > 0 && (
         <div>
-          <h2 className="text-[16px] font-semibold text-zinc-900 mb-4">
+          <h2 className="text-[16px] font-semibold text-foreground mb-4">
             Closed Positions
           </h2>
           <DrillDownPositionsTable

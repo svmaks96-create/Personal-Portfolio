@@ -83,11 +83,11 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
   }
 
   const inputClasses =
-    "w-full h-7 px-1 text-[14px] bg-white rounded ring-1 ring-zinc-900 outline-none";
+    "w-full h-7 px-1 text-[14px] bg-card rounded ring-1 ring-foreground outline-none";
 
   return (
     <>
-      <TableRow className="h-10 border-b border-zinc-100 bg-zinc-50/50">
+      <TableRow className="h-10 border-b border-border bg-muted/50">
         {/* Checkbox placeholder */}
         <TableCell />
         {/* Date */}
@@ -99,7 +99,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             onChange={(e) => handleChange("date", e.target.value)}
           />
           {fieldErrors.date && (
-            <span className="block text-red-500 text-xs">{fieldErrors.date}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.date}</span>
           )}
         </TableCell>
 
@@ -113,7 +113,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             placeholder="AAPL"
           />
           {fieldErrors.ticker && (
-            <span className="block text-red-500 text-xs">{fieldErrors.ticker}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.ticker}</span>
           )}
         </TableCell>
 
@@ -131,7 +131,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             ))}
           </select>
           {fieldErrors.action && (
-            <span className="block text-red-500 text-xs">{fieldErrors.action}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.action}</span>
           )}
         </TableCell>
 
@@ -145,7 +145,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             placeholder="0"
           />
           {fieldErrors.quantity && (
-            <span className="block text-red-500 text-xs">{fieldErrors.quantity}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.quantity}</span>
           )}
         </TableCell>
 
@@ -159,7 +159,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             placeholder="0.00"
           />
           {fieldErrors.grossAmount && (
-            <span className="block text-red-500 text-xs">{fieldErrors.grossAmount}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.grossAmount}</span>
           )}
         </TableCell>
 
@@ -173,15 +173,15 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             placeholder="0.00"
           />
           {fieldErrors.fees && (
-            <span className="block text-red-500 text-xs">{fieldErrors.fees}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.fees}</span>
           )}
         </TableCell>
 
         {/* Net Amount — empty placeholder, computed field */}
-        <TableCell className="text-center text-zinc-400 text-[14px]">—</TableCell>
+        <TableCell className="text-center text-muted-foreground text-[14px]">—</TableCell>
 
         {/* Net Avg Price — empty placeholder, computed field */}
-        <TableCell className="text-center text-zinc-400 text-[14px]">—</TableCell>
+        <TableCell className="text-center text-muted-foreground text-[14px]">—</TableCell>
 
         {/* Portfolio */}
         <TableCell className="text-center">
@@ -193,7 +193,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             placeholder="Main"
           />
           {fieldErrors.portfolio && (
-            <span className="block text-red-500 text-xs">{fieldErrors.portfolio}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.portfolio}</span>
           )}
         </TableCell>
 
@@ -207,7 +207,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
             placeholder="USD"
           />
           {fieldErrors.currency && (
-            <span className="block text-red-500 text-xs">{fieldErrors.currency}</span>
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.currency}</span>
           )}
         </TableCell>
         {/* Delete placeholder */}
@@ -216,9 +216,9 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
 
       {/* Duplicate warning banner */}
       {isDuplicate && (
-        <TableRow className="border-b border-zinc-100">
+        <TableRow className="border-b border-border">
           <TableCell colSpan={COLUMN_COUNT} className="py-2 px-4">
-            <div className="flex items-center gap-3 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+            <div className="flex items-center gap-3 rounded bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
               <span>A matching transaction already exists.</span>
               <Button
                 variant="secondary"
@@ -242,16 +242,16 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
 
       {/* Form-level error */}
       {fieldErrors._form && (
-        <TableRow className="border-b border-zinc-100">
+        <TableRow className="border-b border-border">
           <TableCell colSpan={COLUMN_COUNT} className="py-1 px-4">
-            <span className="text-red-500 text-xs">{fieldErrors._form}</span>
+            <span className="text-red-500 dark:text-red-400 text-xs">{fieldErrors._form}</span>
           </TableCell>
         </TableRow>
       )}
 
       {/* Action buttons row */}
       {!isDuplicate && (
-        <TableRow className="border-b border-zinc-200">
+        <TableRow className="border-b border-border">
           <TableCell colSpan={COLUMN_COUNT} className="py-2 px-4">
             <div className="flex gap-2">
               <Button

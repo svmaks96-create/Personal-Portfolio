@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function ConcentrationChartSkeleton() {
   return (
-    <Card className="bg-white shadow-sm ring-0">
+    <Card className="bg-card shadow-sm ring-0">
       <CardHeader>
         <Skeleton className="h-5 w-48" />
       </CardHeader>

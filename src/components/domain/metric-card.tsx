@@ -16,15 +16,15 @@ export function MetricCard({
 }: MetricCardProps) {
   const valueColor =
     variant === "pnl" && pnlDirection === "positive"
-      ? "text-emerald-600"
+      ? "text-emerald-600 dark:text-emerald-400"
       : variant === "pnl" && pnlDirection === "negative"
-        ? "text-red-600"
-        : "text-zinc-900";
+        ? "text-red-600 dark:text-red-400"
+        : "text-card-foreground";
 
   return (
-    <Card className="bg-white shadow-sm ring-0">
+    <Card className="bg-card shadow-sm ring-0">
       <CardContent>
-        <p className="text-[13px] font-normal text-zinc-500">{label}</p>
+        <p className="text-[13px] font-normal text-muted-foreground">{label}</p>
         <p className={cn("text-[28px] font-bold", valueColor)}>{value}</p>
       </CardContent>
     </Card>

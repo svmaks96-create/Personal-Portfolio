@@ -54,7 +54,7 @@ export default async function TransactionsPage({
         />
       ) : (
         <>
-          <p className="text-xs text-zinc-400">Amounts are in each transaction&apos;s respective currency</p>
+          <p className="text-xs text-muted-foreground">Amounts are in each transaction&apos;s respective currency</p>
           <TransactionsTable data={rows} />
         </>
       )}

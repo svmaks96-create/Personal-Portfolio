@@ -271,7 +271,7 @@ function Step2Validation({
       />
 
       {state.uploadError && (
-        <p className="text-sm text-red-600">{state.uploadError}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{state.uploadError}</p>
       )}
 
       <div className="flex items-center justify-between">
@@ -344,17 +344,17 @@ function Step4Confirm({
   return (
     <div className="space-y-4">
       {importResult?.type === "success" && (
-        <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-lg bg-green-50 dark:bg-green-950 px-4 py-3 text-sm text-green-700 dark:text-green-300">
           {importResult.message}
         </div>
       )}
 
       {importResult?.type === "error" && (
-        <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300">
           <span>{importResult.message}</span>
           <button
             onClick={() => setImportResult(null)}
-            className="ml-2 text-red-500 hover:text-red-700"
+            className="ml-2 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
           >
             Dismiss
           </button>
@@ -363,7 +363,7 @@ function Step4Confirm({
 
       {!importResult?.type && (
         <>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-muted-foreground">
             {state.confirmedRows.length} transactions ready to import
           </p>
 
@@ -388,7 +388,7 @@ function Step4Confirm({
       )}
 
       {importResult?.type === "success" && (
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-muted-foreground">
           Redirecting to dashboard...
         </p>
       )}
@@ -459,17 +459,17 @@ export function ImportWizard() {
   return (
     <div className="space-y-6">
       {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm text-zinc-500">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         {stepLabels.map((label, i) => {
           const stepNum = (i + 1) as 1 | 2 | 3 | 4;
           const isActive = state.step === stepNum;
           return (
             <span key={stepNum} className="flex items-center gap-2">
-              {i > 0 && <span className="text-zinc-300">/</span>}
+              {i > 0 && <span className="text-muted-foreground/50">/</span>}
               <span
                 className={cn(
                   "tabular-nums",
-                  isActive ? "font-medium text-zinc-900" : "text-zinc-400",
+                  isActive ? "font-medium text-foreground" : "text-muted-foreground",
                 )}
               >
                 Step {stepNum}: {label}
@@ -521,20 +521,20 @@ export function ImportWizard() {
             className={cn(
               "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-12 text-center transition-colors",
               state.isProcessing
-                ? "cursor-not-allowed border-zinc-200 bg-zinc-50 text-zinc-400"
+                ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
                 : isDragOver
-                  ? "border-zinc-900 bg-zinc-50"
-                  : "border-zinc-200 hover:border-zinc-300",
+                  ? "border-foreground bg-muted"
+                  : "border-border hover:border-muted-foreground",
             )}
           >
             {state.isProcessing ? (
-              <p className="text-sm text-zinc-500">Validating...</p>
+              <p className="text-sm text-muted-foreground">Validating...</p>
             ) : (
               <>
-                <p className="text-sm text-zinc-600">
+                <p className="text-sm text-muted-foreground">
                   Drag and drop your .xlsx file here
                 </p>
-                <p className="text-xs text-zinc-400">or click to browse</p>
+                <p className="text-xs text-muted-foreground">or click to browse</p>
               </>
             )}
           </div>
@@ -549,7 +549,7 @@ export function ImportWizard() {
 
           {/* Upload error */}
           {state.uploadError && (
-            <p className="text-sm text-red-600">{state.uploadError}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{state.uploadError}</p>
           )}
         </div>
       )}

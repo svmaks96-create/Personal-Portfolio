@@ -14,7 +14,7 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
       <div>
         <span className="font-medium">
           {row.original.hasInvalidState && (
-            <TriangleAlert className="inline mr-1 h-4 w-4 text-amber-600" />
+            <TriangleAlert className="inline mr-1 h-4 w-4 text-amber-600 dark:text-amber-400" />
           )}
           {row.original.ticker}
         </span>

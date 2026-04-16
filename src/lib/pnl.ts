@@ -3,8 +3,8 @@ export function pnlColorClass(value: number | null): string {
   return value === null || value === 0
     ? ""
     : value > 0
-      ? "text-emerald-600"
-      : "text-red-600";
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-red-600 dark:text-red-400";
 }
 
 /** Returns direction enum for MetricCard pnlDirection prop */

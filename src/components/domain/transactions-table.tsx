@@ -190,8 +190,8 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   });
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-zinc-200">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-100">
+    <div className="bg-card rounded-lg shadow-sm border border-border">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
         <Button
           variant="secondary"
           size="sm"
@@ -205,7 +205,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           <Button
             variant="outline"
             size="sm"
-            className="text-red-600 border-red-600 hover:bg-red-50"
+            className="text-red-600 dark:text-red-400 border-red-600 dark:border-red-400 hover:bg-red-50 dark:hover:bg-red-950"
             disabled={isDeleting}
             onClick={() => setIsBulkDeleting(true)}
           >
@@ -219,7 +219,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow
               key={headerGroup.id}
-              className="bg-zinc-50 border-b border-zinc-200 hover:bg-zinc-50"
+              className="bg-muted border-b border-border hover:bg-muted"
             >
               {headerGroup.headers.map((header) => {
                 const align =
@@ -228,7 +228,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
                 return (
                   <TableHead
                     key={header.id}
-                    className={`text-[13px] font-medium text-zinc-500 cursor-pointer select-none ${
+                    className={`text-[13px] font-medium text-muted-foreground cursor-pointer select-none ${
                       align === "center" ? "text-center" : ""
                     } ${header.column.id === "select" ? "w-10 px-0" : ""}`}
                     onClick={header.column.getToggleSortingHandler()}
@@ -261,7 +261,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
           {table.getRowModel().rows.map((row) => (
             <TableRow
               key={row.id}
-              className="h-10 border-b border-zinc-100"
+              className="h-10 border-b border-border"
             >
               {row.getVisibleCells().map((cell) => {
                 const align =
@@ -269,7 +269,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
                 return (
                   <TableCell
                     key={cell.id}
-                    className={`text-[14px] text-zinc-900 ${
+                    className={`text-[14px] text-foreground ${
                       align === "center" ? "text-center" : ""
                     } ${cell.column.id === "select" ? "w-10 px-0" : ""}`}
                   >
@@ -302,7 +302,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
       />
 
       {deleteError && !deleteTarget && !isBulkDeleting && (
-        <div className="px-4 py-2 text-sm text-red-600 bg-red-50 border-t border-red-200">
+        <div className="px-4 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border-t border-red-200 dark:border-red-800">
           {deleteError}
         </div>
       )}

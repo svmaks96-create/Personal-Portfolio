@@ -194,7 +194,7 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       cell: ({ row }) => (
         <Button
           variant="outline"
-          className="text-red-600 border-red-600 hover:bg-red-50 h-7 w-7 p-0"
+          className="text-red-600 dark:text-red-400 border-red-600 dark:border-red-400 hover:bg-red-50 dark:hover:bg-red-950 h-7 w-7 p-0"
           disabled={ctx.isDeleting}
           onClick={() => ctx.onDeleteClick(row.original.id)}
         >

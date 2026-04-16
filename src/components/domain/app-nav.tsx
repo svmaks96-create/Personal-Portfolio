@@ -38,8 +38,8 @@ export function AppNav() {
             href={buildHref(tab.href)}
             className={`px-5 py-2.5 text-sm border-b-2 transition-colors ${
               active
-                ? "border-zinc-900 text-zinc-900 font-medium"
-                : "border-transparent text-zinc-500 hover:text-zinc-900"
+                ? "border-foreground text-foreground font-medium"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label}

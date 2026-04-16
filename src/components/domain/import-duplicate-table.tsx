@@ -32,7 +32,7 @@ export function ImportDuplicateTable({
 }: ImportDuplicateTableProps) {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-amber-700">
+      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
         {duplicates.length} potential {duplicates.length === 1 ? "duplicate" : "duplicates"}
       </p>
 
@@ -54,11 +54,11 @@ export function ImportDuplicateTable({
               <TableRow
                 key={row.rowIndex}
                 className={cn(
-                  "bg-amber-50 hover:bg-amber-50",
+                  "bg-amber-50 dark:bg-amber-950 hover:bg-amber-50 dark:hover:bg-amber-950",
                   !isOverridden && "opacity-50",
                 )}
               >
-                <TableCell className="tabular-nums text-zinc-500">
+                <TableCell className="tabular-nums text-muted-foreground">
                   {row.rowIndex}
                 </TableCell>
                 {FIELD_COLUMNS.map((field) => (
@@ -69,7 +69,7 @@ export function ImportDuplicateTable({
                     {String(row.data[field] ?? "")}
                   </TableCell>
                 ))}
-                <TableCell className="text-xs text-amber-600">
+                <TableCell className="text-xs text-amber-600 dark:text-amber-400">
                   {getDuplicateSource(row)}
                 </TableCell>
                 <TableCell>

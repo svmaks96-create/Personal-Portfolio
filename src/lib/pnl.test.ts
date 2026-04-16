@@ -9,12 +9,12 @@ describe("pnlColorClass", () => {
     expect(pnlColorClass(0)).toBe("");
   });
   it("returns emerald for positive values", () => {
-    expect(pnlColorClass(100)).toBe("text-emerald-600");
-    expect(pnlColorClass(0.01)).toBe("text-emerald-600");
+    expect(pnlColorClass(100)).toBe("text-emerald-600 dark:text-emerald-400");
+    expect(pnlColorClass(0.01)).toBe("text-emerald-600 dark:text-emerald-400");
   });
   it("returns red for negative values", () => {
-    expect(pnlColorClass(-50)).toBe("text-red-600");
-    expect(pnlColorClass(-0.01)).toBe("text-red-600");
+    expect(pnlColorClass(-50)).toBe("text-red-600 dark:text-red-400");
+    expect(pnlColorClass(-0.01)).toBe("text-red-600 dark:text-red-400");
   });
 });
 
