@@ -4,10 +4,9 @@ import { useState, useRef } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { addTransaction } from "@/server/actions/transactions";
+import { ACTION_OPTIONS } from "@/shared/schemas/transaction-fields";
 
 const COLUMN_COUNT = 12;
-
-const ACTION_OPTIONS = ["buy", "sell", "dividend", "fee"] as const;
 
 interface AddTransactionRowProps {
   onCancel: () => void;

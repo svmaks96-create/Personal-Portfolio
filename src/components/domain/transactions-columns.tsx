@@ -6,12 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import type { TransactionRow } from "@/server/queries/transactions";
 import { EditableCell } from "@/components/domain/editable-cell";
-
-function NumericCell({ display }: { display: string }) {
-  return <span className="tabular-nums">{display}</span>;
-}
-
-const ACTION_OPTIONS = ["buy", "sell", "dividend", "fee"];
+import { NumericCell } from "@/components/domain/numeric-cell";
+import { ACTION_OPTIONS } from "@/shared/schemas/transaction-fields";
 
 interface EditContext {
   editingCell: { rowId: number; field: string } | null;

@@ -3,10 +3,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { TriangleAlert } from "lucide-react";
 import type { ActivePositionRow, ClosedPositionRow } from "@/server/queries/positions";
-
-function NumericCell({ display }: { display: string }) {
-  return <span className="tabular-nums">{display}</span>;
-}
+import { NumericCell } from "@/components/domain/numeric-cell";
+import { pnlColorClass } from "@/lib/pnl";
 
 export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
   {
@@ -89,20 +87,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "P&L",
     accessorFn: (row) => row.pnl.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => {
-      const value = row.original.pnl.value;
-      const colorClass =
-        value === null || value === 0
-          ? ""
-          : value > 0
-            ? "text-emerald-600"
-            : "text-red-600";
-      return (
-        <span className={`tabular-nums ${colorClass}`}>
-          {row.original.pnl.display}
-        </span>
-      );
-    },
+    cell: ({ row }) => (
+      <span className={`tabular-nums ${pnlColorClass(row.original.pnl.value)}`}>
+        {row.original.pnl.display}
+      </span>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -110,20 +99,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "IRR",
     accessorFn: (row) => row.irr.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => {
-      const value = row.original.irr.value;
-      const colorClass =
-        value === null || value === 0
-          ? ""
-          : value > 0
-            ? "text-emerald-600"
-            : "text-red-600";
-      return (
-        <span className={`tabular-nums ${colorClass}`}>
-          {row.original.irr.display}
-        </span>
-      );
-    },
+    cell: ({ row }) => (
+      <span className={`tabular-nums ${pnlColorClass(row.original.irr.value)}`}>
+        {row.original.irr.display}
+      </span>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -205,20 +185,11 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     header: "Realized P&L",
     accessorFn: (row) => row.realizedPnl.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => {
-      const value = row.original.realizedPnl.value;
-      const colorClass =
-        value === null || value === 0
-          ? ""
-          : value > 0
-            ? "text-emerald-600"
-            : "text-red-600";
-      return (
-        <span className={`tabular-nums ${colorClass}`}>
-          {row.original.realizedPnl.display}
-        </span>
-      );
-    },
+    cell: ({ row }) => (
+      <span className={`tabular-nums ${pnlColorClass(row.original.realizedPnl.value)}`}>
+        {row.original.realizedPnl.display}
+      </span>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -226,20 +197,11 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     header: "IRR",
     accessorFn: (row) => row.irr.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => {
-      const value = row.original.irr.value;
-      const colorClass =
-        value === null || value === 0
-          ? ""
-          : value > 0
-            ? "text-emerald-600"
-            : "text-red-600";
-      return (
-        <span className={`tabular-nums ${colorClass}`}>
-          {row.original.irr.display}
-        </span>
-      );
-    },
+    cell: ({ row }) => (
+      <span className={`tabular-nums ${pnlColorClass(row.original.irr.value)}`}>
+        {row.original.irr.display}
+      </span>
+    ),
     meta: { align: "center" as const },
   },
 ];

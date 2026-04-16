@@ -1,71 +1,12 @@
-import { db } from "@/server/db";
-import { transactions, marketData } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { format } from "date-fns";
-import { computePositions, computeAggregates, computePortfolioIRR, mergePositionsByTicker, computeConcentration } from "@/server/services/computation";
+import { computeAggregates, computePortfolioIRR, mergePositionsByTicker, computeConcentration } from "@/server/services/computation";
 import { getEtfHoldingsMap, getVariantToTickerMap } from "@/server/queries/etf-holdings";
+import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 import { formatPercent } from "@/lib/formatting";
-import type {
-  TransactionInput,
-  MarketDataInput,
-  FxRateInput,
-  AggregateMetrics,
-} from "@/server/types/positions";
+import type { AggregateMetrics } from "@/server/types/positions";
 import type { ConcentrationData } from "@/server/types/concentration";
 
 export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
-  // 1. Fetch transactions
-  const txRows = portfolio
-    ? db.select().from(transactions).where(eq(transactions.portfolio, portfolio)).all()
-    : db.select().from(transactions).all();
-
-  const txInputs: TransactionInput[] = txRows.map((row) => ({
-    id: row.id,
-    date: row.date,
-    ticker: row.ticker,
-    action: row.action,
-    quantity: row.quantity,
-    grossAmount: row.grossAmount,
-    fees: row.fees,
-    portfolio: row.portfolio,
-    currency: row.currency,
-  }));
-
-  // 2. Fetch latest stock prices (most recent per symbol)
-  const priceRows = db
-    .select()
-    .from(marketData)
-    .where(eq(marketData.type, "stock_price"))
-    .orderBy(desc(marketData.date))
-    .all();
-
-  const priceMap: Record<string, MarketDataInput> = {};
-  for (const row of priceRows) {
-    if (!(row.symbol in priceMap)) {
-      priceMap[row.symbol] = {
-        symbol: row.symbol,
-        date: row.date,
-        value: row.value,
-      };
-    }
-  }
-
-  // 3. Fetch FX rates
-  const fxRows = db
-    .select()
-    .from(marketData)
-    .where(eq(marketData.type, "fx_rate"))
-    .all();
-
-  const fxRates: FxRateInput[] = fxRows.map((row) => ({
-    symbol: row.symbol,
-    date: row.date,
-    value: row.value,
-  }));
-
-  // 4. Compute positions and aggregates (active positions only)
-  const today = format(new Date(), "yyyy-MM-dd");
-  const allPositions = computePositions(txInputs, priceMap, fxRates, today);
+  const { txInputs, fxRates, today, positions: allPositions } = fetchPositionInputs(portfolio);
   // Merge all positions by ticker FIRST so that a ticker active in one portfolio
   // but closed in another resolves to a single row, then filter to active.
   const merged = !portfolio

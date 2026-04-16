@@ -11,30 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { ImportValidationRow } from "@/server/types/import";
 import { cn } from "@/lib/utils";
-
-const FIELD_COLUMNS = [
-  "date",
-  "ticker",
-  "action",
-  "quantity",
-  "grossAmount",
-  "fees",
-  "portfolio",
-  "currency",
-] as const;
-
-type FieldKey = (typeof FIELD_COLUMNS)[number];
-
-const COLUMN_LABELS: Record<FieldKey, string> = {
-  date: "Date",
-  ticker: "Ticker",
-  action: "Action",
-  quantity: "Quantity",
-  grossAmount: "Gross Amount",
-  fees: "Fees",
-  portfolio: "Portfolio",
-  currency: "Currency",
-};
+import { FIELD_COLUMNS, COLUMN_LABELS } from "@/shared/schemas/transaction-fields";
 
 function getDuplicateSource(row: ImportValidationRow): string {
   if (!row.duplicateOf) return "";

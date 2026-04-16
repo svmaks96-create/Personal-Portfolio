@@ -12,30 +12,7 @@ import {
 import { EditableCell } from "@/components/domain/editable-cell";
 import type { ImportValidationRow } from "@/server/types/import";
 import { cn } from "@/lib/utils";
-
-const FIELD_COLUMNS = [
-  "date",
-  "ticker",
-  "action",
-  "quantity",
-  "grossAmount",
-  "fees",
-  "portfolio",
-  "currency",
-] as const;
-
-type FieldKey = (typeof FIELD_COLUMNS)[number];
-
-const COLUMN_LABELS: Record<FieldKey, string> = {
-  date: "Date",
-  ticker: "Ticker",
-  action: "Action",
-  quantity: "Quantity",
-  grossAmount: "Gross Amount",
-  fees: "Fees",
-  portfolio: "Portfolio",
-  currency: "Currency",
-};
+import { FIELD_COLUMNS, COLUMN_LABELS, ACTION_OPTIONS, type FieldKey } from "@/shared/schemas/transaction-fields";
 
 const INPUT_TYPES: Record<FieldKey, "text" | "number" | "date" | "select"> = {
   date: "date",
@@ -47,8 +24,6 @@ const INPUT_TYPES: Record<FieldKey, "text" | "number" | "date" | "select"> = {
   portfolio: "text",
   currency: "text",
 };
-
-const ACTION_OPTIONS = ["buy", "sell", "dividend", "fee"];
 
 interface ImportValidationTableProps {
   rows: ImportValidationRow[];

@@ -1,5 +1,6 @@
 import { getDashboardMetrics } from "@/server/queries/dashboard";
 import { formatCurrencyRounded, formatPnLRounded, formatIRRRounded } from "@/lib/formatting";
+import { pnlDirection } from "@/lib/pnl";
 import { MetricCard } from "@/components/domain/metric-card";
 
 interface DashboardMetricsProps {
@@ -8,27 +9,6 @@ interface DashboardMetricsProps {
 
 export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
   const metrics = getDashboardMetrics(portfolio);
-
-  const realizedPnlDirection =
-    metrics.totalRealizedPnl === null || metrics.totalRealizedPnl === 0
-      ? null
-      : metrics.totalRealizedPnl > 0
-        ? "positive"
-        : "negative";
-
-  const unrealizedPnlDirection =
-    metrics.totalUnrealizedPnl === null || metrics.totalUnrealizedPnl === 0
-      ? null
-      : metrics.totalUnrealizedPnl > 0
-        ? "positive"
-        : "negative";
-
-  const irrDirection =
-    metrics.irr === null || metrics.irr === 0
-      ? null
-      : metrics.irr > 0
-        ? "positive"
-        : "negative";
 
   return (
     <div className="grid grid-cols-5 gap-4">
@@ -44,19 +24,19 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
         label="Realized P&L"
         value={formatPnLRounded(metrics.totalRealizedPnl)}
         variant="pnl"
-        pnlDirection={realizedPnlDirection}
+        pnlDirection={pnlDirection(metrics.totalRealizedPnl)}
       />
       <MetricCard
         label="Unrealized P&L"
         value={formatPnLRounded(metrics.totalUnrealizedPnl)}
         variant="pnl"
-        pnlDirection={unrealizedPnlDirection}
+        pnlDirection={pnlDirection(metrics.totalUnrealizedPnl)}
       />
       <MetricCard
         label="IRR"
         value={formatIRRRounded(metrics.irr)}
         variant="pnl"
-        pnlDirection={irrDirection}
+        pnlDirection={pnlDirection(metrics.irr)}
       />
     </div>
   );
