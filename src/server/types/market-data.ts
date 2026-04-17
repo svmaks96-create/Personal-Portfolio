@@ -1,18 +1,9 @@
-/** Raw response from FMP /quote endpoint */
-export interface FmpQuote {
+/** Raw response from FMP /historical-price-eod/light endpoint */
+export interface FmpEodQuote {
   symbol: string;
-  name?: string;
+  date: string;
   price: number;
   volume: number;
-  timestamp: number;
-}
-
-/** Raw response from FMP /quote endpoint (forex pair) */
-export interface FmpFxQuote {
-  symbol: string;
-  price: number;
-  volume: number;
-  timestamp: number;
 }
 
 /** Result returned by refresh Server Actions */

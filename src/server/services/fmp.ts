@@ -1,77 +1,67 @@
 import { config } from "@/server/config";
-import type { FmpQuote, FmpFxQuote } from "@/server/types/market-data";
+import { subDays, format } from "date-fns";
+import type { FmpEodQuote } from "@/server/types/market-data";
 import type { FmpCompanyProfile, FmpEtfHolding, FmpExchangeVariant } from "@/server/types/concentration";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
+const EOD_LOOKBACK_DAYS = 7;
 
 /**
- * Fetch stock quotes for given tickers via FMP /quote endpoint.
- * Returns full quote data including timestamp (for actual trading date).
+ * Fetch official closing prices for given tickers via FMP EOD light endpoint.
+ * Returns daily close data for the last 7 days (covers weekends + extended holidays).
  * Pure function — no DB or framework imports.
  * Returns empty array on empty input or missing API key.
  */
-export async function fetchStockPrices(tickers: string[]): Promise<FmpQuote[]> {
+export async function fetchStockPrices(tickers: string[]): Promise<FmpEodQuote[]> {
   if (tickers.length === 0) return [];
   if (!config.fmpApiKey) return [];
 
+  const from = format(subDays(new Date(), EOD_LOOKBACK_DAYS), "yyyy-MM-dd");
   const results = await Promise.all(
-    tickers.map((ticker) => fetchQuote(ticker))
+    tickers.map((ticker) => fetchEodLight(ticker, from))
   );
 
   return results.flat();
 }
 
 /**
- * Fetch FX rates for given non-USD currencies via FMP /quote endpoint.
+ * Fetch official closing FX rates for given non-USD currencies via FMP EOD light endpoint.
  * Currencies should be base currencies (e.g., "GBP", "EUR") — "USD" is appended automatically.
  * Pure function — no DB or framework imports.
  * Returns empty array on empty input or missing API key.
  */
-export async function fetchFxRates(currencies: string[]): Promise<FmpFxQuote[]> {
+export async function fetchFxRates(currencies: string[]): Promise<FmpEodQuote[]> {
   if (currencies.length === 0) return [];
   if (!config.fmpApiKey) return [];
 
+  const from = format(subDays(new Date(), EOD_LOOKBACK_DAYS), "yyyy-MM-dd");
   const results = await Promise.all(
-    currencies.map((currency) => fetchForexQuote(`${currency}USD`))
+    currencies.map((currency) => fetchEodLight(`${currency}USD`, from))
   );
 
   return results.flat();
 }
 
-function isValidQuote(item: unknown): item is FmpQuote {
+function isValidEodQuote(item: unknown): item is FmpEodQuote {
   return (
     typeof item === "object" &&
     item !== null &&
-    typeof (item as FmpQuote).symbol === "string" &&
-    typeof (item as FmpQuote).price === "number" &&
-    Number.isFinite((item as FmpQuote).price) &&
-    typeof (item as FmpQuote).timestamp === "number" &&
-    Number.isFinite((item as FmpQuote).timestamp) &&
-    (item as FmpQuote).timestamp > 0
+    typeof (item as FmpEodQuote).symbol === "string" &&
+    typeof (item as FmpEodQuote).date === "string" &&
+    (item as FmpEodQuote).date.length === 10 &&
+    typeof (item as FmpEodQuote).price === "number" &&
+    Number.isFinite((item as FmpEodQuote).price)
   );
 }
 
-async function fetchQuote(symbol: string): Promise<FmpQuote[]> {
+async function fetchEodLight(symbol: string, from: string): Promise<FmpEodQuote[]> {
   try {
-    const url = `${FMP_BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&apikey=${config.fmpApiKey}`;
+    const url = `${FMP_BASE_URL}/historical-price-eod/light?symbol=${encodeURIComponent(symbol)}&from=${from}&apikey=${config.fmpApiKey}`;
     const response = await fetch(url);
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data.filter(isValidQuote);
-  } catch {
-    return [];
-  }
-}
-
-async function fetchForexQuote(pair: string): Promise<FmpFxQuote[]> {
-  try {
-    const url = `${FMP_BASE_URL}/quote?symbol=${encodeURIComponent(pair)}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
-    if (!response.ok) return [];
-    const data = await response.json();
-    if (!Array.isArray(data)) return [];
-    return data.filter(isValidQuote) as FmpFxQuote[];
+    return data.filter(isValidEodQuote);
   } catch {
     return [];
   }

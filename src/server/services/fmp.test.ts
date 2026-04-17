@@ -27,15 +27,15 @@ describe("fetchStockPrices", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("fetches a single ticker", async () => {
-    const quote = { symbol: "AAPL", price: 258.86, volume: 29319825, timestamp: 1775505601 };
-    mockFetchResponse([quote]);
+  it("fetches a single ticker via EOD light endpoint", async () => {
+    const eodQuote = { symbol: "AAPL", date: "2026-04-15", price: 258.86, volume: 29319825 };
+    mockFetchResponse([eodQuote]);
 
     const result = await fetchStockPrices(["AAPL"]);
-    expect(result).toEqual([quote]);
+    expect(result).toEqual([eodQuote]);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/quote?symbol=AAPL&apikey=test-api-key")
+      expect.stringContaining("/historical-price-eod/light?symbol=AAPL&from=")
     );
   });
 
@@ -44,11 +44,11 @@ describe("fetchStockPrices", () => {
       const urlStr = url instanceof Request ? url.url : url.toString();
       if (urlStr.includes("AAPL")) {
         return new Response(
-          JSON.stringify([{ symbol: "AAPL", price: 258.86, volume: 100, timestamp: 1775505601 }])
+          JSON.stringify([{ symbol: "AAPL", date: "2026-04-15", price: 258.86, volume: 100 }])
         );
       }
       return new Response(
-        JSON.stringify([{ symbol: "MSFT", price: 410.5, volume: 200, timestamp: 1775505601 }])
+        JSON.stringify([{ symbol: "MSFT", date: "2026-04-15", price: 410.5, volume: 200 }])
       );
     });
 
@@ -92,28 +92,41 @@ describe("fetchStockPrices", () => {
   });
 
   it("filters out items with missing price field", async () => {
-    mockFetchResponse([{ symbol: "AAPL", timestamp: 1775505601 }, { symbol: "MSFT", price: 410.5, volume: 200, timestamp: 1775505601 }]);
+    mockFetchResponse([
+      { symbol: "AAPL", date: "2026-04-15" },
+      { symbol: "MSFT", date: "2026-04-15", price: 410.5, volume: 200 },
+    ]);
     const result = await fetchStockPrices(["AAPL"]);
-    expect(result).toEqual([{ symbol: "MSFT", price: 410.5, volume: 200, timestamp: 1775505601 }]);
+    expect(result).toEqual([{ symbol: "MSFT", date: "2026-04-15", price: 410.5, volume: 200 }]);
   });
 
   it("filters out items with NaN or Infinity price", async () => {
     mockFetchResponse([
-      { symbol: "BAD1", price: NaN, volume: 0, timestamp: 1775505601 },
-      { symbol: "BAD2", price: Infinity, volume: 0, timestamp: 1775505601 },
-      { symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 },
+      { symbol: "BAD1", date: "2026-04-15", price: NaN, volume: 0 },
+      { symbol: "BAD2", date: "2026-04-15", price: Infinity, volume: 0 },
+      { symbol: "GOOD", date: "2026-04-15", price: 100, volume: 50 },
     ]);
     const result = await fetchStockPrices(["AAPL"]);
-    expect(result).toEqual([{ symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 }]);
+    expect(result).toEqual([{ symbol: "GOOD", date: "2026-04-15", price: 100, volume: 50 }]);
   });
 
-  it("filters out items with missing timestamp", async () => {
+  it("filters out items with missing or invalid date", async () => {
     mockFetchResponse([
-      { symbol: "NOTIMESTAMP", price: 100, volume: 50 },
-      { symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 },
+      { symbol: "NODATE", price: 100, volume: 50 },
+      { symbol: "BADDATE", date: "2026-04", price: 100, volume: 50 },
+      { symbol: "GOOD", date: "2026-04-15", price: 100, volume: 50 },
     ]);
     const result = await fetchStockPrices(["AAPL"]);
-    expect(result).toEqual([{ symbol: "GOOD", price: 100, volume: 50, timestamp: 1775505601 }]);
+    expect(result).toEqual([{ symbol: "GOOD", date: "2026-04-15", price: 100, volume: 50 }]);
+  });
+
+  it("returns multiple days per ticker from EOD response", async () => {
+    mockFetchResponse([
+      { symbol: "AAPL", date: "2026-04-15", price: 266.43, volume: 49913510 },
+      { symbol: "AAPL", date: "2026-04-14", price: 258.83, volume: 48370710 },
+    ]);
+    const result = await fetchStockPrices(["AAPL"]);
+    expect(result).toHaveLength(2);
   });
 
   it("handles partial failures gracefully", async () => {
@@ -121,14 +134,14 @@ describe("fetchStockPrices", () => {
       const urlStr = url instanceof Request ? url.url : url.toString();
       if (urlStr.includes("AAPL")) {
         return new Response(
-          JSON.stringify([{ symbol: "AAPL", price: 258.86, volume: 100, timestamp: 1775505601 }])
+          JSON.stringify([{ symbol: "AAPL", date: "2026-04-15", price: 258.86, volume: 100 }])
         );
       }
       return new Response("error", { status: 500 });
     });
 
     const result = await fetchStockPrices(["AAPL", "INVALID"]);
-    expect(result).toEqual([{ symbol: "AAPL", price: 258.86, volume: 100, timestamp: 1775505601 }]);
+    expect(result).toEqual([{ symbol: "AAPL", date: "2026-04-15", price: 258.86, volume: 100 }]);
   });
 });
 
@@ -140,14 +153,14 @@ describe("fetchFxRates", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("fetches a single FX rate with correct pair format", async () => {
-    const fxQuote = { symbol: "GBPUSD", price: 1.32344, volume: 71487, timestamp: 1775555031 };
+  it("fetches a single FX rate via EOD light endpoint", async () => {
+    const fxQuote = { symbol: "GBPUSD", date: "2026-04-15", price: 1.32344, volume: 71487 };
     mockFetchResponse([fxQuote]);
 
     const result = await fetchFxRates(["GBP"]);
     expect(result).toEqual([fxQuote]);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/quote?symbol=GBPUSD&apikey=test-api-key")
+      expect.stringContaining("/historical-price-eod/light?symbol=GBPUSD&from=")
     );
   });
 
@@ -156,11 +169,11 @@ describe("fetchFxRates", () => {
       const urlStr = url instanceof Request ? url.url : url.toString();
       if (urlStr.includes("GBPUSD")) {
         return new Response(
-          JSON.stringify([{ symbol: "GBPUSD", price: 1.32, volume: 100, timestamp: 1775555031 }])
+          JSON.stringify([{ symbol: "GBPUSD", date: "2026-04-15", price: 1.32, volume: 100 }])
         );
       }
       return new Response(
-        JSON.stringify([{ symbol: "EURUSD", price: 1.08, volume: 200, timestamp: 1775555031 }])
+        JSON.stringify([{ symbol: "EURUSD", date: "2026-04-15", price: 1.08, volume: 200 }])
       );
     });
 

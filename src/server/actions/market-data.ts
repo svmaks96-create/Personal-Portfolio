@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { differenceInDays, fromUnixTime, parseISO } from "date-fns";
+import { differenceInDays, parseISO } from "date-fns";
 import { db } from "@/server/db";
 import { transactions, marketData, etfHoldings, tickerVariants } from "@/server/db/schema";
 import {
@@ -11,15 +11,14 @@ import {
   fetchEtfHoldings,
   fetchExchangeVariants,
 } from "@/server/services/fmp";
-import { getExistingSymbolDates } from "@/server/queries/market-data";
 import { getEtfHoldingsFetchedAt, getVariantsFetchedAt } from "@/server/queries/etf-holdings";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type { RefreshResult } from "@/server/types/market-data";
 
 /**
  * Refresh stock prices for all unique tickers in the transactions table.
- * Skips tickers that already have today's data (FR51).
+ * Always writes the latest EOD closing prices, overwriting any stale intraday data.
  */
 export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
   try {
@@ -31,7 +30,7 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
 
-    // 2. Call FMP service first to get quotes with actual trading dates
+    // 2. Fetch official closing prices via FMP EOD light endpoint
     const quotes = await fetchStockPrices(allTickers);
 
     if (quotes.length === 0) {
@@ -41,34 +40,36 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       };
     }
 
-    // 3. Check which tickers already have data for their trading date (FR51 skip)
-    // Each quote carries its own trading date (exchanges have different calendars)
-    const existingPairs = getExistingSymbolDates(
-      quotes.map((q) => q.symbol),
-      "stock_price"
-    );
-    const newQuotes = quotes.filter((q) => {
-      const quoteDate = fromUnixTime(q.timestamp).toISOString().slice(0, 10);
-      return !existingPairs.has(`${q.symbol}:${quoteDate}`);
-    });
-    const skipped = allTickers.length - newQuotes.length;
-
-    if (newQuotes.length === 0) {
-      return { success: true, data: { updated: 0, skipped } };
+    // 3. Keep only the latest date per symbol (most recent close)
+    const latestBySymbol = new Map<string, (typeof quotes)[number]>();
+    for (const q of quotes) {
+      const existing = latestBySymbol.get(q.symbol);
+      if (!existing || q.date > existing.date) {
+        latestBySymbol.set(q.symbol, q);
+      }
     }
+    const latestQuotes = [...latestBySymbol.values()];
 
-    // 4. Write results to market_data table (atomic)
+    // 4. Write results to market_data table (atomic, upsert via delete+insert)
     const fetchedAt = new Date().toISOString();
     db.transaction((tx) => {
-      for (const quote of newQuotes) {
-        const quoteDate = fromUnixTime(quote.timestamp).toISOString().slice(0, 10);
+      for (const quote of latestQuotes) {
+        tx.delete(marketData)
+          .where(
+            and(
+              eq(marketData.symbol, quote.symbol),
+              eq(marketData.type, "stock_price"),
+              eq(marketData.date, quote.date)
+            )
+          )
+          .run();
         tx.insert(marketData)
           .values({
             symbol: quote.symbol,
             type: "stock_price",
-            date: quoteDate,
+            date: quote.date,
             value: quote.price,
-            name: quote.name ?? null,
+            name: null,
             fetchedAt,
           })
           .run();
@@ -79,9 +80,10 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
     revalidatePath("/", "layout");
 
     // 6. Return result
+    const skipped = allTickers.length - latestQuotes.length;
     return {
       success: true,
-      data: { updated: newQuotes.length, skipped },
+      data: { updated: latestQuotes.length, skipped },
     };
   } catch (error) {
     console.error("refreshPrices failed:", error);
@@ -94,7 +96,7 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
 
 /**
  * Refresh FX rates for all unique non-USD currencies in the transactions table.
- * Skips currencies that already have today's data (FR51).
+ * Always writes the latest EOD closing rates, overwriting any stale data.
  */
 export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
   try {
@@ -108,7 +110,7 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
 
-    // 2. Call FMP service first to get quotes with actual trading dates
+    // 2. Fetch official closing FX rates via FMP EOD light endpoint
     const fxQuotes = await fetchFxRates(allCurrencies);
 
     if (fxQuotes.length === 0) {
@@ -118,31 +120,34 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       };
     }
 
-    // 3. Check which pairs already have data for their trading date (FR51 skip)
-    const existingPairs = getExistingSymbolDates(
-      fxQuotes.map((q) => q.symbol),
-      "fx_rate"
-    );
-    const newQuotes = fxQuotes.filter((q) => {
-      const quoteDate = fromUnixTime(q.timestamp).toISOString().slice(0, 10);
-      return !existingPairs.has(`${q.symbol}:${quoteDate}`);
-    });
-    const skipped = allCurrencies.length - newQuotes.length;
-
-    if (newQuotes.length === 0) {
-      return { success: true, data: { updated: 0, skipped } };
+    // 3. Keep only the latest date per symbol (most recent close)
+    const latestBySymbol = new Map<string, (typeof fxQuotes)[number]>();
+    for (const q of fxQuotes) {
+      const existing = latestBySymbol.get(q.symbol);
+      if (!existing || q.date > existing.date) {
+        latestBySymbol.set(q.symbol, q);
+      }
     }
+    const latestQuotes = [...latestBySymbol.values()];
 
-    // 4. Write results to market_data table (atomic)
+    // 4. Write results to market_data table (atomic, upsert via delete+insert)
     const fetchedAt = new Date().toISOString();
     db.transaction((tx) => {
-      for (const quote of newQuotes) {
-        const quoteDate = fromUnixTime(quote.timestamp).toISOString().slice(0, 10);
+      for (const quote of latestQuotes) {
+        tx.delete(marketData)
+          .where(
+            and(
+              eq(marketData.symbol, quote.symbol),
+              eq(marketData.type, "fx_rate"),
+              eq(marketData.date, quote.date)
+            )
+          )
+          .run();
         tx.insert(marketData)
           .values({
             symbol: quote.symbol,
             type: "fx_rate",
-            date: quoteDate,
+            date: quote.date,
             value: quote.price,
             fetchedAt,
           })
@@ -154,9 +159,10 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
     revalidatePath("/", "layout");
 
     // 6. Return result
+    const skipped = allCurrencies.length - latestQuotes.length;
     return {
       success: true,
-      data: { updated: newQuotes.length, skipped },
+      data: { updated: latestQuotes.length, skipped },
     };
   } catch (error) {
     console.error("refreshFxRates failed:", error);
