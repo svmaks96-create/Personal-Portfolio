@@ -47,7 +47,22 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "Last Price",
     accessorFn: (row) => row.lastPrice.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.lastPrice.display} />,
+    cell: ({ row }) => (
+      <div>
+        <span className="tabular-nums">{row.original.lastPrice.display}</span>
+        {row.original.priceDate.value !== null && (
+          <p
+            className={`text-xs ${
+              row.original.priceDate.isStale
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground"
+            }`}
+          >
+            {row.original.priceDate.display}
+          </p>
+        )}
+      </div>
+    ),
     meta: { align: "center" as const },
   },
   {

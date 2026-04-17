@@ -6,6 +6,7 @@ import {
   formatPercent,
   formatPnLRounded,
   formatIRRRounded,
+  formatPriceDate,
 } from "@/lib/formatting";
 import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 
@@ -16,6 +17,7 @@ export interface ActivePositionRow {
   shares: { value: number; display: string };
   avgEntry: { value: number | null; display: string };
   lastPrice: { value: number | null; display: string };
+  priceDate: { value: string | null; display: string; isStale: boolean };
   costBasis: { value: number | null; display: string };
   marketValue: { value: number | null; display: string };
   dividends: { value: number | null; display: string };
@@ -48,6 +50,11 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
   const activePositions = merged.filter((p) => !p.isClosed);
   const aggregates = computeAggregates(activePositions);
 
+  const priceDates = aggregates.positions
+    .map((p) => p.lastPriceDate)
+    .filter((d): d is string => d !== null);
+  const maxPriceDate = priceDates.length > 0 ? priceDates.reduce((a, b) => (a > b ? a : b)) : null;
+
   return aggregates.positions.map((p) => ({
     ticker: p.ticker,
     companyName: nameMap[p.ticker] ?? null,
@@ -55,6 +62,12 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
     shares: { value: p.sharesHeld, display: formatShares(p.sharesHeld) },
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
     lastPrice: { value: p.lastPrice, display: formatCurrency(p.lastPrice) },
+    priceDate: {
+      value: p.lastPriceDate,
+      display: formatPriceDate(p.lastPriceDate),
+      isStale:
+        p.lastPriceDate !== null && maxPriceDate !== null && p.lastPriceDate < maxPriceDate,
+    },
     costBasis: { value: p.costBasis, display: formatCurrencyRounded(p.costBasis) },
     marketValue: { value: p.marketValue, display: formatCurrencyRounded(p.marketValue) },
     dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },

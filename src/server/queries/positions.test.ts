@@ -35,6 +35,7 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     avgExitPrice: null,
     costBasis: 1500,
     lastPrice: 175,
+    lastPriceDate: "2026-04-16",
     marketValue: 1750,
     totalDividends: 50,
     totalSellProceeds: 0,

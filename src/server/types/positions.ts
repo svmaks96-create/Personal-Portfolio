@@ -33,6 +33,7 @@ export interface ComputedPosition {
   avgExitPrice: number | null;
   costBasis: number | null;
   lastPrice: number | null;
+  lastPriceDate: string | null;
   marketValue: number | null;
   totalDividends: number | null;
   totalSellProceeds: number | null;

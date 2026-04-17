@@ -95,3 +95,8 @@ export function formatIRRRounded(value: number | null): string {
 export function formatTimestampDate(isoTimestamp: string): string {
   return format(parseISO(isoTimestamp), "MMM d");
 }
+
+export function formatPriceDate(date: string | null): string {
+  if (date === null) return "N/A";
+  return format(parseISO(date), "MMM d");
+}
