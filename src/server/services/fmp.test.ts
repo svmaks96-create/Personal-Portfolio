@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchStockPrices, fetchFxRates } from "./fmp";
+import { fetchStockPrices, fetchFxRates, fetchCompanyProfile } from "./fmp";
 
 // Mock config to control API key
 vi.mock("@/server/config", () => ({
@@ -194,6 +194,66 @@ describe("fetchFxRates", () => {
     );
     const result = await fetchFxRates(["GBP"]);
     expect(result).toEqual([]);
+  });
+});
+
+describe("fetchCompanyProfile", () => {
+  it("returns null for empty ticker", async () => {
+    const spy = vi.spyOn(global, "fetch");
+    const result = await fetchCompanyProfile("");
+    expect(result).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("parses symbol, companyName, and isEtf from /profile response", async () => {
+    mockFetchResponse([
+      { symbol: "AAPL", companyName: "Apple Inc.", isEtf: false, price: 258.86 },
+    ]);
+    const result = await fetchCompanyProfile("AAPL");
+    expect(result).toEqual({
+      symbol: "AAPL",
+      companyName: "Apple Inc.",
+      isEtf: false,
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/profile?symbol=AAPL&apikey=test-api-key")
+    );
+  });
+
+  it("returns companyName null when FMP omits it", async () => {
+    mockFetchResponse([{ symbol: "XXX", isEtf: true }]);
+    const result = await fetchCompanyProfile("XXX");
+    expect(result).toEqual({ symbol: "XXX", companyName: null, isEtf: true });
+  });
+
+  it("returns companyName null when FMP returns an empty string", async () => {
+    mockFetchResponse([{ symbol: "XXX", companyName: "", isEtf: false }]);
+    const result = await fetchCompanyProfile("XXX");
+    expect(result?.companyName).toBeNull();
+  });
+
+  it("returns null when response is not an array", async () => {
+    mockFetchResponse({ error: "not found" });
+    const result = await fetchCompanyProfile("INVALID");
+    expect(result).toBeNull();
+  });
+
+  it("returns null when required fields are missing", async () => {
+    mockFetchResponse([{ symbol: "AAPL" }]);
+    const result = await fetchCompanyProfile("AAPL");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on network failure", async () => {
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("boom"));
+    const result = await fetchCompanyProfile("AAPL");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on non-200 response", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(new Response("err", { status: 500 }));
+    const result = await fetchCompanyProfile("AAPL");
+    expect(result).toBeNull();
   });
 });
 

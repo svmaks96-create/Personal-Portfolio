@@ -27,12 +27,23 @@ export const marketData = sqliteTable(
     type: text("type").$type<"stock_price" | "fx_rate">().notNull(),
     date: text("date").notNull(),
     value: real("value").notNull(),
-    name: text("name"),
     fetchedAt: text("fetched_at").notNull(),
   },
   (table) => [
     index("market_data_symbol_type_date_idx").on(table.symbol, table.type, table.date),
   ]
+);
+
+export const tickerProfiles = sqliteTable(
+  "ticker_profiles",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticker: text("ticker").notNull(),
+    name: text("name"),
+    isEtf: integer("is_etf", { mode: "boolean" }).notNull(),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [uniqueIndex("ticker_profiles_ticker_idx").on(table.ticker)]
 );
 
 export const etfHoldings = sqliteTable(

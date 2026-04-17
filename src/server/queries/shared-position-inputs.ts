@@ -3,6 +3,7 @@ import { transactions, marketData } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { computePositions } from "@/server/services/computation";
 import { format } from "date-fns";
+import { getTickerProfilesMap } from "@/server/queries/ticker-profiles";
 import type {
   TransactionInput,
   MarketDataInput,
@@ -46,7 +47,6 @@ export function fetchPositionInputs(portfolio?: string): PositionInputs {
     .all();
 
   const priceMap: Record<string, MarketDataInput> = {};
-  const nameMap: Record<string, string> = {};
   for (const row of priceRows) {
     if (!(row.symbol in priceMap)) {
       priceMap[row.symbol] = {
@@ -55,8 +55,15 @@ export function fetchPositionInputs(portfolio?: string): PositionInputs {
         value: row.value,
       };
     }
-    if (!(row.symbol in nameMap) && row.name) {
-      nameMap[row.symbol] = row.name;
+  }
+
+  // Company names come from the symbol-level ticker_profiles table, not from
+  // per-date price rows. Missing profiles render as "no name" in the UI.
+  const profilesMap = getTickerProfilesMap();
+  const nameMap: Record<string, string> = {};
+  for (const [ticker, profile] of Object.entries(profilesMap)) {
+    if (profile.name) {
+      nameMap[ticker] = profile.name;
     }
   }
 

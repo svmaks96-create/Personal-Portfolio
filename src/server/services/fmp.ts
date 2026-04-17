@@ -68,23 +68,15 @@ async function fetchEodLight(symbol: string, from: string): Promise<FmpEodQuote[
 }
 
 /**
- * Fetch company profiles for given tickers to detect ETFs.
- * Uses FMP /profile endpoint — each response has an `isEtf` boolean.
- * Returns empty array on empty input or missing API key.
+ * Fetch a single company profile from FMP /profile.
+ * Returns `{ symbol, companyName, isEtf }` or null on failure.
  */
-export async function fetchCompanyProfiles(
-  tickers: string[]
-): Promise<FmpCompanyProfile[]> {
-  if (tickers.length === 0) return [];
-  if (!config.fmpApiKey) return [];
-
-  const results = await Promise.all(
-    tickers.map((ticker) => fetchProfile(ticker))
-  );
-
-  return results.filter(
-    (r): r is FmpCompanyProfile => r !== null
-  );
+export async function fetchCompanyProfile(
+  ticker: string
+): Promise<FmpCompanyProfile | null> {
+  if (!ticker) return null;
+  if (!config.fmpApiKey) return null;
+  return fetchProfile(ticker);
 }
 
 /**
@@ -110,12 +102,18 @@ export async function fetchEtfHoldings(
   }
 }
 
-function isValidProfile(item: unknown): item is FmpCompanyProfile {
+interface RawProfile {
+  symbol: string;
+  companyName?: unknown;
+  isEtf: boolean;
+}
+
+function isValidProfile(item: unknown): item is RawProfile {
   return (
     typeof item === "object" &&
     item !== null &&
-    typeof (item as FmpCompanyProfile).symbol === "string" &&
-    typeof (item as FmpCompanyProfile).isEtf === "boolean"
+    typeof (item as RawProfile).symbol === "string" &&
+    typeof (item as RawProfile).isEtf === "boolean"
   );
 }
 
@@ -128,7 +126,11 @@ async function fetchProfile(symbol: string): Promise<FmpCompanyProfile | null> {
     if (!Array.isArray(data) || data.length === 0) return null;
     const item = data[0];
     if (!isValidProfile(item)) return null;
-    return { symbol: item.symbol, isEtf: item.isEtf };
+    const companyName =
+      typeof item.companyName === "string" && item.companyName.length > 0
+        ? item.companyName
+        : null;
+    return { symbol: item.symbol, companyName, isEtf: item.isEtf };
   } catch {
     return null;
   }

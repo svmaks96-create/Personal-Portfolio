@@ -1,6 +1,7 @@
-/** Subset of FMP company profile response used for ETF detection */
+/** Subset of FMP company profile response used for ticker metadata */
 export interface FmpCompanyProfile {
   symbol: string;
+  companyName: string | null;
   isEtf: boolean;
 }
 
