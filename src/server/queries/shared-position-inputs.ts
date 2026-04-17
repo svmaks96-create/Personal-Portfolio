@@ -54,9 +54,9 @@ export function fetchPositionInputs(portfolio?: string): PositionInputs {
         date: row.date,
         value: row.value,
       };
-      if (row.name) {
-        nameMap[row.symbol] = row.name;
-      }
+    }
+    if (!(row.symbol in nameMap) && row.name) {
+      nameMap[row.symbol] = row.name;
     }
   }
 

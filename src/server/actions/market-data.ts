@@ -12,7 +12,7 @@ import {
   fetchExchangeVariants,
 } from "@/server/services/fmp";
 import { getEtfHoldingsFetchedAt, getVariantsFetchedAt } from "@/server/queries/etf-holdings";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type { RefreshResult } from "@/server/types/market-data";
 
@@ -50,10 +50,26 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
     }
     const latestQuotes = [...latestBySymbol.values()];
 
-    // 4. Write results to market_data table (atomic, upsert via delete+insert)
+    // 4. Write results to market_data table (atomic, upsert via delete+insert).
+    // Preserve the latest known company name so the EOD endpoint (which omits
+    // names) does not wipe the name populated by prior refreshes.
     const fetchedAt = new Date().toISOString();
     db.transaction((tx) => {
       for (const quote of latestQuotes) {
+        const existingName = tx
+          .select({ name: marketData.name })
+          .from(marketData)
+          .where(
+            and(
+              eq(marketData.symbol, quote.symbol),
+              eq(marketData.type, "stock_price"),
+              isNotNull(marketData.name)
+            )
+          )
+          .orderBy(desc(marketData.date))
+          .limit(1)
+          .get();
+
         tx.delete(marketData)
           .where(
             and(
@@ -69,7 +85,7 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
             type: "stock_price",
             date: quote.date,
             value: quote.price,
-            name: null,
+            name: existingName?.name ?? null,
             fetchedAt,
           })
           .run();
