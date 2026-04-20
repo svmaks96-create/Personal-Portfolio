@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { computePortfolioTWRR, computeBenchmarkSeries } from "./twrr";
+import {
+  computePortfolioTWRR,
+  computeBenchmarkSeries,
+  sliceAndReanchor,
+} from "./twrr";
 import type {
   TransactionInput,
   MarketDataInput,
@@ -392,6 +396,69 @@ describe("computeBenchmarkSeries", () => {
     // Day 2 forward-fills to 500
     expect(result.series[1].growthOfDollar).toBeCloseTo(1, 9);
     expect(result.series[2].growthOfDollar).toBeCloseTo(510 / 500, 9);
+  });
+});
+
+describe("sliceAndReanchor", () => {
+  // Synthetic ITD series: growth-of-$1 doubling over 4 trading days.
+  const itd = computeBenchmarkSeries(
+    "SPY",
+    [
+      { symbol: "SPY", date: "2026-01-02", value: 100 },
+      { symbol: "SPY", date: "2026-01-03", value: 110 },
+      { symbol: "SPY", date: "2026-01-04", value: 121 },
+      { symbol: "SPY", date: "2026-01-05", value: 200 },
+    ],
+    ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"],
+    "2026-01-02",
+    "2026-01-05",
+  );
+
+  it("is an identity when periodStart equals inception (ITD)", () => {
+    const out = sliceAndReanchor(itd, "2026-01-02");
+    expect(out.series.length).toBe(itd.series.length);
+    out.series.forEach((p, i) => {
+      expect(p.growthOfDollar).toBeCloseTo(itd.series[i].growthOfDollar, 9);
+    });
+    expect(out.cumulativeReturnPct).toBeCloseTo(itd.cumulativeReturnPct!, 6);
+  });
+
+  it("re-anchors to the last point before periodStart", () => {
+    // Anchor day = 2026-01-03 (growth 1.10). Window keeps 01-04 and 01-05.
+    const out = sliceAndReanchor(itd, "2026-01-04");
+    expect(out.series.map((p) => p.date)).toEqual(["2026-01-04", "2026-01-05"]);
+    // 1.21 / 1.10 = 1.10 on day 1; 2.00 / 1.10 ≈ 1.818 on day 2.
+    expect(out.series[0].growthOfDollar).toBeCloseTo(1.1, 9);
+    expect(out.series[1].growthOfDollar).toBeCloseTo(200 / 110, 9);
+    expect(out.cumulativeReturnPct).toBeCloseTo((200 / 110 - 1) * 100, 6);
+  });
+
+  it("falls back to series[0] when periodStart predates all data", () => {
+    // 2025-01-01 is before anything in the series → anchor = series[0] whose
+    // growth is 1, so the result is ITD.
+    const out = sliceAndReanchor(itd, "2025-01-01");
+    expect(out.series.length).toBe(itd.series.length);
+    expect(out.cumulativeReturnPct).toBeCloseTo(itd.cumulativeReturnPct!, 6);
+  });
+
+  it("returns empty when no points are in-window", () => {
+    const out = sliceAndReanchor(itd, "2030-01-01");
+    expect(out.series).toEqual([]);
+    expect(out.cumulativeReturnPct).toBeNull();
+  });
+
+  it("returns empty for an empty input series", () => {
+    const out = sliceAndReanchor(
+      {
+        series: [],
+        cumulativeReturnPct: null,
+        annualizedReturnPct: null,
+        startDate: null,
+        endDate: null,
+      },
+      "2026-01-02",
+    );
+    expect(out.series).toEqual([]);
   });
 });
 

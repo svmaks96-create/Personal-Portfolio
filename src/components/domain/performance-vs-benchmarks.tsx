@@ -1,18 +1,29 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { MetricCard } from "@/components/domain/metric-card";
 import { PerformanceChart } from "@/components/domain/performance-chart";
+import { PeriodSelector } from "@/components/domain/period-selector";
 import { getPerformanceData } from "@/server/queries/performance";
 import { formatIRRRounded } from "@/lib/formatting";
 import { pnlDirection } from "@/lib/pnl";
+import { periodSubtitle } from "@/lib/period";
+import type { Period } from "@/shared/schemas/period";
 
 interface PerformanceVsBenchmarksProps {
   portfolio?: string;
+  period: Period;
 }
 
 export async function PerformanceVsBenchmarks({
   portfolio,
+  period,
 }: PerformanceVsBenchmarksProps) {
-  const data = getPerformanceData(portfolio);
+  const data = getPerformanceData(portfolio, period);
 
   if (!data.hasTransactions) {
     return null;
@@ -24,8 +35,11 @@ export async function PerformanceVsBenchmarks({
         <CardTitle>Performance vs Benchmarks</CardTitle>
         <p className="text-xs text-muted-foreground">
           Time-weighted return (total-return basis, dividends reinvested) vs
-          buy-and-hold of SPY and QQQ since the first transaction.
+          buy-and-hold of SPY and QQQ, {periodSubtitle(period)}.
         </p>
+        <CardAction>
+          <PeriodSelector currentPeriod={period} />
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-3 gap-4">

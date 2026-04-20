@@ -7,10 +7,13 @@ import {
 import {
   computePortfolioTWRR,
   computeBenchmarkSeries,
+  sliceAndReanchor,
 } from "@/server/services/twrr";
 import { BENCHMARK_TICKERS } from "@/server/services/fmp";
+import { resolvePeriodStart } from "@/lib/period";
 import type { TwrrSeries } from "@/server/services/twrr";
 import type { FxRateInput } from "@/server/types/positions";
+import type { Period } from "@/shared/schemas/period";
 
 export interface PerformanceChartPoint {
   date: string;
@@ -50,7 +53,10 @@ function emptySeries(): TwrrSeries {
   };
 }
 
-export function getPerformanceData(portfolio?: string): PerformanceData {
+export function getPerformanceData(
+  portfolio?: string,
+  period: Period = "ITD",
+): PerformanceData {
   const earliest = getEarliestTransactionDate();
   if (earliest === null) return EMPTY;
 
@@ -66,7 +72,9 @@ export function getPerformanceData(portfolio?: string): PerformanceData {
     (min, t) => (t.date < min ? t.date : min),
     txInputs[0].date
   );
-  const endDate = format(new Date(), "yyyy-MM-dd");
+  const now = new Date();
+  const endDate = format(now, "yyyy-MM-dd");
+  const periodStart = resolvePeriodStart(period, now, startDate);
 
   const heldTickers = [...new Set(txInputs.map((t) => t.ticker))];
   const fxCurrencies = [
@@ -100,7 +108,7 @@ export function getPerformanceData(portfolio?: string): PerformanceData {
     .flat()
     .map((r) => ({ symbol: r.symbol, date: r.date, value: r.value }));
 
-  const portfolioSeries = computePortfolioTWRR(
+  const portfolioSeriesItd = computePortfolioTWRR(
     txInputs,
     priceHistory,
     fxHistory,
@@ -109,13 +117,19 @@ export function getPerformanceData(portfolio?: string): PerformanceData {
     endDate
   );
 
-  const spySeries = hasBenchmarkData
+  const spySeriesItd = hasBenchmarkData
     ? computeBenchmarkSeries("SPY", spyHistory, tradingCalendar, startDate, endDate)
     : emptySeries();
 
-  const qqqSeries = hasBenchmarkData
+  const qqqSeriesItd = hasBenchmarkData
     ? computeBenchmarkSeries("QQQ", qqqHistory, tradingCalendar, startDate, endDate)
     : emptySeries();
+
+  // Re-anchor to the selected period. For ITD, periodStart === startDate and
+  // the helper is an identity transform.
+  const portfolioSeries = sliceAndReanchor(portfolioSeriesItd, periodStart);
+  const spySeries = sliceAndReanchor(spySeriesItd, periodStart);
+  const qqqSeries = sliceAndReanchor(qqqSeriesItd, periodStart);
 
   const chartSeries = mergeChartSeries(portfolioSeries, spySeries, qqqSeries);
 

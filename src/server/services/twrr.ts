@@ -176,6 +176,32 @@ export function computeBenchmarkSeries(
   return finalizeSeries(series);
 }
 
+/**
+ * Re-anchors an ITD `TwrrSeries` to a sub-period starting at `periodStart`.
+ *
+ * TWRR is chain-linked, so for any day B in [periodStart, end]:
+ *   growth(B) / growth(anchor) = ∏(1 + r_i) for i in [periodStart, B]
+ * where `anchor` is the last trading day strictly before `periodStart`
+ * (or the series' own first point if `periodStart` predates all data —
+ * in which case the operation is a no-op and ITD is returned). This lets
+ * callers reuse a single ITD computation across every period button
+ * without re-running the TWRR engine.
+ */
+export function sliceAndReanchor(
+  series: TwrrSeries,
+  periodStart: string,
+): TwrrSeries {
+  if (series.series.length === 0) return EMPTY_SERIES;
+  const anchor =
+    series.series.findLast((p) => p.date < periodStart) ?? series.series[0];
+  const base = anchor.growthOfDollar;
+  if (base === 0) return EMPTY_SERIES;
+  const points = series.series
+    .filter((p) => p.date >= periodStart)
+    .map((p) => ({ ...p, growthOfDollar: p.growthOfDollar / base }));
+  return finalizeSeries(points);
+}
+
 function finalizeSeries(series: TwrrPoint[]): TwrrSeries {
   if (series.length === 0) return EMPTY_SERIES;
 

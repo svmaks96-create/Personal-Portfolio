@@ -10,6 +10,7 @@ import { ControlsBar } from "@/components/domain/controls-bar";
 import { getTransactionCount } from "@/server/queries/transactions";
 import { getUniquePortfolios } from "@/server/queries/portfolios";
 import { getStalestMarketDate } from "@/server/queries/market-data";
+import { periodSchema } from "@/shared/schemas/period";
 
 export default async function DashboardPage({
   searchParams,
@@ -28,9 +29,10 @@ export default async function DashboardPage({
     );
   }
 
-  const { portfolio } = await searchParams;
+  const { portfolio, period: periodRaw } = await searchParams;
   const portfolioFilter =
     typeof portfolio === "string" ? portfolio : undefined;
+  const period = periodSchema.catch("ITD").parse(periodRaw);
 
   const portfolios = getUniquePortfolios();
   const timestamp = getStalestMarketDate();
@@ -46,7 +48,7 @@ export default async function DashboardPage({
         <DashboardMetrics portfolio={portfolioFilter} />
       </Suspense>
       <Suspense fallback={<PerformanceSkeleton />}>
-        <PerformanceVsBenchmarks portfolio={portfolioFilter} />
+        <PerformanceVsBenchmarks portfolio={portfolioFilter} period={period} />
       </Suspense>
       <Suspense fallback={<ConcentrationChartSkeleton />}>
         <PortfolioConcentration portfolio={portfolioFilter} />
