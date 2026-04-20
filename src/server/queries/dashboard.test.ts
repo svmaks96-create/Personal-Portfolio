@@ -79,16 +79,30 @@ describe("getDashboardMetrics", () => {
     expect(result).toEqual(expectedAggregates);
   });
 
-  it("filters out closed positions before computing aggregates", () => {
+  it("includes closed positions when computing aggregates", () => {
+    // Regression: filtering out closed positions before computeAggregates
+    // dropped realized P&L from fully-closed positions, breaking the
+    // invariant Σ(per-portfolio totals) == All total whenever a ticker was
+    // closed in one portfolio but still active in another.
     const active = makePosition({ isClosed: false });
-    const closed = makePosition({ ticker: "MSFT", isClosed: true, marketValue: 0 });
+    const closed = makePosition({
+      ticker: "MSFT",
+      isClosed: true,
+      marketValue: 0,
+      costBasis: 0,
+      unrealizedPnl: 0,
+      realizedPnl: 200,
+    });
     const expectedAggregates: AggregateMetrics = {
       totalValue: 1750,
       totalCostBasis: 1500,
-      totalRealizedPnl: 50,
+      totalRealizedPnl: 250,
       totalUnrealizedPnl: 250,
       irr: null,
-      positions: [{ ...active, weight: 100 }],
+      positions: [
+        { ...active, weight: 100 },
+        { ...closed, weight: 0 },
+      ],
     };
 
     mockComputePositions.mockReturnValue([active, closed]);
@@ -96,11 +110,9 @@ describe("getDashboardMetrics", () => {
 
     getDashboardMetrics();
 
-    // computeAggregates should only receive active positions
     const aggregatesArg = mockComputeAggregates.mock.calls[0][0];
-    expect(aggregatesArg).toHaveLength(1);
-    expect(aggregatesArg[0].ticker).toBe("AAPL");
-    expect(aggregatesArg.every((p: ComputedPosition) => !p.isClosed)).toBe(true);
+    expect(aggregatesArg).toHaveLength(2);
+    expect(aggregatesArg.some((p: ComputedPosition) => p.isClosed)).toBe(true);
   });
 
   it("returns null aggregates when no positions exist", () => {

@@ -7,15 +7,18 @@ import type { ConcentrationData } from "@/server/types/concentration";
 
 export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
   const { txInputs, fxRates, today, positions: allPositions } = fetchPositionInputs(portfolio);
-  // Merge all positions by ticker FIRST so that a ticker active in one portfolio
-  // but closed in another resolves to a single row, then filter to active.
+  // Merge all positions by ticker so a ticker active in one portfolio but
+  // closed in another resolves to a single row. We aggregate over merged
+  // positions INCLUDING closed ones so realized P&L from fully-closed
+  // positions is counted — otherwise Σ(per-portfolio totals) drifts below
+  // the All total whenever a ticker is closed in one portfolio but held in
+  // another. Closed positions contribute 0 to value/cost/unrealized, so
+  // only totalRealizedPnl moves.
   const merged = !portfolio
     ? mergePositionsByTicker(allPositions, txInputs, fxRates, today)
     : allPositions;
-  const positions = merged.filter((p) => !p.isClosed);
-  const aggregates = computeAggregates(positions);
+  const aggregates = computeAggregates(merged);
 
-  // 5. Compute portfolio-level IRR from all transactions (including closed positions)
   aggregates.irr = computePortfolioIRR(txInputs, allPositions, fxRates, today);
 
   return aggregates;
