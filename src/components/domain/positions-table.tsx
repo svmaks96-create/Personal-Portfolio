@@ -59,13 +59,13 @@ export function PositionsTable<TData>({
   }
 
   return (
-    <div className="bg-card rounded-lg shadow-sm border border-border">
-      <Table className="table-fixed">
+    <div className="border border-line bg-panel">
+      <Table className="table-fixed font-mono tabular-nums">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow
               key={headerGroup.id}
-              className="bg-muted border-b border-border hover:bg-muted"
+              className="border-b border-line bg-panel-strong hover:bg-panel-strong"
             >
               {headerGroup.headers.map((header) => {
                 const align =
@@ -74,21 +74,27 @@ export function PositionsTable<TData>({
                 return (
                   <TableHead
                     key={header.id}
-                    className={`text-[13px] font-medium text-muted-foreground cursor-pointer select-none ${
-                      align === "center" ? "text-center" : ""
-                    }`}
+                    className={cn(
+                      "h-auto cursor-pointer select-none px-3.5 py-2 font-mono text-[9px] font-normal uppercase tracking-[0.22em] text-muted-foreground",
+                      align === "left" ? "text-left" : "text-center",
+                    )}
                     onClick={header.column.getToggleSortingHandler()}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1",
+                        align === "left" ? "" : "justify-center",
+                      )}
+                    >
                       {flexRender(
                         header.column.columnDef.header,
-                        header.getContext()
+                        header.getContext(),
                       )}
                       {sorted === "asc" && (
-                        <ChevronUp className="h-3.5 w-3.5" />
+                        <ChevronUp className="h-3 w-3" />
                       )}
                       {sorted === "desc" && (
-                        <ChevronDown className="h-3.5 w-3.5" />
+                        <ChevronDown className="h-3 w-3" />
                       )}
                     </span>
                   </TableHead>
@@ -107,11 +113,11 @@ export function PositionsTable<TData>({
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 className={cn(
-                  "h-10 border-b border-border",
+                  "border-b border-line transition-colors",
                   hasInvalidState
-                    ? "bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
-                    : onRowClick && "hover:bg-muted",
-                  onRowClick && "cursor-pointer"
+                    ? "bg-[var(--row-error-bg)] hover:bg-[var(--row-error-bg)]"
+                    : "hover:bg-panel-strong",
+                  onRowClick && "cursor-pointer",
                 )}
               >
                 {row.getVisibleCells().map((cell) => {
@@ -120,9 +126,10 @@ export function PositionsTable<TData>({
                   return (
                     <TableCell
                       key={cell.id}
-                      className={`text-[14px] text-foreground ${
-                        align === "center" ? "text-center" : ""
-                      }`}
+                      className={cn(
+                        "px-3.5 py-[7px] font-mono text-[12px] text-foreground",
+                        align === "left" ? "text-left" : "text-center",
+                      )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -132,13 +139,17 @@ export function PositionsTable<TData>({
             );
           })}
         </TableBody>
-        {totalsRow && <TableFooter>{totalsRow}</TableFooter>}
+        {totalsRow && (
+          <TableFooter className="border-t-0 bg-panel-strong font-semibold [&>tr]:border-t [&>tr]:border-t-foreground">
+            {totalsRow}
+          </TableFooter>
+        )}
       </Table>
     </div>
   );
 }
 
-interface DrillDownPositionsTableProps<TData extends { ticker: string; portfolio: string }> {
+interface DrillDownPositionsTableProps<TData extends { ticker: string }> {
   data: TData[];
   columns: ColumnDef<TData, unknown>[];
   defaultSort: SortingState;
@@ -146,7 +157,7 @@ interface DrillDownPositionsTableProps<TData extends { ticker: string; portfolio
   totalsRow?: React.ReactNode;
 }
 
-export function DrillDownPositionsTable<TData extends { ticker: string; portfolio: string }>({
+export function DrillDownPositionsTable<TData extends { ticker: string }>({
   data,
   columns,
   defaultSort,
@@ -164,9 +175,6 @@ export function DrillDownPositionsTable<TData extends { ticker: string; portfoli
       totalsRow={totalsRow}
       onRowClick={(row) => {
         const params = new URLSearchParams({ ticker: row.ticker });
-        if (row.portfolio !== "All") {
-          params.set("portfolio", row.portfolio);
-        }
         router.push(`/transactions?${params.toString()}`);
       }}
     />

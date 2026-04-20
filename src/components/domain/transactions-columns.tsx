@@ -1,13 +1,12 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import type { TransactionRow } from "@/server/queries/transactions";
 import { EditableCell } from "@/components/domain/editable-cell";
 import { NumericCell } from "@/components/domain/numeric-cell";
 import { ACTION_OPTIONS } from "@/shared/schemas/transaction-fields";
+import { cn } from "@/lib/utils";
 
 interface EditContext {
   editingCell: { rowId: number; field: string } | null;
@@ -28,13 +27,15 @@ function editableCellRenderer(
   displayValue: string,
   inputType: "text" | "number" | "date" | "select",
   ctx: EditContext,
-  selectOptions?: string[],
+  selectOptions?: readonly string[],
+  displayNode?: React.ReactNode,
 ) {
   const id = row.original.id;
   return (
     <EditableCell
       rawValue={rawValue}
       displayValue={displayValue}
+      displayNode={displayNode}
       isEditing={ctx.editingCell?.rowId === id && ctx.editingCell?.field === field}
       error={
         ctx.cellError?.rowId === id && ctx.cellError?.field === field
@@ -52,6 +53,33 @@ function editableCellRenderer(
   );
 }
 
+const ACTION_LABEL: Record<string, string> = {
+  buy: "BUY",
+  sell: "SELL",
+  dividend: "DIV",
+  fee: "FEE",
+};
+
+function ActionPill({ action }: { action: string }) {
+  const label = ACTION_LABEL[action] ?? action.toUpperCase();
+  const tone =
+    action === "buy"
+      ? "text-pos border-pos"
+      : action === "sell"
+        ? "text-neg border-neg"
+        : "text-muted-foreground border-line";
+  return (
+    <span
+      className={cn(
+        "inline-block border px-2 py-[1px] font-mono text-[10px] uppercase tracking-[0.12em]",
+        tone,
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionRow>[] {
   return [
     {
@@ -59,9 +87,10 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       header: ({ table }) => (
         <div className="flex justify-center">
           <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate")
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={
+              table.getIsSomePageRowsSelected() &&
+              !table.getIsAllPageRowsSelected()
             }
             onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
             aria-label="Select all"
@@ -93,7 +122,16 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       accessorKey: "ticker",
       header: "Ticker",
       cell: ({ row }) =>
-        editableCellRenderer(row, "ticker", row.original.ticker, row.original.ticker, "text", ctx),
+        editableCellRenderer(
+          row,
+          "ticker",
+          row.original.ticker,
+          row.original.ticker,
+          "text",
+          ctx,
+          undefined,
+          <span className="font-semibold tracking-[0.02em]">{row.original.ticker}</span>,
+        ),
       meta: { align: "center" as const },
     },
     {
@@ -104,10 +142,11 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
           row,
           "action",
           row.original.action,
-          row.original.action.charAt(0).toUpperCase() + row.original.action.slice(1),
+          ACTION_LABEL[row.original.action] ?? row.original.action.toUpperCase(),
           "select",
           ctx,
           ACTION_OPTIONS,
+          <ActionPill action={row.original.action} />,
         ),
       meta: { align: "center" as const },
     },
@@ -129,7 +168,7 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
     },
     {
       accessorKey: "grossAmount",
-      header: "Gross Amount",
+      header: "Gross",
       accessorFn: (row) => row.grossAmount.value ?? undefined,
       sortUndefined: "last",
       cell: ({ row }) =>
@@ -163,7 +202,16 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       accessorKey: "netAmount",
       header: "Net Amount",
       accessorFn: (row) => row.netAmount.value,
-      cell: ({ row }) => <NumericCell display={row.original.netAmount.display} />,
+      cell: ({ row }) => (
+        <span
+          className={cn(
+            "tabular-nums",
+            row.original.action === "dividend" && "text-pos",
+          )}
+        >
+          {row.original.netAmount.display}
+        </span>
+      ),
       meta: { align: "center" as const },
     },
     {
@@ -183,7 +231,7 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
     },
     {
       accessorKey: "currency",
-      header: "Currency",
+      header: "CCY",
       cell: ({ row }) =>
         editableCellRenderer(row, "currency", row.original.currency, row.original.currency, "text", ctx),
       meta: { align: "center" as const },
@@ -192,14 +240,18 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       id: "delete",
       header: () => null,
       cell: ({ row }) => (
-        <Button
-          variant="outline"
-          className="text-red-600 dark:text-red-400 border-red-600 dark:border-red-400 hover:bg-red-50 dark:hover:bg-red-950 h-7 w-7 p-0"
+        <button
+          type="button"
+          className="inline-flex h-[22px] w-[22px] items-center justify-center border border-neg text-[14px] leading-none text-neg hover:bg-neg-soft disabled:opacity-35"
           disabled={ctx.isDeleting}
-          onClick={() => ctx.onDeleteClick(row.original.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            ctx.onDeleteClick(row.original.id);
+          }}
+          aria-label="Delete transaction"
         >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+          ×
+        </button>
       ),
       enableSorting: false,
       meta: { align: "center" as const },

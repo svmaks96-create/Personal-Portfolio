@@ -14,26 +14,44 @@ import { pnlColorClass } from "@/lib/pnl";
 
 const DASH = "—";
 
+function TickerNameCell({
+  ticker,
+  companyName,
+  hasInvalidState = false,
+}: {
+  ticker: string;
+  companyName: string | null;
+  hasInvalidState?: boolean;
+}) {
+  return (
+    <span className="flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
+      {hasInvalidState ? (
+        <TriangleAlert className="inline h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+      ) : null}
+      <span className="font-semibold tracking-[0.02em] text-foreground">
+        {ticker}
+      </span>
+      {companyName ? (
+        <span className="truncate text-[11px] text-muted-foreground">
+          {companyName}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
   {
     accessorKey: "ticker",
-    header: "Ticker",
+    header: "[ Ticker ] / Name",
     cell: ({ row }) => (
-      <div>
-        <span className="font-medium">
-          {row.original.hasInvalidState && (
-            <TriangleAlert className="inline mr-1 h-4 w-4 text-amber-600 dark:text-amber-400" />
-          )}
-          {row.original.ticker}
-        </span>
-        {row.original.companyName && (
-          <p className="text-xs text-muted-foreground truncate max-w-[140px]">
-            {row.original.companyName}
-          </p>
-        )}
-      </div>
+      <TickerNameCell
+        ticker={row.original.ticker}
+        companyName={row.original.companyName}
+        hasInvalidState={row.original.hasInvalidState}
+      />
     ),
-    meta: { align: "center" as const },
+    meta: { align: "left" as const },
   },
   {
     accessorKey: "shares",
@@ -52,24 +70,25 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
   },
   {
     accessorKey: "lastPrice",
-    header: "Last Price",
+    header: "Last",
     accessorFn: (row) => row.lastPrice.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => (
-      <div>
-        <span className="tabular-nums">{row.original.lastPrice.display}</span>
+      <span className="tabular-nums">
+        {row.original.lastPrice.display}
         {row.original.priceDate.value !== null && (
-          <p
-            className={`text-xs ${
-              row.original.priceDate.isStale
+          <span
+            className={
+              "ml-1.5 text-[10px] " +
+              (row.original.priceDate.isStale
                 ? "text-amber-600 dark:text-amber-400"
-                : "text-muted-foreground"
-            }`}
+                : "text-muted-foreground")
+            }
           >
             {row.original.priceDate.display}
-          </p>
+          </span>
         )}
-      </div>
+      </span>
     ),
     meta: { align: "center" as const },
   },
@@ -83,7 +102,7 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
   },
   {
     accessorKey: "marketValue",
-    header: "Market Value",
+    header: "Mkt Value",
     accessorFn: (row) => row.marketValue.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => <NumericCell display={row.original.marketValue.display} />,
@@ -131,7 +150,7 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
   },
   {
     accessorKey: "weight",
-    header: "Weight%",
+    header: "Weight",
     accessorFn: (row) => row.weight.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => <NumericCell display={row.original.weight.display} />,
@@ -142,18 +161,14 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
 export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
   {
     accessorKey: "ticker",
-    header: "Ticker",
+    header: "[ Ticker ] / Name",
     cell: ({ row }) => (
-      <div>
-        <span className="font-medium">{row.original.ticker}</span>
-        {row.original.companyName && (
-          <p className="text-xs text-muted-foreground truncate max-w-[140px]">
-            {row.original.companyName}
-          </p>
-        )}
-      </div>
+      <TickerNameCell
+        ticker={row.original.ticker}
+        companyName={row.original.companyName}
+      />
     ),
-    meta: { align: "center" as const },
+    meta: { align: "left" as const },
   },
   {
     accessorKey: "avgEntry",
@@ -173,7 +188,7 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
   },
   {
     accessorKey: "lastPrice",
-    header: "Last Price",
+    header: "Last",
     accessorFn: (row) => row.lastPrice.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => <NumericCell display={row.original.lastPrice.display} />,
@@ -230,41 +245,44 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
 ];
 
 // --- Totals rows -----------------------------------------------------------
-// Footer cells mirror the body cells' alignment (center) and font size.
-// Non-summable columns render the em-dash placeholder.
 
-const totalCellCls = "text-[14px] text-foreground text-center";
+const totalNumCls =
+  "px-3.5 py-[7px] font-mono text-[12px] text-foreground text-center";
+const totalLabelCls =
+  "px-3.5 py-[7px] font-mono text-[9px] uppercase tracking-[0.22em] text-foreground text-left";
+const totalDashCls =
+  "px-3.5 py-[7px] font-mono text-[12px] text-muted-foreground text-center";
 
 export function ActivePositionsTotalsRow({ totals: t }: { totals: ActivePositionsTotals }) {
   return (
-    <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
-      <TableCell className={totalCellCls}>Total</TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
-      <TableCell className={totalCellCls}>
+    <TableRow className="bg-panel-strong hover:bg-panel-strong">
+      <TableCell className={totalLabelCls}>Total</TableCell>
+      <TableCell className={totalDashCls}>{DASH}</TableCell>
+      <TableCell className={totalDashCls}>{DASH}</TableCell>
+      <TableCell className={totalDashCls}>{DASH}</TableCell>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.costBasis.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.marketValue.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.dividends.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.sellProceeds.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.pnl.value)}`}>
           {t.pnl.display}
         </span>
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>
           {t.irr.display}
         </span>
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.weight.display} />
       </TableCell>
     </TableRow>
@@ -273,26 +291,26 @@ export function ActivePositionsTotalsRow({ totals: t }: { totals: ActivePosition
 
 export function ClosedPositionsTotalsRow({ totals: t }: { totals: ClosedPositionsTotals }) {
   return (
-    <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
-      <TableCell className={totalCellCls}>Total</TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
-      <TableCell className={totalCellCls}>
+    <TableRow className="bg-panel-strong hover:bg-panel-strong">
+      <TableCell className={totalLabelCls}>Total</TableCell>
+      <TableCell className={totalDashCls}>{DASH}</TableCell>
+      <TableCell className={totalDashCls}>{DASH}</TableCell>
+      <TableCell className={totalDashCls}>{DASH}</TableCell>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.totalInvested.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.totalProceeds.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <NumericCell display={t.dividends.display} />
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.realizedPnl.value)}`}>
           {t.realizedPnl.display}
         </span>
       </TableCell>
-      <TableCell className={totalCellCls}>
+      <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>
           {t.irr.display}
         </span>

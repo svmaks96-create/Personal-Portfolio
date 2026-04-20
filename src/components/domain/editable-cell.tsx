@@ -1,16 +1,17 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface EditableCellProps {
   rawValue: string | number;
   displayValue: string;
+  displayNode?: ReactNode;
   isEditing: boolean;
   error: string | null;
   isHighlighted: boolean;
   inputType: "text" | "number" | "date" | "select";
-  selectOptions?: string[];
+  selectOptions?: readonly string[];
   onStartEdit: () => void;
   onSave: (value: string | number) => void;
   onCancel: () => void;
@@ -20,6 +21,7 @@ interface EditableCellProps {
 export function EditableCell({
   rawValue,
   displayValue,
+  displayNode,
   isEditing,
   error,
   isHighlighted,
@@ -97,7 +99,7 @@ export function EditableCell({
         )}
         onClick={onStartEdit}
       >
-        {displayValue}
+        {displayNode ?? displayValue}
         {error && <span className="block text-red-500 dark:text-red-400 text-xs">{error}</span>}
       </div>
     );

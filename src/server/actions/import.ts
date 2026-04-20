@@ -27,9 +27,8 @@ export async function validateImport(
     }
 
     // 2. Parse with ExcelJS
-    const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(await file.arrayBuffer());
     const sheet = workbook.getWorksheet(1);
     if (!sheet || sheet.rowCount < 2) {
       return { success: false, error: "File is empty or has no data rows" };
@@ -65,7 +64,7 @@ export async function validateImport(
       let allEmpty = true;
 
       for (const [fieldName, colIndex] of Object.entries(columnIndexMap)) {
-        let value = row.getCell(colIndex).value;
+        let value: unknown = row.getCell(colIndex).value;
 
         // Handle ExcelJS special cell types
         if (value && typeof value === "object") {

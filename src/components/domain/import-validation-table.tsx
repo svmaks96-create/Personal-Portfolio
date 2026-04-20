@@ -1,18 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
+import { Fragment, useState, useCallback } from "react";
 import { EditableCell } from "@/components/domain/editable-cell";
 import type { ImportValidationRow } from "@/server/types/import";
 import { cn } from "@/lib/utils";
-import { FIELD_COLUMNS, COLUMN_LABELS, ACTION_OPTIONS, type FieldKey } from "@/shared/schemas/transaction-fields";
+import {
+  FIELD_COLUMNS,
+  COLUMN_LABELS,
+  ACTION_OPTIONS,
+  type FieldKey,
+} from "@/shared/schemas/transaction-fields";
 
 const INPUT_TYPES: Record<FieldKey, "text" | "number" | "date" | "select"> = {
   date: "date",
@@ -25,6 +22,9 @@ const INPUT_TYPES: Record<FieldKey, "text" | "number" | "date" | "select"> = {
   currency: "text",
 };
 
+const ROW_GRID =
+  "grid-cols-[64px_56px_1fr_0.9fr_0.7fr_0.9fr_0.9fr_0.7fr_1fr_0.9fr_0.7fr]";
+
 interface ImportValidationTableProps {
   rows: ImportValidationRow[];
   onUpdateRow: (
@@ -32,6 +32,26 @@ interface ImportValidationTableProps {
     field: keyof ImportValidationRow["data"],
     value: string | number,
   ) => void;
+}
+
+function StatusPill({ status }: { status: ImportValidationRow["status"] }) {
+  const label = status === "valid" ? "OK" : status === "error" ? "ERR" : "DUP";
+  const tone =
+    status === "valid"
+      ? "text-pos border-pos"
+      : status === "error"
+        ? "text-neg border-neg"
+        : "text-[var(--warn)] border-[var(--warn)]";
+  return (
+    <span
+      className={cn(
+        "inline-block border px-2 py-[1px] font-mono text-[9px] uppercase tracking-[0.18em]",
+        tone,
+      )}
+    >
+      {label}
+    </span>
+  );
 }
 
 export function ImportValidationTable({
@@ -43,8 +63,6 @@ export function ImportValidationTable({
     field: string;
   } | null>(null);
 
-  const errorCount = rows.filter((r) => r.status === "error").length;
-
   const getFieldError = useCallback(
     (row: ImportValidationRow, field: string): string | null => {
       const errors = row.errors ?? [];
@@ -54,25 +72,14 @@ export function ImportValidationTable({
     [],
   );
 
-  const hasRowError = useCallback(
-    (row: ImportValidationRow): boolean => {
-      return row.status === "error";
-    },
-    [],
-  );
-
-  const handleStartEdit = useCallback(
-    (rowIndex: number, field: string) => {
-      setEditingCell({ rowIndex, field });
-    },
-    [],
-  );
+  const handleStartEdit = useCallback((rowIndex: number, field: string) => {
+    setEditingCell({ rowIndex, field });
+  }, []);
 
   const handleSave = useCallback(
     (row: ImportValidationRow, field: FieldKey, value: string | number) => {
       setEditingCell(null);
 
-      // Guard against double-fire: skip if value hasn't changed
       const currentValue = row.data[field];
       if (value === currentValue) return;
       if (
@@ -94,7 +101,6 @@ export function ImportValidationTable({
 
   const handleTabToNext = useCallback(
     (currentRowIdx: number, currentFieldIdx: number) => {
-      // Move to next field in same row, or first field of next row
       const nextFieldIdx = currentFieldIdx + 1;
       if (nextFieldIdx < FIELD_COLUMNS.length) {
         const row = rows.find((r) => r.rowIndex === currentRowIdx);
@@ -105,10 +111,7 @@ export function ImportValidationTable({
           });
         }
       } else {
-        // Move to first field of next row
-        const currentIdx = rows.findIndex(
-          (r) => r.rowIndex === currentRowIdx,
-        );
+        const currentIdx = rows.findIndex((r) => r.rowIndex === currentRowIdx);
         if (currentIdx >= 0 && currentIdx + 1 < rows.length) {
           setEditingCell({
             rowIndex: rows[currentIdx + 1].rowIndex,
@@ -123,45 +126,61 @@ export function ImportValidationTable({
   );
 
   return (
-    <div className="space-y-3">
-      {errorCount > 0 && (
-        <p className="text-sm font-medium text-red-600 dark:text-red-400">
-          {errorCount} {errorCount === 1 ? "row needs" : "rows need"} attention
-        </p>
-      )}
+    <div className="overflow-x-auto">
+      <div className="min-w-[1100px]">
+        <div
+          className={cn(
+            "grid gap-2 border-b border-line bg-panel-strong px-3 py-2 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground",
+            ROW_GRID,
+          )}
+        >
+          <div>Status</div>
+          <div>Row</div>
+          {FIELD_COLUMNS.map((field) => (
+            <div key={field} className="text-center">
+              {COLUMN_LABELS[field]}
+            </div>
+          ))}
+        </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-14">Row</TableHead>
-            {FIELD_COLUMNS.map((field) => (
-              <TableHead key={field}>{COLUMN_LABELS[field]}</TableHead>
-            ))}
-            <TableHead className="w-16">Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => {
-            const isError = hasRowError(row);
-            return (
-              <TableRow
-                key={row.rowIndex}
-                className={cn(isError && "bg-red-50 dark:bg-red-950 hover:bg-red-50 dark:hover:bg-red-950")}
+        {rows.map((row) => {
+          const isError = row.status === "error";
+          const isDup = row.status === "duplicate";
+          const rowBg = isError
+            ? "bg-[var(--row-error-bg)]"
+            : isDup
+              ? "bg-[var(--row-duplicate-bg)]"
+              : "";
+
+          return (
+            <Fragment key={row.rowIndex}>
+              <div
+                className={cn(
+                  "grid items-center gap-2 border-b border-line px-3 py-[7px] font-mono text-[12px] tabular-nums text-foreground",
+                  ROW_GRID,
+                  rowBg,
+                )}
               >
-                <TableCell className="tabular-nums text-muted-foreground">
+                <div>
+                  <StatusPill status={row.status} />
+                </div>
+                <div className="text-center text-muted-foreground">
                   {row.rowIndex}
-                </TableCell>
+                </div>
                 {FIELD_COLUMNS.map((field, fieldIdx) => {
                   const fieldError = getFieldError(row, field);
                   const isEditing =
                     editingCell?.rowIndex === row.rowIndex &&
                     editingCell?.field === field;
+                  const hasError = Boolean(fieldError) && !isEditing;
 
                   return (
-                    <TableCell
+                    <div
                       key={field}
                       className={cn(
-                        fieldError && !isEditing && "ring-1 ring-red-500 dark:ring-red-400 rounded",
+                        "min-w-0 truncate text-center",
+                        hasError &&
+                          "border border-dashed border-neg px-1 py-[1px] text-neg",
                       )}
                     >
                       <EditableCell
@@ -183,28 +202,25 @@ export function ImportValidationTable({
                           handleTabToNext(row.rowIndex, fieldIdx)
                         }
                       />
-                    </TableCell>
+                    </div>
                   );
                 })}
-                <TableCell>
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      isError
-                        ? "text-red-600 dark:text-red-400"
-                        : row.status === "duplicate"
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-green-600 dark:text-green-400",
-                    )}
-                  >
-                    {row.status}
-                  </span>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+              </div>
+              {isError && row.errors && row.errors.length > 0 && (
+                <div
+                  className={cn(
+                    "border-b border-dashed border-neg px-3 py-1 pl-20 font-mono text-[10px] uppercase tracking-[0.08em] text-neg",
+                    rowBg,
+                  )}
+                >
+                  <span className="font-bold">!</span>{" "}
+                  {row.errors.map((e) => `${e.field}: ${e.message}`).join(" · ")}
+                </div>
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 }

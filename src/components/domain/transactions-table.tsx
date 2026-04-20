@@ -9,7 +9,7 @@ import {
   type SortingState,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { ChevronUp, ChevronDown, Trash2 } from "lucide-react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -18,8 +18,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   updateTransaction,
   deleteTransaction,
@@ -41,8 +40,58 @@ const EDITABLE_FIELD_ORDER = [
   "currency",
 ] as const;
 
+type ActionFilter = "ALL" | "BUY" | "SELL" | "DIV" | "FEE";
+const ACTION_FILTERS: ActionFilter[] = ["ALL", "BUY", "SELL", "DIV", "FEE"];
+const ACTION_FILTER_TO_VALUE: Record<Exclude<ActionFilter, "ALL">, string> = {
+  BUY: "buy",
+  SELL: "sell",
+  DIV: "dividend",
+  FEE: "fee",
+};
+
 interface TransactionsTableProps {
   data: TransactionRow[];
+}
+
+function exportRowsToCsv(rows: TransactionRow[]) {
+  const headers = [
+    "Date",
+    "Ticker",
+    "Action",
+    "Quantity",
+    "Gross Amount",
+    "Fees",
+    "Net Amount",
+    "Net Avg Price",
+    "Portfolio",
+    "Currency",
+  ];
+  const body = rows.map((r) => [
+    r.date.value,
+    r.ticker,
+    r.action,
+    r.quantity.value ?? "",
+    r.grossAmount.value ?? "",
+    r.fees.value ?? "",
+    r.netAmount.value,
+    r.netAvgPrice.value ?? "",
+    r.portfolio,
+    r.currency,
+  ]);
+  const escape = (cell: string | number) => {
+    const str = String(cell);
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  const csv = [headers, ...body].map((r) => r.map(escape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export function TransactionsTable({ data }: TransactionsTableProps) {
@@ -56,11 +105,30 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [tickerFilter, setTickerFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState<ActionFilter>("ALL");
   const deletingRef = useRef(false);
+
+  const filteredData = useMemo(() => {
+    return data.filter((row) => {
+      if (
+        actionFilter !== "ALL" &&
+        row.action !== ACTION_FILTER_TO_VALUE[actionFilter]
+      ) {
+        return false;
+      }
+      if (
+        tickerFilter &&
+        !row.ticker.toUpperCase().startsWith(tickerFilter.toUpperCase())
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [data, tickerFilter, actionFilter]);
 
   function handleStartEdit(rowId: number, field: string) {
     setEditingCell({ rowId, field });
-    // Only clear error if it belongs to the cell being edited
     setCellError((current) => {
       if (current?.rowId === rowId && current?.field === field) return null;
       return current;
@@ -70,7 +138,6 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   async function handleSave(rowId: number, field: string, value: string | number) {
     const result = await updateTransaction(rowId, field as (typeof EDITABLE_FIELD_ORDER)[number], value);
     if (result.success) {
-      // Only clear editingCell if it hasn't moved (e.g., via Tab) since save started
       setEditingCell((current) => {
         if (current?.rowId === rowId && current?.field === field) return null;
         return current;
@@ -95,7 +162,6 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
   function handleCancel() {
     setEditingCell(null);
-    // Don't clear cellError — it persists until corrected (AC5)
   }
 
   function handleTabToNext(rowId: number, field: string) {
@@ -178,7 +244,7 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   );
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, rowSelection },
     onSortingChange: setSorting,
@@ -190,60 +256,99 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
   });
 
   return (
-    <div className="bg-card rounded-lg shadow-sm border border-border">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={isAdding}
-          onClick={() => { setEditingCell(null); setIsAdding(true); }}
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Add Transaction
-        </Button>
+    <div className="border border-line bg-panel">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-3.5 py-2">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span>Ticker:</span>
+          <input
+            value={tickerFilter}
+            onChange={(e) => setTickerFilter(e.target.value)}
+            placeholder="FILTER…"
+            className="w-[140px] border border-line bg-panel px-2 py-[5px] font-mono text-[12px] uppercase tracking-[0.05em] text-foreground outline-none focus:border-foreground"
+          />
+        </div>
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span>Action:</span>
+          <div className="flex border border-line">
+            {ACTION_FILTERS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setActionFilter(a)}
+                className={cn(
+                  "border-r border-line px-2.5 py-[4px] font-mono text-[10px] uppercase tracking-[0.12em] last:border-r-0",
+                  actionFilter === a
+                    ? "bg-foreground text-background"
+                    : "bg-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1" />
         {selectedCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-red-600 dark:text-red-400 border-red-600 dark:border-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+          <button
+            type="button"
             disabled={isDeleting}
             onClick={() => setIsBulkDeleting(true)}
+            className="border border-neg px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-neg hover:bg-neg-soft disabled:opacity-35"
           >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Delete Selected ({selectedCount})
-          </Button>
+            [ Delete · {selectedCount} ]
+          </button>
         )}
+        <button
+          type="button"
+          onClick={() => exportRowsToCsv(filteredData)}
+          disabled={filteredData.length === 0}
+          className="border border-line bg-panel px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-foreground hover:bg-panel-strong disabled:opacity-35"
+        >
+          [ Export CSV ]
+        </button>
+        <button
+          type="button"
+          disabled={isAdding}
+          onClick={() => {
+            setEditingCell(null);
+            setIsAdding(true);
+          }}
+          className="border border-foreground bg-foreground px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-background hover:opacity-90 disabled:opacity-35"
+        >
+          + Add Row
+        </button>
       </div>
-      <Table className="table-fixed">
+
+      <Table className="table-fixed font-mono tabular-nums">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow
               key={headerGroup.id}
-              className="bg-muted border-b border-border hover:bg-muted"
+              className="border-b border-line bg-panel-strong hover:bg-panel-strong"
             >
               {headerGroup.headers.map((header) => {
                 const align =
                   (header.column.columnDef.meta as { align?: string })?.align;
                 const sorted = header.column.getIsSorted();
+                const isSelectCol = header.column.id === "select";
                 return (
                   <TableHead
                     key={header.id}
-                    className={`text-[13px] font-medium text-muted-foreground cursor-pointer select-none ${
-                      align === "center" ? "text-center" : ""
-                    } ${header.column.id === "select" ? "w-10 px-0" : ""}`}
+                    className={cn(
+                      "h-auto cursor-pointer select-none px-3.5 py-2 font-mono text-[9px] font-normal uppercase tracking-[0.22em] text-muted-foreground",
+                      align === "center" ? "text-center" : "",
+                      isSelectCol && "w-10 px-0",
+                    )}
                     onClick={header.column.getToggleSortingHandler()}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center justify-center gap-1">
                       {flexRender(
                         header.column.columnDef.header,
                         header.getContext(),
                       )}
-                      {sorted === "asc" && (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      )}
-                      {sorted === "desc" && (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      )}
+                      {sorted === "asc" && <ChevronUp className="h-3 w-3" />}
+                      {sorted === "desc" && <ChevronDown className="h-3 w-3" />}
                     </span>
                   </TableHead>
                 );
@@ -258,36 +363,60 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
               onSuccess={() => setIsAdding(false)}
             />
           )}
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              className="h-10 border-b border-border"
-            >
-              {row.getVisibleCells().map((cell) => {
-                const align =
-                  (cell.column.columnDef.meta as { align?: string })?.align;
-                return (
-                  <TableCell
-                    key={cell.id}
-                    className={`text-[14px] text-foreground ${
-                      align === "center" ? "text-center" : ""
-                    } ${cell.column.id === "select" ? "w-10 px-0" : ""}`}
-                  >
-                    {flexRender(
-                      cell.column.columnDef.cell,
-                      cell.getContext(),
-                    )}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
+          {table.getRowModel().rows.map((row) => {
+            const isSelected = row.getIsSelected();
+            return (
+              <TableRow
+                key={row.id}
+                className={cn(
+                  "border-b border-line transition-colors",
+                  isSelected
+                    ? "bg-panel-strong"
+                    : "hover:bg-panel-strong",
+                )}
+              >
+                {row.getVisibleCells().map((cell) => {
+                  const align =
+                    (cell.column.columnDef.meta as { align?: string })?.align;
+                  const isSelectCol = cell.column.id === "select";
+                  return (
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "px-3.5 py-[7px] font-mono text-[12px] text-foreground",
+                        align === "center" ? "text-center" : "",
+                        isSelectCol && "w-10 px-0",
+                      )}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 
+      {/* Footer hint */}
+      <div className="flex items-center justify-between border-t border-line px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        <span>{"// Click any cell to edit inline"}</span>
+        <span>
+          Showing {filteredData.length} of {data.length}
+        </span>
+      </div>
+
       <DeleteConfirmationDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
         count={1}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
@@ -295,14 +424,19 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
 
       <DeleteConfirmationDialog
         open={isBulkDeleting}
-        onOpenChange={(open) => { if (!open) { setIsBulkDeleting(false); setDeleteError(null); } }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsBulkDeleting(false);
+            setDeleteError(null);
+          }
+        }}
         count={selectedCount}
         onConfirm={handleConfirmBulkDelete}
         isDeleting={isDeleting}
       />
 
       {deleteError && !deleteTarget && !isBulkDeleting && (
-        <div className="px-4 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border-t border-red-200 dark:border-red-800">
+        <div className="border-t border-neg bg-[var(--row-error-bg)] px-3.5 py-2 font-mono text-[11px] text-neg">
           {deleteError}
         </div>
       )}

@@ -102,6 +102,9 @@
   --bench2: oklch(0.7 0.015 90);
   --tint: oklch(0.92 0.05 150);
   --tint-strong: oklch(0.65 0.1 170);
+  --row-error-bg: color-mix(in oklch, var(--neg-soft) 70%, var(--panel));
+  --row-duplicate-bg: color-mix(in oklch, oklch(0.92 0.08 85) 30%, var(--panel));
+  --warn: oklch(0.65 0.12 70);
   --radius: 0.625rem;
   --sidebar: oklch(0.98 0.005 85);
   --sidebar-foreground: oklch(0.22 0.005 85);
@@ -154,6 +157,9 @@
   --bench2: oklch(0.7 0.015 90);
   --tint: oklch(0.3 0.05 150);
   --tint-strong: oklch(0.65 0.1 170);
+  --row-error-bg: color-mix(in oklch, var(--neg-soft) 70%, var(--panel));
+  --row-duplicate-bg: color-mix(in oklch, oklch(0.3 0.06 70) 45%, var(--panel));
+  --warn: oklch(0.72 0.13 70);
   --sidebar: oklch(0.2 0.008 80);
   --sidebar-foreground: oklch(0.96 0.005 80);
   --sidebar-primary: oklch(0.96 0.005 80);

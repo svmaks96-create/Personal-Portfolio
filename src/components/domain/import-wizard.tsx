@@ -2,7 +2,6 @@
 
 import { useReducer, useRef, useState, useCallback, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import {
   validateImport,
   revalidateImportRows,
@@ -10,6 +9,11 @@ import {
 } from "@/server/actions/import";
 import { ImportValidationTable } from "@/components/domain/import-validation-table";
 import { ImportDuplicateTable } from "@/components/domain/import-duplicate-table";
+import { TerminalPanel } from "@/components/domain/terminal-panel";
+import {
+  TerminalKpiStrip,
+  type TerminalKpiCell,
+} from "@/components/domain/terminal-kpi-strip";
 import { importRowSchema } from "@/shared/schemas/import";
 import type {
   ImportValidationRow,
@@ -181,6 +185,122 @@ export function reducer(state: ImportWizardState, action: ImportAction): ImportW
   }
 }
 
+// --- Button primitives ------------------------------------------------------
+
+function TerminalButton({
+  children,
+  onClick,
+  disabled,
+  variant = "default",
+  type = "button",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: "default" | "primary" | "danger";
+  type?: "button" | "submit";
+}) {
+  const base =
+    "border px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] disabled:opacity-35";
+  const tone =
+    variant === "primary"
+      ? "border-foreground bg-foreground text-background hover:opacity-90"
+      : variant === "danger"
+        ? "border-neg text-neg hover:bg-neg-soft"
+        : "border-line bg-panel text-foreground hover:bg-panel-strong";
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(base, tone)}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Hint({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground before:content-['//_']">
+      {children}
+    </span>
+  );
+}
+
+// --- Stepper ---------------------------------------------------------------
+
+interface StepDef {
+  n: 1 | 2 | 3 | 4;
+  label: string;
+  meta: string;
+}
+
+function Stepper({
+  current,
+  steps,
+  onStepClick,
+}: {
+  current: 1 | 2 | 3 | 4;
+  steps: StepDef[];
+  onStepClick: (n: 1 | 2 | 3 | 4) => void;
+}) {
+  return (
+    <div className="grid grid-cols-4 border border-line">
+      {steps.map((s) => {
+        const state = s.n < current ? "done" : s.n === current ? "active" : "pending";
+        return (
+          <button
+            key={s.n}
+            type="button"
+            onClick={() => onStepClick(s.n)}
+            className={cn(
+              "relative flex flex-col gap-1.5 border-r border-line px-4 py-3.5 text-left last:border-r-0 cursor-pointer",
+              state === "active" && "bg-panel-strong",
+              state === "active" &&
+                "after:absolute after:inset-x-0 after:-bottom-[1px] after:h-[2px] after:bg-foreground",
+            )}
+          >
+            <div
+              className={cn(
+                "font-mono text-[9px] uppercase tracking-[0.22em]",
+                state === "pending"
+                  ? "text-muted-foreground/60"
+                  : "text-muted-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "mr-1",
+                  state === "done" ? "text-pos" : "text-muted-foreground",
+                )}
+              >
+                {state === "done" ? "✓" : "▸"}
+              </span>
+              Step {String(s.n).padStart(2, "0")}
+            </div>
+            <div
+              className={cn(
+                "font-mono text-[13px] font-medium tracking-[0.08em] uppercase",
+                state === "active"
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              {s.label}
+            </div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+              {s.meta}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- Step 2 (validation) ---------------------------------------------------
+
 function Step2Validation({
   state,
   dispatch,
@@ -188,11 +308,8 @@ function Step2Validation({
   state: ImportWizardState;
   dispatch: React.Dispatch<ImportAction>;
 }) {
-  const errorCount = state.parsedRows.filter(
-    (r) => r.status === "error",
-  ).length;
+  const errorCount = state.parsedRows.filter((r) => r.status === "error").length;
 
-  // Keep a ref to latest parsedRows to avoid stale closure in handleUpdateRow
   const parsedRowsRef = useRef(state.parsedRows);
   useEffect(() => {
     parsedRowsRef.current = state.parsedRows;
@@ -204,10 +321,8 @@ function Step2Validation({
       field: keyof ImportValidationRow["data"],
       value: string | number,
     ) => {
-      // Update the row data in state
       dispatch({ type: "UPDATE_ROW", rowIndex, field, value });
 
-      // Client-side re-validation (Tier 1) — use ref for latest rows
       const row = parsedRowsRef.current.find((r) => r.rowIndex === rowIndex);
       if (!row) return;
 
@@ -240,7 +355,6 @@ function Step2Validation({
     dispatch({ type: "SET_PROCESSING", isProcessing: true });
 
     try {
-      // Server-side re-validation (Tier 2)
       const result = await revalidateImportRows(state.parsedRows);
 
       if (!result.success) {
@@ -250,7 +364,6 @@ function Step2Validation({
 
       dispatch({ type: "REVALIDATE_RESULTS", result: result.data });
 
-      // Only advance if no errors remain
       if (result.data.summary.errors === 0) {
         const nextStep = result.data.summary.duplicates > 0 ? 3 : 4;
         dispatch({ type: "GO_TO_STEP", step: nextStep as 1 | 2 | 3 | 4 });
@@ -264,34 +377,49 @@ function Step2Validation({
   }, [dispatch, state.parsedRows]);
 
   return (
-    <div className="space-y-4">
+    <TerminalPanel
+      label="Validation"
+      tag={`${errorCount} row${errorCount === 1 ? "" : "s"} need attention`}
+      action={
+        state.fileName ? (
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            File: {state.fileName}
+          </span>
+        ) : null
+      }
+    >
       <ImportValidationTable
         rows={state.parsedRows}
         onUpdateRow={handleUpdateRow}
       />
 
       {state.uploadError && (
-        <p className="text-sm text-red-600 dark:text-red-400">{state.uploadError}</p>
+        <p className="mt-3 font-mono text-[11px] text-neg">{state.uploadError}</p>
       )}
 
-      <div className="flex items-center justify-between">
-        <Button
-          variant="secondary"
+      <div className="mt-4 flex items-center justify-between">
+        <TerminalButton
           onClick={() => dispatch({ type: "RESET" })}
           disabled={state.isProcessing}
         >
-          Back to Upload
-        </Button>
-        <Button
-          onClick={handleContinue}
-          disabled={errorCount > 0 || state.isProcessing}
-        >
-          {state.isProcessing ? "Validating..." : "Continue"}
-        </Button>
+          ← Back to upload
+        </TerminalButton>
+        <div className="flex items-center gap-3">
+          <Hint>Fix errors inline · values re-validate automatically</Hint>
+          <TerminalButton
+            variant="primary"
+            onClick={handleContinue}
+            disabled={errorCount > 0 || state.isProcessing}
+          >
+            {state.isProcessing ? "Validating…" : "Continue →"}
+          </TerminalButton>
+        </div>
       </div>
-    </div>
+    </TerminalPanel>
   );
 }
+
+// --- Step 4 (confirm) ------------------------------------------------------
 
 function Step4Confirm({
   state,
@@ -307,7 +435,6 @@ function Step4Confirm({
     message: string;
   } | null>(null);
 
-  // Auto-dismiss success banner after 5s then redirect
   useEffect(() => {
     if (importResult?.type !== "success") return;
     const timer = setTimeout(() => {
@@ -340,21 +467,36 @@ function Step4Confirm({
   }, [state.confirmedRows]);
 
   const previousStep = state.duplicates.length > 0 ? 3 : 2;
+  const validCount = state.parsedRows.filter((r) => r.status === "valid").length;
+  const overrideCount = state.overriddenDuplicates.size;
+  const totalCount = state.confirmedRows.length;
 
   return (
-    <div className="space-y-4">
+    <TerminalPanel
+      label="Confirm"
+      tag={`Ready to commit ${totalCount} rows`}
+      action={
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          Final review
+        </span>
+      }
+    >
       {importResult?.type === "success" && (
-        <div className="rounded-lg bg-green-50 dark:bg-green-950 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+        <div className="mb-4 border border-pos bg-pos-soft px-4 py-3 font-mono text-[11px] text-pos">
           {importResult.message}
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Redirecting to dashboard…
+          </p>
         </div>
       )}
 
       {importResult?.type === "error" && (
-        <div className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 flex items-center justify-between border border-neg bg-[var(--row-error-bg)] px-4 py-3 font-mono text-[11px] text-neg">
           <span>{importResult.message}</span>
           <button
+            type="button"
             onClick={() => setImportResult(null)}
-            className="ml-2 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+            className="underline hover:no-underline"
           >
             Dismiss
           </button>
@@ -363,38 +505,72 @@ function Step4Confirm({
 
       {!importResult?.type && (
         <>
-          <p className="text-sm text-muted-foreground">
-            {state.confirmedRows.length} transactions ready to import
-          </p>
-
+          <div className="mb-5 grid grid-cols-3 gap-3">
+            <div className="border border-line px-4 py-3.5">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="mr-1 text-muted-foreground">▸</span>
+                Valid rows
+              </div>
+              <div className="mt-1.5 font-mono text-[22px] font-medium leading-none text-pos tabular-nums">
+                {validCount}
+              </div>
+            </div>
+            <div className="border border-line px-4 py-3.5">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="mr-1 text-muted-foreground">▸</span>
+                Duplicates to override
+              </div>
+              <div className="mt-1.5 font-mono text-[22px] font-medium leading-none tabular-nums text-[var(--warn)]">
+                {overrideCount}
+              </div>
+            </div>
+            <div className="border border-line px-4 py-3.5">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="mr-1 text-muted-foreground">▸</span>
+                Total to import
+              </div>
+              <div className="mt-1.5 font-mono text-[22px] font-medium leading-none text-foreground tabular-nums">
+                {totalCount}
+              </div>
+            </div>
+          </div>
+          <div className="mb-4">
+            <Hint>
+              This will write {totalCount} transaction{totalCount === 1 ? "" : "s"} to the database. Dashboard metrics will refresh immediately.
+            </Hint>
+          </div>
           <div className="flex items-center justify-between">
-            <Button
-              variant="secondary"
+            <TerminalButton
               onClick={() =>
-                dispatch({
-                  type: "GO_TO_STEP",
-                  step: previousStep as 1 | 2 | 3 | 4,
-                })
+                dispatch({ type: "GO_TO_STEP", step: previousStep as 1 | 2 | 3 | 4 })
               }
               disabled={isPending}
             >
-              Back
-            </Button>
-            <Button onClick={handleImport} disabled={isPending || state.confirmedRows.length === 0}>
-              {isPending ? "Importing..." : "Import"}
-            </Button>
+              ← Back
+            </TerminalButton>
+            <div className="flex items-center gap-3">
+              <TerminalButton
+                onClick={() => dispatch({ type: "RESET" })}
+                disabled={isPending}
+              >
+                Start over
+              </TerminalButton>
+              <TerminalButton
+                variant="primary"
+                onClick={handleImport}
+                disabled={isPending || totalCount === 0}
+              >
+                {isPending ? "Importing…" : `[ Import ${totalCount} rows ]`}
+              </TerminalButton>
+            </div>
           </div>
         </>
       )}
-
-      {importResult?.type === "success" && (
-        <p className="text-xs text-muted-foreground">
-          Redirecting to dashboard...
-        </p>
-      )}
-    </div>
+    </TerminalPanel>
   );
 }
+
+// --- Main component --------------------------------------------------------
 
 export function ImportWizard() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -402,34 +578,31 @@ export function ImportWizard() {
   const dragCounterRef = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleFile = useCallback(
-    async (file: File) => {
-      if (!file.name.endsWith(".xlsx")) {
-        dispatch({ type: "SET_UPLOAD_ERROR", error: "Only .xlsx files are supported" });
+  const handleFile = useCallback(async (file: File) => {
+    if (!file.name.endsWith(".xlsx")) {
+      dispatch({ type: "SET_UPLOAD_ERROR", error: "Only .xlsx files are supported" });
+      return;
+    }
+
+    dispatch({ type: "SET_FILE", file });
+    dispatch({ type: "SET_PROCESSING", isProcessing: true });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const result = await validateImport(formData);
+
+      if (!result.success) {
+        dispatch({ type: "SET_UPLOAD_ERROR", error: result.error });
         return;
       }
 
-      dispatch({ type: "SET_FILE", file });
-      dispatch({ type: "SET_PROCESSING", isProcessing: true });
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const result = await validateImport(formData);
-
-        if (!result.success) {
-          dispatch({ type: "SET_UPLOAD_ERROR", error: result.error });
-          return;
-        }
-
-        dispatch({ type: "SET_VALIDATION_RESULTS", result: result.data });
-      } catch {
-        dispatch({ type: "SET_UPLOAD_ERROR", error: "Failed to validate file. Please try again." });
-      }
-    },
-    [],
-  );
+      dispatch({ type: "SET_VALIDATION_RESULTS", result: result.data });
+    } catch {
+      dispatch({ type: "SET_UPLOAD_ERROR", error: "Failed to validate file. Please try again." });
+    }
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -448,50 +621,96 @@ export function ImportWizard() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) handleFile(file);
-      // Reset so the same file can be re-selected
       e.target.value = "";
     },
     [handleFile],
   );
 
-  const stepLabels = ["Upload File", "Validation", "Duplicates", "Confirm"];
+  const errorCount = state.parsedRows.filter((r) => r.status === "error").length;
+  const dupCount = state.duplicates.length;
+  const validCount = state.parsedRows.filter((r) => r.status === "valid").length;
+  const parsedCount = state.parsedRows.length;
+  const overrideCount = state.overriddenDuplicates.size;
+
+  const steps: StepDef[] = [
+    { n: 1, label: "Upload File", meta: "Drop .xlsx · template available" },
+    {
+      n: 2,
+      label: "Validation",
+      meta: `${errorCount} error${errorCount === 1 ? "" : "s"} to resolve`,
+    },
+    {
+      n: 3,
+      label: "Duplicates",
+      meta: `${dupCount} duplicate${dupCount === 1 ? "" : "s"} to review`,
+    },
+    {
+      n: 4,
+      label: "Confirm",
+      meta: `${state.confirmedRows.length} row${state.confirmedRows.length === 1 ? "" : "s"} ready`,
+    },
+  ];
+
+  const kpiCells: TerminalKpiCell[] = [
+    { label: "Parsed Rows", value: String(parsedCount) },
+    {
+      label: "Valid",
+      value: String(validCount),
+      valueTone: validCount > 0 ? "pos" : null,
+    },
+    {
+      label: "Errors",
+      value: String(errorCount),
+      valueTone: errorCount > 0 ? "neg" : null,
+    },
+    {
+      label: "Duplicates",
+      value: String(dupCount),
+      valueTone: dupCount > 0 ? "warn" : null,
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {stepLabels.map((label, i) => {
-          const stepNum = (i + 1) as 1 | 2 | 3 | 4;
-          const isActive = state.step === stepNum;
-          return (
-            <span key={stepNum} className="flex items-center gap-2">
-              {i > 0 && <span className="text-muted-foreground/50">/</span>}
-              <span
-                className={cn(
-                  "tabular-nums",
-                  isActive ? "font-medium text-foreground" : "text-muted-foreground",
-                )}
-              >
-                Step {stepNum}: {label}
-              </span>
-            </span>
-          );
-        })}
-      </div>
+    <div className="space-y-5">
+      <Stepper
+        current={state.step}
+        steps={steps}
+        onStepClick={(n) => dispatch({ type: "GO_TO_STEP", step: n })}
+      />
 
-      {/* Step content */}
+      <TerminalKpiStrip cells={kpiCells} columns={4} />
+
       {state.step === 1 && (
-        <div className="space-y-4">
-          {/* Download template */}
-          <a
-            href="/template.xlsx"
-            download
-            className="inline-flex h-8 items-center justify-center rounded-lg bg-secondary px-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-          >
-            Download Template
-          </a>
+        <TerminalPanel
+          label="Upload"
+          tag="Drag a .xlsx file"
+          action={
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Step 01
+            </span>
+          }
+        >
+          <div className="mb-3.5">
+            <a
+              href="/template.xlsx"
+              download
+              className="inline-flex items-center gap-2 border border-line bg-panel px-3.5 py-[7px] font-mono text-[10px] uppercase tracking-[0.18em] text-foreground hover:bg-panel-strong"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M6 2 V8 M3 5 L6 8 L9 5" />
+                <path d="M2 10 H10" />
+              </svg>
+              Download template
+            </a>
+          </div>
 
-          {/* Drop zone */}
           <div
             role="button"
             tabIndex={0}
@@ -519,22 +738,27 @@ export function ImportWizard() {
             }}
             onDrop={handleDrop}
             className={cn(
-              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-12 text-center transition-colors",
+              "cursor-pointer border-2 border-dashed px-10 py-16 text-center transition-colors",
               state.isProcessing
-                ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                ? "cursor-not-allowed border-line bg-panel-strong text-muted-foreground"
                 : isDragOver
-                  ? "border-foreground bg-muted"
-                  : "border-border hover:border-muted-foreground",
+                  ? "border-foreground bg-panel-strong text-foreground"
+                  : "border-line text-muted-foreground hover:border-foreground hover:bg-panel-strong hover:text-foreground",
             )}
           >
             {state.isProcessing ? (
-              <p className="text-sm text-muted-foreground">Validating...</p>
+              <p className="font-mono text-[13px] uppercase tracking-[0.18em]">
+                Validating…
+              </p>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  Drag and drop your .xlsx file here
+                <p className="font-mono text-[14px] uppercase tracking-[0.22em] text-foreground">
+                  <span className="mr-1 text-pos">▸</span>
+                  Drop .xlsx file here
                 </p>
-                <p className="text-xs text-muted-foreground">or click to browse</p>
+                <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                  Or click to browse · max 10 MB · first row = headers
+                </p>
               </>
             )}
           </div>
@@ -547,24 +771,30 @@ export function ImportWizard() {
             className="hidden"
           />
 
-          {/* Upload error */}
           {state.uploadError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{state.uploadError}</p>
+            <p className="mt-3 font-mono text-[11px] text-neg">
+              {state.uploadError}
+            </p>
           )}
-        </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <Hint>Use the template for guaranteed column match</Hint>
+          </div>
+        </TerminalPanel>
       )}
 
-      {/* Step 2: Validation errors */}
-      {state.step === 2 && (
-        <Step2Validation
-          state={state}
-          dispatch={dispatch}
-        />
-      )}
+      {state.step === 2 && <Step2Validation state={state} dispatch={dispatch} />}
 
-      {/* Step 3: Duplicate review */}
       {state.step === 3 && (
-        <div className="space-y-4">
+        <TerminalPanel
+          label="Duplicates"
+          tag={`${dupCount} match${dupCount === 1 ? "" : "es"} existing data`}
+          action={
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Check to override
+            </span>
+          }
+        >
           <ImportDuplicateTable
             duplicates={state.duplicates}
             overriddenDuplicates={state.overriddenDuplicates}
@@ -573,32 +803,29 @@ export function ImportWizard() {
             }
           />
 
-          <div className="flex items-center justify-between">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                dispatch({
-                  type: "GO_TO_STEP",
-                  step: 2,
-                })
-              }
+          <div className="mt-4 flex items-center justify-between">
+            <TerminalButton
+              onClick={() => dispatch({ type: "GO_TO_STEP", step: 2 })}
             >
-              Back
-            </Button>
-            <Button
-              onClick={() => dispatch({ type: "GO_TO_STEP", step: 4 })}
-              disabled={state.confirmedRows.length === 0}
-            >
-              Continue
-            </Button>
+              ← Back
+            </TerminalButton>
+            <div className="flex items-center gap-3">
+              <Hint>
+                {overrideCount} duplicate{overrideCount === 1 ? "" : "s"} will be imported
+              </Hint>
+              <TerminalButton
+                variant="primary"
+                onClick={() => dispatch({ type: "GO_TO_STEP", step: 4 })}
+                disabled={state.confirmedRows.length === 0}
+              >
+                Continue →
+              </TerminalButton>
+            </div>
           </div>
-        </div>
+        </TerminalPanel>
       )}
 
-      {/* Step 4: Confirm & import */}
-      {state.step === 4 && (
-        <Step4Confirm state={state} dispatch={dispatch} />
-      )}
+      {state.step === 4 && <Step4Confirm state={state} dispatch={dispatch} />}
     </div>
   );
 }

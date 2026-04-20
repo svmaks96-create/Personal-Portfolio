@@ -1,14 +1,5 @@
 "use client";
 
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import type { ImportValidationRow } from "@/server/types/import";
 import { cn } from "@/lib/utils";
 import { FIELD_COLUMNS, COLUMN_LABELS } from "@/shared/schemas/transaction-fields";
@@ -19,10 +10,37 @@ function getDuplicateSource(row: ImportValidationRow): string {
   return `Matches row ${row.duplicateOf.batchRowIndex} in this file`;
 }
 
+const ROW_GRID =
+  "grid-cols-[44px_56px_1fr_0.9fr_0.7fr_0.9fr_0.9fr_0.7fr_1fr_0.9fr_0.7fr_1.3fr]";
+
 interface ImportDuplicateTableProps {
   duplicates: ImportValidationRow[];
   overriddenDuplicates: Set<number>;
   onToggleDuplicate: (rowIndex: number) => void;
+}
+
+function OverrideCheck({ on }: { on: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-[14px] w-[14px] items-center justify-center border",
+        on
+          ? "border-pos bg-pos text-background"
+          : "border-line bg-background",
+      )}
+    >
+      {on ? (
+        <svg viewBox="0 0 10 10" className="h-[10px] w-[10px]">
+          <path
+            d="M2 5 L4 7 L8 3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+        </svg>
+      ) : null}
+    </span>
+  );
 }
 
 export function ImportDuplicateTable({
@@ -31,61 +49,71 @@ export function ImportDuplicateTable({
   onToggleDuplicate,
 }: ImportDuplicateTableProps) {
   return (
-    <div className="space-y-3">
-      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-        {duplicates.length} potential {duplicates.length === 1 ? "duplicate" : "duplicates"}
-      </p>
+    <div className="overflow-x-auto">
+      <div className="min-w-[1160px]">
+        <div
+          className={cn(
+            "grid gap-2 border-b border-line bg-panel-strong px-3 py-2 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground",
+            ROW_GRID,
+          )}
+        >
+          <div className="text-center">Import</div>
+          <div className="text-center">Row</div>
+          {FIELD_COLUMNS.map((field) => (
+            <div key={field} className="text-center">
+              {COLUMN_LABELS[field]}
+            </div>
+          ))}
+          <div>Matches</div>
+        </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-14">Row</TableHead>
-            {FIELD_COLUMNS.map((field) => (
-              <TableHead key={field}>{COLUMN_LABELS[field]}</TableHead>
-            ))}
-            <TableHead>Source</TableHead>
-            <TableHead className="w-24">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {duplicates.map((row) => {
-            const isOverridden = overriddenDuplicates.has(row.rowIndex);
-            return (
-              <TableRow
-                key={row.rowIndex}
-                className={cn(
-                  "bg-amber-50 dark:bg-amber-950 hover:bg-amber-50 dark:hover:bg-amber-950",
-                  !isOverridden && "opacity-50",
-                )}
-              >
-                <TableCell className="tabular-nums text-muted-foreground">
-                  {row.rowIndex}
-                </TableCell>
-                {FIELD_COLUMNS.map((field) => (
-                  <TableCell
-                    key={field}
-                    className={cn(!isOverridden && "line-through")}
-                  >
-                    {String(row.data[field] ?? "")}
-                  </TableCell>
-                ))}
-                <TableCell className="text-xs text-amber-600 dark:text-amber-400">
-                  {getDuplicateSource(row)}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant={isOverridden ? "default" : "secondary"}
-                    size="xs"
-                    onClick={() => onToggleDuplicate(row.rowIndex)}
-                  >
-                    {isOverridden ? "Override" : "Skip"}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+        {duplicates.map((row) => {
+          const on = overriddenDuplicates.has(row.rowIndex);
+          return (
+            <div
+              key={row.rowIndex}
+              className={cn(
+                "grid items-center gap-2 border-b border-line bg-[var(--row-duplicate-bg)] px-3 py-[7px] font-mono text-[12px] tabular-nums",
+                ROW_GRID,
+              )}
+            >
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => onToggleDuplicate(row.rowIndex)}
+                  className="cursor-pointer"
+                  aria-label={on ? "Skip duplicate" : "Override duplicate"}
+                >
+                  <OverrideCheck on={on} />
+                </button>
+              </div>
+              <div className="text-center text-muted-foreground">
+                {row.rowIndex}
+              </div>
+              {FIELD_COLUMNS.map((field) => (
+                <div
+                  key={field}
+                  className={cn(
+                    "min-w-0 truncate text-center",
+                    !on && "line-through opacity-60",
+                  )}
+                >
+                  {field === "ticker" ? (
+                    <span className="font-semibold">
+                      {String(row.data[field] ?? "")}
+                    </span>
+                  ) : (
+                    String(row.data[field] ?? "")
+                  )}
+                </div>
+              ))}
+              <div className="truncate text-left text-[11px] text-muted-foreground">
+                {getDuplicateSource(row)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
