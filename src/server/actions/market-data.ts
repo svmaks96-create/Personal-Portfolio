@@ -5,11 +5,11 @@ import { differenceInDays, parseISO } from "date-fns";
 import { db } from "@/server/db";
 import {
   transactions,
-  marketData,
   etfHoldings,
   tickerVariants,
   tickerProfiles,
 } from "@/server/db/schema";
+import { upsertMarketDataRows } from "@/server/db/market-data-writer";
 import {
   fetchStockPrices,
   fetchFxRates,
@@ -24,10 +24,13 @@ import {
   getTickerProfilesMap,
   getTickerProfileFetchedAt,
 } from "@/server/queries/ticker-profiles";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
-import type { RefreshResult, BackfillResult } from "@/server/types/market-data";
-import type { FmpEodQuote } from "@/server/types/market-data";
+import type {
+  RefreshResult,
+  BackfillResult,
+  FmpEodQuote,
+} from "@/server/types/market-data";
 
 /**
  * Refresh stock prices for all unique tickers in the transactions table plus
@@ -118,45 +121,6 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       error: "Unable to fetch FX rates. Please try again.",
     };
   }
-}
-
-/**
- * Upsert FMP EOD quotes into market_data, keyed on (symbol, type, date).
- * Atomic: wrapped in a single transaction. Returns the count of distinct
- * symbols that had at least one row written.
- */
-function upsertMarketDataRows(
-  quotes: FmpEodQuote[],
-  type: "stock_price" | "fx_rate",
-  fetchedAt: string
-): number {
-  if (quotes.length === 0) return 0;
-
-  const symbolsTouched = new Set<string>();
-  db.transaction((tx) => {
-    for (const quote of quotes) {
-      tx.delete(marketData)
-        .where(
-          and(
-            eq(marketData.symbol, quote.symbol),
-            eq(marketData.type, type),
-            eq(marketData.date, quote.date)
-          )
-        )
-        .run();
-      tx.insert(marketData)
-        .values({
-          symbol: quote.symbol,
-          type,
-          date: quote.date,
-          value: quote.price,
-          fetchedAt,
-        })
-        .run();
-      symbolsTouched.add(quote.symbol);
-    }
-  });
-  return symbolsTouched.size;
 }
 
 const BACKFILL_CONCURRENCY = 10;

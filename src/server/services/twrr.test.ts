@@ -202,6 +202,64 @@ describe("computePortfolioTWRR", () => {
     expect(result.annualizedReturnPct).toBeNull();
   });
 
+  it("(IPO gap) backward-fills first known price for pre-trading subscription days", () => {
+    // Existing AAPL position; IPO subscribed on d2 but first traded on d5.
+    // Without backward-fill, the subscription day's CF lands while IPO MV is 0
+    // → spurious negative return. Backward-fill makes IPO contribute its first
+    // trading-day price across the gap, smoothing the chain to r ≈ 1.0.
+    const calendar = [
+      "2026-01-02",
+      "2026-01-05",
+      "2026-01-07",
+      "2026-01-08",
+      "2026-01-09",
+      "2026-01-12",
+      "2026-01-13",
+    ];
+    const txns = [
+      tx(1, "2026-01-02", "AAPL", "buy", 100, 5000),
+      // Subscription day; no IPO price yet.
+      tx(2, "2026-01-07", "IPO", "buy", 200, 1000),
+    ];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 50],
+        ["2026-01-05", 50],
+        ["2026-01-07", 50],
+        ["2026-01-08", 50],
+        ["2026-01-09", 50],
+        ["2026-01-12", 50],
+        ["2026-01-13", 50],
+      ]),
+      // IPO trades starting d5 (2026-01-12).
+      IPO: priceSeries("IPO", [
+        ["2026-01-12", 5],
+        ["2026-01-13", 5.5],
+      ]),
+    };
+
+    const result = computePortfolioTWRR(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-13"
+    );
+
+    expect(result.series[0].growthOfDollar).toBeCloseTo(1, 9);
+    expect(result.series[1].growthOfDollar).toBeCloseTo(1, 9);
+    // Subscription day: backward-fill makes IPO contribute 200*$5=$1000,
+    // exactly netting the +$1000 CF. r = (6000 - 1000) / 5000 = 1.0.
+    expect(result.series[2].growthOfDollar).toBeCloseTo(1, 9);
+    expect(result.series[3].growthOfDollar).toBeCloseTo(1, 9);
+    expect(result.series[4].growthOfDollar).toBeCloseTo(1, 9);
+    // First real IPO price (d5): same as the backward-filled value, so r=1.
+    expect(result.series[5].growthOfDollar).toBeCloseTo(1, 9);
+    // d6: AAPL flat, IPO $5 → $5.50. MV: 5000 + 200*5.50 = 6100. r=6100/6000.
+    expect(result.series[6].growthOfDollar).toBeCloseTo(6100 / 6000, 9);
+  });
+
   it("ignores dividends in CF (total-return convention)", () => {
     const calendar = ["2026-01-02", "2026-01-03", "2026-01-04"];
     const txns = [

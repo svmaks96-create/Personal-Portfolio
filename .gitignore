@@ -45,6 +45,9 @@ yarn-error.log*
 # database
 data/portfolio.db
 
+# personal manual price files (README is tracked)
+data/manual-prices/*.csv
+
 # vercel
 .vercel
 

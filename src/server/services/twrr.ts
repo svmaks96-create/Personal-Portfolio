@@ -290,11 +290,17 @@ function forwardFillFxRate(
   return idx === -1 ? null : list[idx].value;
 }
 
-/** Binary search: index of last entry whose `date <= targetDate`, or -1. */
+/**
+ * Binary search: index of last entry whose `date <= targetDate`.
+ * Falls back to the earliest entry (index 0) when no entry has `date <= target`
+ * but the array is non-empty — handles IPO subscription gaps where shares
+ * exist before the first quoted price. Returns -1 only when the array is empty.
+ */
 function lastIndexAtOrBefore(
   sorted: MarketDataInput[],
   targetDate: string
 ): number {
+  if (sorted.length === 0) return -1;
   let lo = 0;
   let hi = sorted.length - 1;
   let best = -1;
@@ -307,5 +313,5 @@ function lastIndexAtOrBefore(
       hi = mid - 1;
     }
   }
-  return best;
+  return best === -1 ? 0 : best;
 }
