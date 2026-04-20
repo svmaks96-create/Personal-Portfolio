@@ -33,7 +33,7 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
         pnlDirection={pnlDirection(metrics.totalUnrealizedPnl)}
       />
       <MetricCard
-        label="IRR"
+        label="Annualized MWRR"
         value={formatIRRRounded(metrics.irr)}
         variant="pnl"
         pnlDirection={pnlDirection(metrics.irr)}
