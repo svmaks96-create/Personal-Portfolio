@@ -18,6 +18,7 @@ import {
   TableRow,
   TableHead,
   TableBody,
+  TableFooter,
   TableCell,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/domain/empty-state";
@@ -28,6 +29,7 @@ interface PositionsTableProps<TData> {
   defaultSort: SortingState;
   emptyMessage?: string;
   onRowClick?: (row: TData) => void;
+  totalsRow?: React.ReactNode;
 }
 
 export function PositionsTable<TData>({
@@ -36,6 +38,7 @@ export function PositionsTable<TData>({
   defaultSort,
   emptyMessage,
   onRowClick,
+  totalsRow,
 }: PositionsTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort);
 
@@ -129,6 +132,7 @@ export function PositionsTable<TData>({
             );
           })}
         </TableBody>
+        {totalsRow && <TableFooter>{totalsRow}</TableFooter>}
       </Table>
     </div>
   );
@@ -139,6 +143,7 @@ interface DrillDownPositionsTableProps<TData extends { ticker: string; portfolio
   columns: ColumnDef<TData, unknown>[];
   defaultSort: SortingState;
   emptyMessage?: string;
+  totalsRow?: React.ReactNode;
 }
 
 export function DrillDownPositionsTable<TData extends { ticker: string; portfolio: string }>({
@@ -146,6 +151,7 @@ export function DrillDownPositionsTable<TData extends { ticker: string; portfoli
   columns,
   defaultSort,
   emptyMessage,
+  totalsRow,
 }: DrillDownPositionsTableProps<TData>) {
   const router = useRouter();
 
@@ -155,6 +161,7 @@ export function DrillDownPositionsTable<TData extends { ticker: string; portfoli
       columns={columns}
       defaultSort={defaultSort}
       emptyMessage={emptyMessage}
+      totalsRow={totalsRow}
       onRowClick={(row) => {
         const params = new URLSearchParams({ ticker: row.ticker });
         if (row.portfolio !== "All") {

@@ -56,7 +56,7 @@ describe("getActivePositions", () => {
     vi.clearAllMocks();
   });
 
-  it("returns empty array when no transactions exist", () => {
+  it("returns empty rows + null totals when no transactions exist", () => {
     mockComputePositions.mockReturnValue([]);
     mockComputeAggregates.mockReturnValue({
       totalValue: null,
@@ -67,7 +67,8 @@ describe("getActivePositions", () => {
     });
 
     const result = getActivePositions();
-    expect(result).toEqual([]);
+    expect(result.rows).toEqual([]);
+    expect(result.totals).toBeNull();
   });
 
   it("returns formatted active position rows", () => {
@@ -85,19 +86,20 @@ describe("getActivePositions", () => {
 
     const result = getActivePositions();
 
-    expect(result).toHaveLength(1);
-    expect(result[0].ticker).toBe("AAPL");
-    expect(result[0].companyName).toBeNull();
-    expect(result[0].hasInvalidState).toBe(false);
-    expect(result[0].shares).toEqual({ value: 10, display: "10.0" });
-    expect(result[0].avgEntry).toEqual({ value: 150, display: "$150.00" });
-    expect(result[0].lastPrice).toEqual({ value: 175, display: "$175.00" });
-    expect(result[0].costBasis).toEqual({ value: 1500, display: "$1,500" });
-    expect(result[0].marketValue).toEqual({ value: 1750, display: "$1,750" });
-    expect(result[0].dividends).toEqual({ value: 50, display: "$50" });
-    expect(result[0].sellProceeds).toEqual({ value: 0, display: "$0" });
-    expect(result[0].pnl).toEqual({ value: 300, display: "+$300" });
-    expect(result[0].weight).toEqual({ value: 57.3, display: "57.3%" });
+    expect(result.rows).toHaveLength(1);
+    const [row] = result.rows;
+    expect(row.ticker).toBe("AAPL");
+    expect(row.companyName).toBeNull();
+    expect(row.hasInvalidState).toBe(false);
+    expect(row.shares).toEqual({ value: 10, display: "10.0" });
+    expect(row.avgEntry).toEqual({ value: 150, display: "$150.00" });
+    expect(row.lastPrice).toEqual({ value: 175, display: "$175.00" });
+    expect(row.costBasis).toEqual({ value: 1500, display: "$1,500" });
+    expect(row.marketValue).toEqual({ value: 1750, display: "$1,750" });
+    expect(row.dividends).toEqual({ value: 50, display: "$50" });
+    expect(row.sellProceeds).toEqual({ value: 0, display: "$0" });
+    expect(row.pnl).toEqual({ value: 300, display: "+$300" });
+    expect(row.weight).toEqual({ value: 57.3, display: "57.3%" });
   });
 
   it("excludes closed positions before computing aggregates", () => {
@@ -115,8 +117,8 @@ describe("getActivePositions", () => {
 
     const result = getActivePositions();
 
-    expect(result).toHaveLength(1);
-    expect(result[0].ticker).toBe("AAPL");
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].ticker).toBe("AAPL");
 
     const aggregatesArg = mockComputeAggregates.mock.calls[0][0];
     expect(aggregatesArg).toHaveLength(1);
@@ -141,10 +143,67 @@ describe("getActivePositions", () => {
 
     const result = getActivePositions();
 
-    expect(result[0].lastPrice).toEqual({ value: null, display: "N/A" });
-    expect(result[0].marketValue).toEqual({ value: null, display: "N/A" });
-    expect(result[0].pnl).toEqual({ value: null, display: "N/A" });
-    expect(result[0].weight).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].lastPrice).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].marketValue).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].pnl).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].weight).toEqual({ value: null, display: "N/A" });
+  });
+
+  it("totals sum each additive field across all active rows", () => {
+    const a = makePosition({ ticker: "AAPL", costBasis: 1000, marketValue: 1500, totalDividends: 20, totalSellProceeds: 100, totalPnl: 600 });
+    const b = makePosition({ ticker: "MSFT", costBasis: 2000, marketValue: 2200, totalDividends: 30, totalSellProceeds: 0, totalPnl: 200 });
+
+    mockComputePositions.mockReturnValue([a, b]);
+    mockComputeAggregates.mockReturnValue({
+      totalValue: 3700,
+      totalCostBasis: 3000,
+      totalRealizedPnl: 150,
+      totalUnrealizedPnl: 650,
+      positions: [
+        { ...a, weight: 40 },
+        { ...b, weight: 60 },
+      ],
+    });
+
+    const { totals } = getActivePositions();
+    expect(totals).not.toBeNull();
+    expect(totals!.costBasis).toEqual({ value: 3000, display: "$3,000" });
+    expect(totals!.marketValue).toEqual({ value: 3700, display: "$3,700" });
+    expect(totals!.dividends).toEqual({ value: 50, display: "$50" });
+    expect(totals!.sellProceeds).toEqual({ value: 100, display: "$100" });
+    expect(totals!.pnl).toEqual({ value: 800, display: "+$800" });
+    // Weight total is the actual sum — deviation from 100% is a bug signal.
+    expect(totals!.weight).toEqual({ value: 100, display: "100.0%" });
+  });
+
+  it("totals null-propagate: one null row field forces total null / N/A", () => {
+    const a = makePosition({ ticker: "AAPL", costBasis: 1000, marketValue: 1500, totalDividends: 20 });
+    const bNa = makePosition({
+      ticker: "MSFT",
+      costBasis: null,
+      marketValue: null,
+      totalPnl: null,
+    });
+
+    mockComputePositions.mockReturnValue([a, bNa]);
+    mockComputeAggregates.mockReturnValue({
+      totalValue: null,
+      totalCostBasis: null,
+      totalRealizedPnl: null,
+      totalUnrealizedPnl: null,
+      positions: [
+        { ...a, weight: 100 },
+        { ...bNa, weight: null },
+      ],
+    });
+
+    const { totals } = getActivePositions();
+    expect(totals!.costBasis).toEqual({ value: null, display: "N/A" });
+    expect(totals!.marketValue).toEqual({ value: null, display: "N/A" });
+    expect(totals!.pnl).toEqual({ value: null, display: "N/A" });
+    expect(totals!.weight).toEqual({ value: null, display: "N/A" });
+    // Dividends and sell proceeds are both non-null on every row → still sum.
+    expect(totals!.dividends.value).toBe(70); // 20 + 50 (default from makePosition)
   });
 });
 
@@ -153,11 +212,12 @@ describe("getClosedPositions", () => {
     vi.clearAllMocks();
   });
 
-  it("returns empty array when no positions exist", () => {
+  it("returns empty rows + null totals when no positions exist", () => {
     mockComputePositions.mockReturnValue([]);
 
     const result = getClosedPositions();
-    expect(result).toEqual([]);
+    expect(result.rows).toEqual([]);
+    expect(result.totals).toBeNull();
   });
 
   it("returns only closed positions with correct formatting", () => {
@@ -180,16 +240,17 @@ describe("getClosedPositions", () => {
 
     const result = getClosedPositions();
 
-    expect(result).toHaveLength(1);
-    expect(result[0].ticker).toBe("TSLA");
-    expect(result[0].companyName).toBeNull();
-    expect(result[0].avgEntry).toEqual({ value: 215, display: "$215.00" });
-    expect(result[0].avgExit).toEqual({ value: 240, display: "$240.00" });
-    expect(result[0].lastPrice).toEqual({ value: 180, display: "$180.00" });
-    expect(result[0].totalInvested).toEqual({ value: 2150, display: "$2,150" });
-    expect(result[0].totalProceeds).toEqual({ value: 2400, display: "$2,400" });
-    expect(result[0].dividends).toEqual({ value: 30, display: "$30" });
-    expect(result[0].realizedPnl).toEqual({ value: 280, display: "+$280" });
+    expect(result.rows).toHaveLength(1);
+    const [row] = result.rows;
+    expect(row.ticker).toBe("TSLA");
+    expect(row.companyName).toBeNull();
+    expect(row.avgEntry).toEqual({ value: 215, display: "$215.00" });
+    expect(row.avgExit).toEqual({ value: 240, display: "$240.00" });
+    expect(row.lastPrice).toEqual({ value: 180, display: "$180.00" });
+    expect(row.totalInvested).toEqual({ value: 2150, display: "$2,150" });
+    expect(row.totalProceeds).toEqual({ value: 2400, display: "$2,400" });
+    expect(row.dividends).toEqual({ value: 30, display: "$30" });
+    expect(row.realizedPnl).toEqual({ value: 280, display: "+$280" });
   });
 
   it("excludes active positions", () => {
@@ -200,8 +261,8 @@ describe("getClosedPositions", () => {
 
     const result = getClosedPositions();
 
-    expect(result).toHaveLength(1);
-    expect(result[0].ticker).toBe("MSFT");
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].ticker).toBe("MSFT");
   });
 
   it("does not call computeAggregates", () => {
@@ -218,8 +279,8 @@ describe("getClosedPositions", () => {
 
     const result = getClosedPositions("Schwab");
 
-    expect(result).toHaveLength(1);
-    expect(result[0].ticker).toBe("TSLA");
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].ticker).toBe("TSLA");
     // computePositions is called (portfolio filtering happens at DB level in computeAllPositions)
     expect(mockComputePositions).toHaveBeenCalled();
   });
@@ -241,12 +302,26 @@ describe("getClosedPositions", () => {
 
     const result = getClosedPositions();
 
-    expect(result[0].lastPrice).toEqual({ value: null, display: "N/A" });
-    expect(result[0].avgEntry).toEqual({ value: null, display: "N/A" });
-    expect(result[0].avgExit).toEqual({ value: null, display: "N/A" });
-    expect(result[0].totalInvested).toEqual({ value: null, display: "N/A" });
-    expect(result[0].totalProceeds).toEqual({ value: null, display: "N/A" });
-    expect(result[0].dividends).toEqual({ value: null, display: "N/A" });
-    expect(result[0].realizedPnl).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].lastPrice).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].avgEntry).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].avgExit).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].totalInvested).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].totalProceeds).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].dividends).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].realizedPnl).toEqual({ value: null, display: "N/A" });
+  });
+
+  it("totals sum each additive field across all closed rows", () => {
+    const a = makePosition({ ticker: "TSLA", isClosed: true, sharesHeld: 0, totalInvested: 2000, totalSellProceeds: 2500, totalDividends: 30, totalPnl: 530 });
+    const b = makePosition({ ticker: "AMD", isClosed: true, sharesHeld: 0, totalInvested: 1000, totalSellProceeds: 900, totalDividends: 10, totalPnl: -90 });
+
+    mockComputePositions.mockReturnValue([a, b]);
+
+    const { totals } = getClosedPositions();
+    expect(totals).not.toBeNull();
+    expect(totals!.totalInvested).toEqual({ value: 3000, display: "$3,000" });
+    expect(totals!.totalProceeds).toEqual({ value: 3400, display: "$3,400" });
+    expect(totals!.dividends).toEqual({ value: 40, display: "$40" });
+    expect(totals!.realizedPnl).toEqual({ value: 440, display: "+$440" });
   });
 });

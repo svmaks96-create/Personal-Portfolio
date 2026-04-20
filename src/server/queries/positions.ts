@@ -10,6 +10,11 @@ import {
 } from "@/lib/formatting";
 import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 
+interface MoneyCell {
+  value: number | null;
+  display: string;
+}
+
 export interface ActivePositionRow {
   ticker: string;
   companyName: string | null;
@@ -18,11 +23,11 @@ export interface ActivePositionRow {
   avgEntry: { value: number | null; display: string };
   lastPrice: { value: number | null; display: string };
   priceDate: { value: string | null; display: string; isStale: boolean };
-  costBasis: { value: number | null; display: string };
-  marketValue: { value: number | null; display: string };
-  dividends: { value: number | null; display: string };
-  sellProceeds: { value: number | null; display: string };
-  pnl: { value: number | null; display: string };
+  costBasis: MoneyCell;
+  marketValue: MoneyCell;
+  dividends: MoneyCell;
+  sellProceeds: MoneyCell;
+  pnl: MoneyCell;
   irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
@@ -33,14 +38,56 @@ export interface ClosedPositionRow {
   avgEntry: { value: number | null; display: string };
   avgExit: { value: number | null; display: string };
   lastPrice: { value: number | null; display: string };
-  totalInvested: { value: number | null; display: string };
-  totalProceeds: { value: number | null; display: string };
-  dividends: { value: number | null; display: string };
-  realizedPnl: { value: number | null; display: string };
+  totalInvested: MoneyCell;
+  totalProceeds: MoneyCell;
+  dividends: MoneyCell;
+  realizedPnl: MoneyCell;
   irr: { value: number | null; display: string };
 }
 
-export function getActivePositions(portfolio?: string): ActivePositionRow[] {
+export interface ActivePositionsTotals {
+  costBasis: MoneyCell;
+  marketValue: MoneyCell;
+  dividends: MoneyCell;
+  sellProceeds: MoneyCell;
+  pnl: MoneyCell;
+  weight: { value: number | null; display: string };
+}
+
+export interface ClosedPositionsTotals {
+  totalInvested: MoneyCell;
+  totalProceeds: MoneyCell;
+  dividends: MoneyCell;
+  realizedPnl: MoneyCell;
+}
+
+export interface ActivePositionsResult {
+  rows: ActivePositionRow[];
+  totals: ActivePositionsTotals | null;
+}
+
+export interface ClosedPositionsResult {
+  rows: ClosedPositionRow[];
+  totals: ClosedPositionsTotals | null;
+}
+
+/**
+ * Sum an optional numeric field across an iterable of rows. Returns `null`
+ * the moment any row carries `null` — matches the null-propagation rule
+ * used by `computeAggregates` so a single N/A row surfaces as N/A in the
+ * total rather than being silently dropped.
+ */
+function sumOrNull<T>(rows: T[], pick: (r: T) => number | null): number | null {
+  let total = 0;
+  for (const r of rows) {
+    const v = pick(r);
+    if (v === null) return null;
+    total += v;
+  }
+  return total;
+}
+
+export function getActivePositions(portfolio?: string): ActivePositionsResult {
   const { txInputs, fxRates, today, positions, nameMap } = fetchPositionInputs(portfolio);
   // Merge all positions by ticker FIRST so that a ticker active in one portfolio
   // but closed in another resolves to a single row, then split active/closed.
@@ -55,7 +102,7 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
     .filter((d): d is string => d !== null);
   const maxPriceDate = priceDates.length > 0 ? priceDates.reduce((a, b) => (a > b ? a : b)) : null;
 
-  return aggregates.positions.map((p) => ({
+  const rows: ActivePositionRow[] = aggregates.positions.map((p) => ({
     ticker: p.ticker,
     companyName: nameMap[p.ticker] ?? null,
     hasInvalidState: p.hasInvalidState,
@@ -76,9 +123,31 @@ export function getActivePositions(portfolio?: string): ActivePositionRow[] {
     irr: { value: p.irr, display: formatIRRRounded(p.irr) },
     weight: { value: p.weight, display: formatPercent(p.weight) },
   }));
+
+  if (rows.length === 0) {
+    return { rows, totals: null };
+  }
+
+  const costBasisTotal = sumOrNull(rows, (r) => r.costBasis.value);
+  const marketValueTotal = sumOrNull(rows, (r) => r.marketValue.value);
+  const dividendsTotal = sumOrNull(rows, (r) => r.dividends.value);
+  const sellProceedsTotal = sumOrNull(rows, (r) => r.sellProceeds.value);
+  const pnlTotal = sumOrNull(rows, (r) => r.pnl.value);
+  const weightTotal = sumOrNull(rows, (r) => r.weight.value);
+
+  const totals: ActivePositionsTotals = {
+    costBasis: { value: costBasisTotal, display: formatCurrencyRounded(costBasisTotal) },
+    marketValue: { value: marketValueTotal, display: formatCurrencyRounded(marketValueTotal) },
+    dividends: { value: dividendsTotal, display: formatCurrencyRounded(dividendsTotal) },
+    sellProceeds: { value: sellProceedsTotal, display: formatCurrencyRounded(sellProceedsTotal) },
+    pnl: { value: pnlTotal, display: formatPnLRounded(pnlTotal) },
+    weight: { value: weightTotal, display: formatPercent(weightTotal) },
+  };
+
+  return { rows, totals };
 }
 
-export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
+export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
   const { txInputs, fxRates, today, positions, nameMap } = fetchPositionInputs(portfolio);
   // Merge all positions by ticker FIRST so that a ticker active in one portfolio
   // but closed in another resolves to a single row, then split active/closed.
@@ -87,7 +156,7 @@ export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
     : positions;
   const closedPositions = merged.filter((p) => p.isClosed);
 
-  return closedPositions.map((p) => ({
+  const rows: ClosedPositionRow[] = closedPositions.map((p) => ({
     ticker: p.ticker,
     companyName: nameMap[p.ticker] ?? null,
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
@@ -99,4 +168,22 @@ export function getClosedPositions(portfolio?: string): ClosedPositionRow[] {
     realizedPnl: { value: p.totalPnl, display: formatPnLRounded(p.totalPnl) },
     irr: { value: p.irr, display: formatIRRRounded(p.irr) },
   }));
+
+  if (rows.length === 0) {
+    return { rows, totals: null };
+  }
+
+  const totalInvestedSum = sumOrNull(rows, (r) => r.totalInvested.value);
+  const totalProceedsSum = sumOrNull(rows, (r) => r.totalProceeds.value);
+  const dividendsSum = sumOrNull(rows, (r) => r.dividends.value);
+  const realizedPnlSum = sumOrNull(rows, (r) => r.realizedPnl.value);
+
+  const totals: ClosedPositionsTotals = {
+    totalInvested: { value: totalInvestedSum, display: formatCurrencyRounded(totalInvestedSum) },
+    totalProceeds: { value: totalProceedsSum, display: formatCurrencyRounded(totalProceedsSum) },
+    dividends: { value: dividendsSum, display: formatCurrencyRounded(dividendsSum) },
+    realizedPnl: { value: realizedPnlSum, display: formatPnLRounded(realizedPnlSum) },
+  };
+
+  return { rows, totals };
 }

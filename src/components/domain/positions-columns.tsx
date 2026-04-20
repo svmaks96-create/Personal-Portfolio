@@ -2,9 +2,17 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { TriangleAlert } from "lucide-react";
-import type { ActivePositionRow, ClosedPositionRow } from "@/server/queries/positions";
+import type {
+  ActivePositionRow,
+  ActivePositionsTotals,
+  ClosedPositionRow,
+  ClosedPositionsTotals,
+} from "@/server/queries/positions";
 import { NumericCell } from "@/components/domain/numeric-cell";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { pnlColorClass } from "@/lib/pnl";
+
+const DASH = "—";
 
 export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
   {
@@ -220,3 +228,67 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     meta: { align: "center" as const },
   },
 ];
+
+// --- Totals rows -----------------------------------------------------------
+// Footer cells mirror the body cells' alignment (center) and font size.
+// Non-summable columns render the em-dash placeholder.
+
+const totalCellCls = "text-[14px] text-foreground text-center";
+
+export function ActivePositionsTotalsRow({ totals: t }: { totals: ActivePositionsTotals }) {
+  return (
+    <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
+      <TableCell className={totalCellCls}>Total</TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.costBasis.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.marketValue.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.dividends.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.sellProceeds.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <span className={`tabular-nums ${pnlColorClass(t.pnl.value)}`}>
+          {t.pnl.display}
+        </span>
+      </TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.weight.display} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export function ClosedPositionsTotalsRow({ totals: t }: { totals: ClosedPositionsTotals }) {
+  return (
+    <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
+      <TableCell className={totalCellCls}>Total</TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.totalInvested.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.totalProceeds.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <NumericCell display={t.dividends.display} />
+      </TableCell>
+      <TableCell className={totalCellCls}>
+        <span className={`tabular-nums ${pnlColorClass(t.realizedPnl.value)}`}>
+          {t.realizedPnl.display}
+        </span>
+      </TableCell>
+      <TableCell className={totalCellCls}>{DASH}</TableCell>
+    </TableRow>
+  );
+}

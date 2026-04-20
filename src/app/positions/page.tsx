@@ -1,7 +1,12 @@
 import { EmptyState } from "@/components/domain/empty-state";
 import { ControlsBar } from "@/components/domain/controls-bar";
 import { DrillDownPositionsTable } from "@/components/domain/positions-table";
-import { activePositionsColumns, closedPositionsColumns } from "@/components/domain/positions-columns";
+import {
+  activePositionsColumns,
+  closedPositionsColumns,
+  ActivePositionsTotalsRow,
+  ClosedPositionsTotalsRow,
+} from "@/components/domain/positions-columns";
 import { getTransactionCount } from "@/server/queries/transactions";
 import { getActivePositions, getClosedPositions } from "@/server/queries/positions";
 import { getUniquePortfolios } from "@/server/queries/portfolios";
@@ -22,8 +27,8 @@ export default async function PositionsPage({
   const portfolioFilter =
     typeof portfolio === "string" ? portfolio : undefined;
 
-  const activePositions = getActivePositions(portfolioFilter);
-  const closedPositions = getClosedPositions(portfolioFilter);
+  const { rows: activeRows, totals: activeTotals } = getActivePositions(portfolioFilter);
+  const { rows: closedRows, totals: closedTotals } = getClosedPositions(portfolioFilter);
   const portfolios = getUniquePortfolios();
   const timestamp = getStalestMarketDate();
 
@@ -39,20 +44,22 @@ export default async function PositionsPage({
         timestamp={timestamp}
       />
       <DrillDownPositionsTable
-        data={activePositions}
+        data={activeRows}
         columns={activePositionsColumns}
         defaultSort={[{ id: "marketValue", desc: true }]}
         emptyMessage={emptyMessage}
+        totalsRow={activeTotals ? <ActivePositionsTotalsRow totals={activeTotals} /> : undefined}
       />
-      {closedPositions.length > 0 && (
+      {closedRows.length > 0 && (
         <div>
           <h2 className="text-[16px] font-semibold text-foreground mb-4">
             Closed Positions
           </h2>
           <DrillDownPositionsTable
-            data={closedPositions}
+            data={closedRows}
             columns={closedPositionsColumns}
             defaultSort={[{ id: "realizedPnl", desc: true }]}
+            totalsRow={closedTotals ? <ClosedPositionsTotalsRow totals={closedTotals} /> : undefined}
           />
         </div>
       )}
