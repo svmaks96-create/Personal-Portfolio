@@ -73,8 +73,10 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
   const activePositions = metrics.positions.filter((p) => !p.isClosed).length;
 
   const unrealizedRatio =
-    metrics.totalUnrealizedPnl !== null && metrics.totalCostBasis
-      ? metrics.totalUnrealizedPnl / metrics.totalCostBasis
+    metrics.totalUnrealizedPnl !== null &&
+    metrics.totalCostBasis !== null &&
+    metrics.totalCostBasis > 0
+      ? (metrics.totalUnrealizedPnl / metrics.totalCostBasis) * 100
       : null;
 
   const unrealizedSub =
