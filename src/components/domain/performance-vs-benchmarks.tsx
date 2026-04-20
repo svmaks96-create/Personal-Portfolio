@@ -1,22 +1,45 @@
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { MetricCard } from "@/components/domain/metric-card";
+import { TerminalPanel } from "@/components/domain/terminal-panel";
 import { PerformanceChart } from "@/components/domain/performance-chart";
 import { PeriodSelector } from "@/components/domain/period-selector";
 import { getPerformanceData } from "@/server/queries/performance";
 import { formatIRRRounded } from "@/lib/formatting";
-import { pnlDirection } from "@/lib/pnl";
-import { periodSubtitle } from "@/lib/period";
+import { cn } from "@/lib/utils";
 import type { Period } from "@/shared/schemas/period";
 
 interface PerformanceVsBenchmarksProps {
   portfolio?: string;
   period: Period;
+}
+
+interface LegendItemProps {
+  label: string;
+  value: number | null;
+  color: string;
+  dashed?: boolean;
+}
+
+function LegendItem({ label, value, color, dashed }: LegendItemProps) {
+  const tone =
+    value === null ? "text-muted-foreground" : value >= 0 ? "text-pos" : "text-neg";
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className={cn("inline-block h-[2px] w-4", dashed && "border-t border-dashed")}
+        style={
+          dashed
+            ? { background: "transparent", borderColor: color }
+            : { background: color }
+        }
+      />
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </span>
+      <span className={cn("font-mono text-[11px] font-semibold tabular-nums", tone)}>
+        {formatIRRRounded(value)}
+      </span>
+    </div>
+  );
 }
 
 export async function PerformanceVsBenchmarks({
@@ -30,48 +53,43 @@ export async function PerformanceVsBenchmarks({
   }
 
   return (
-    <Card className="bg-card shadow-sm ring-0">
-      <CardHeader>
-        <CardTitle>Performance vs Benchmarks</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Time-weighted return (total-return basis, dividends reinvested) vs
-          buy-and-hold of SPY and QQQ, {periodSubtitle(period)}.
-        </p>
-        <CardAction>
-          <PeriodSelector currentPeriod={period} />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          <MetricCard
-            label={portfolio ? `${portfolio} TWRR` : "Portfolio TWRR"}
-            value={formatIRRRounded(data.portfolio.cumulativeReturnPct)}
-            variant="pnl"
-            pnlDirection={pnlDirection(data.portfolio.cumulativeReturnPct)}
-          />
-          <MetricCard
-            label="S&P 500 (SPY)"
-            value={formatIRRRounded(data.spy.cumulativeReturnPct)}
-            variant="pnl"
-            pnlDirection={pnlDirection(data.spy.cumulativeReturnPct)}
-          />
-          <MetricCard
-            label="Nasdaq-100 (QQQ)"
-            value={formatIRRRounded(data.qqq.cumulativeReturnPct)}
-            variant="pnl"
-            pnlDirection={pnlDirection(data.qqq.cumulativeReturnPct)}
-          />
-        </div>
-
-        {data.hasBenchmarkData ? (
-          <PerformanceChart data={data.chartSeries} />
-        ) : (
-          <div className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-            Run <span className="font-medium text-foreground">Backfill history</span>{" "}
-            to populate daily prices for the benchmark comparison chart.
+    <TerminalPanel
+      label="PERFORMANCE"
+      tag="PORTFOLIO vs SPY vs QQQ"
+      action={<PeriodSelector currentPeriod={period} />}
+      className="min-h-[420px]"
+      bodyClassName="p-0"
+    >
+      {data.hasBenchmarkData ? (
+        <>
+          <div className="flex-1 px-1 py-2">
+            <PerformanceChart data={data.chartSeries} />
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="flex flex-wrap gap-6 border-t border-line-soft px-3.5 py-3">
+            <LegendItem
+              label="Portfolio"
+              value={data.portfolio.cumulativeReturnPct}
+              color="var(--pos)"
+            />
+            <LegendItem
+              label="SPY"
+              value={data.spy.cumulativeReturnPct}
+              color="var(--bench1)"
+              dashed
+            />
+            <LegendItem
+              label="QQQ"
+              value={data.qqq.cumulativeReturnPct}
+              color="var(--bench2)"
+              dashed
+            />
+          </div>
+        </>
+      ) : (
+        <div className="m-3.5 flex flex-1 items-center justify-center rounded-sm border border-dashed border-line px-4 py-10 text-center font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+          Run backfill history to populate benchmark comparison
+        </div>
+      )}
+    </TerminalPanel>
   );
 }

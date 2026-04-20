@@ -7,8 +7,8 @@ import { ConcentrationChartSkeleton } from "@/components/domain/concentration-ch
 import { PerformanceVsBenchmarks } from "@/components/domain/performance-vs-benchmarks";
 import { PerformanceSkeleton } from "@/components/domain/performance-skeleton";
 import { ControlsBar } from "@/components/domain/controls-bar";
+import { TerminalHeading } from "@/components/domain/terminal-heading";
 import { getTransactionCount } from "@/server/queries/transactions";
-import { getUniquePortfolios } from "@/server/queries/portfolios";
 import { getStalestMarketDate } from "@/server/queries/market-data";
 import { periodSchema } from "@/shared/schemas/period";
 
@@ -34,25 +34,23 @@ export default async function DashboardPage({
     typeof portfolio === "string" ? portfolio : undefined;
   const period = periodSchema.catch("ITD").parse(periodRaw);
 
-  const portfolios = getUniquePortfolios();
   const timestamp = getStalestMarketDate();
 
   return (
-    <div className="space-y-8">
-      <ControlsBar
-        portfolios={portfolios}
-        selectedPortfolio={portfolioFilter}
-        timestamp={timestamp}
-      />
+    <div className="space-y-4 font-mono text-[13px] tabular-nums">
+      <TerminalHeading portfolio={portfolioFilter} />
+      <ControlsBar timestamp={timestamp} />
       <Suspense fallback={<MetricCardsSkeleton />}>
         <DashboardMetrics portfolio={portfolioFilter} />
       </Suspense>
-      <Suspense fallback={<PerformanceSkeleton />}>
-        <PerformanceVsBenchmarks portfolio={portfolioFilter} period={period} />
-      </Suspense>
-      <Suspense fallback={<ConcentrationChartSkeleton />}>
-        <PortfolioConcentration portfolio={portfolioFilter} />
-      </Suspense>
+      <div className="grid grid-cols-[1.6fr_1fr] gap-4">
+        <Suspense fallback={<PerformanceSkeleton />}>
+          <PerformanceVsBenchmarks portfolio={portfolioFilter} period={period} />
+        </Suspense>
+        <Suspense fallback={<ConcentrationChartSkeleton />}>
+          <PortfolioConcentration portfolio={portfolioFilter} />
+        </Suspense>
+      </div>
     </div>
   );
 }

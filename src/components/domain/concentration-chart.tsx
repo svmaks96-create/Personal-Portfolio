@@ -1,115 +1,97 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TerminalPanel } from "@/components/domain/terminal-panel";
 import type { ConcentrationData } from "@/server/types/concentration";
 
 interface ConcentrationChartProps {
   data: ConcentrationData;
 }
 
-function buildTooltip(sources: { type: "direct" | "etf"; etfTicker?: string; weight: number }[]): string {
+function buildTooltip(
+  sources: { type: "direct" | "etf"; etfTicker?: string; weight: number }[]
+): string {
   return sources
     .map((s) =>
       s.type === "direct"
-        ? `Direct: ${s.weight.toFixed(1)}%`
-        : `via ${s.etfTicker}: ${s.weight.toFixed(1)}%`
+        ? `Direct: ${s.weight.toFixed(2)}%`
+        : `via ${s.etfTicker}: ${s.weight.toFixed(2)}%`
     )
-    .join(" | ");
+    .join(" · ");
 }
 
 export function ConcentrationChart({ data }: ConcentrationChartProps) {
-  if (data.holdings.length === 0) {
+  const holdings = data.holdings
+    .filter((h) => h.ticker !== "Other")
+    .slice(0, 15);
+
+  if (holdings.length === 0) {
     return (
-      <Card className="bg-card shadow-sm ring-0">
-        <CardHeader>
-          <CardTitle>Portfolio Concentration</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No position data available.
-          </p>
-        </CardContent>
-      </Card>
+      <TerminalPanel label="CONCENTRATION" tag="TOP 15 · LOOK-THROUGH">
+        <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          No position data available.
+        </p>
+      </TerminalPanel>
     );
   }
 
-  const maxWeight = data.holdings[0].weight.value;
+  const maxWeight = Math.max(...holdings.map((h) => h.weight.value));
 
   return (
-    <Card className="bg-card shadow-sm ring-0">
-      <CardHeader>
-        <CardTitle>Portfolio Concentration</CardTitle>
+    <TerminalPanel
+      label="CONCENTRATION"
+      tag={`TOP ${holdings.length}${data.etfTickers.length > 0 ? " · LOOK-THROUGH" : ""}`}
+    >
+      <div className="mb-2 flex gap-4 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2.5 bg-pos" />
+          Direct
+        </span>
         {data.etfTickers.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground">
-              Look-through applied for: {data.etfTickers.join(", ")}
-            </p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
-                Direct
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-300" />
-                via ETF
-              </span>
-            </div>
-          </div>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2.5 bg-muted-foreground/55" />
+            via ETF
+          </span>
         )}
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-1.5">
-          {data.holdings.map((holding) => {
-            const isOther = holding.ticker === "Other";
-            const directWeight = holding.sources
-              .filter((s) => s.type === "direct")
-              .reduce((sum, s) => sum + s.weight, 0);
-            const etfWeight = holding.sources
-              .filter((s) => s.type === "etf")
-              .reduce((sum, s) => sum + s.weight, 0);
-            const directBarWidth =
-              maxWeight > 0 ? (directWeight / maxWeight) * 100 : 0;
-            const etfBarWidth =
-              maxWeight > 0 ? (etfWeight / maxWeight) * 100 : 0;
+      </div>
+      <div className="flex-1 space-y-2">
+        {holdings.map((holding) => {
+          const directWeight = holding.sources
+            .filter((s) => s.type === "direct")
+            .reduce((sum, s) => sum + s.weight, 0);
+          const etfWeight = holding.sources
+            .filter((s) => s.type === "etf")
+            .reduce((sum, s) => sum + s.weight, 0);
+          const directBarWidth =
+            maxWeight > 0 ? (directWeight / maxWeight) * 100 : 0;
+          const etfBarWidth =
+            maxWeight > 0 ? (etfWeight / maxWeight) * 100 : 0;
 
-            return (
-              <div
-                key={holding.ticker}
-                className="flex items-center gap-3"
-                title={isOther ? undefined : buildTooltip(holding.sources)}
-              >
-                <span className="w-16 shrink-0 text-right text-xs font-medium text-foreground truncate">
+          return (
+            <div key={holding.ticker} title={buildTooltip(holding.sources)}>
+              <div className="flex items-baseline justify-between font-mono text-[11px]">
+                <span className="font-semibold tracking-tight text-foreground">
                   {holding.ticker}
                 </span>
-                <div className="flex-1 h-5 bg-muted/40 rounded-sm overflow-hidden flex">
-                  {isOther ? (
-                    <div
-                      className="h-full bg-zinc-400"
-                      style={{ width: `${(holding.weight.value / maxWeight) * 100}%` }}
-                    />
-                  ) : (
-                    <>
-                      {directBarWidth > 0 && (
-                        <div
-                          className="h-full bg-blue-500"
-                          style={{ width: `${directBarWidth}%` }}
-                        />
-                      )}
-                      {etfBarWidth > 0 && (
-                        <div
-                          className="h-full bg-sky-300"
-                          style={{ width: `${etfBarWidth}%` }}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-                <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                <span className="tabular-nums text-muted-foreground">
                   {holding.weight.display}
                 </span>
               </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+              <div className="mt-1 flex h-2 w-full bg-line">
+                {directBarWidth > 0 && (
+                  <div
+                    className="h-full bg-pos"
+                    style={{ width: `${directBarWidth}%` }}
+                  />
+                )}
+                {etfBarWidth > 0 && (
+                  <div
+                    className="h-full bg-muted-foreground/55"
+                    style={{ width: `${etfBarWidth}%` }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </TerminalPanel>
   );
 }

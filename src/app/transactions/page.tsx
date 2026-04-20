@@ -3,7 +3,6 @@ import { ControlsBar } from "@/components/domain/controls-bar";
 import { TransactionsTable } from "@/components/domain/transactions-table";
 import { ActiveFilters } from "@/components/domain/active-filters";
 import { getTransactionCount, getTransactions } from "@/server/queries/transactions";
-import { getUniquePortfolios } from "@/server/queries/portfolios";
 import { getStalestMarketDate } from "@/server/queries/market-data";
 
 export default async function TransactionsPage({
@@ -23,7 +22,6 @@ export default async function TransactionsPage({
   const tickerFilter = typeof ticker === "string" ? ticker : undefined;
 
   const rows = getTransactions(portfolioFilter, tickerFilter);
-  const portfolios = getUniquePortfolios();
   const timestamp = getStalestMarketDate();
 
   const hasFilters = Boolean(portfolioFilter || tickerFilter);
@@ -40,11 +38,7 @@ export default async function TransactionsPage({
 
   return (
     <div className="space-y-4">
-      <ControlsBar
-        portfolios={portfolios}
-        selectedPortfolio={portfolioFilter}
-        timestamp={timestamp}
-      />
+      <ControlsBar timestamp={timestamp} />
       <ActiveFilters ticker={tickerFilter} portfolio={portfolioFilter} />
       {rows.length === 0 && hasFilters ? (
         <EmptyState

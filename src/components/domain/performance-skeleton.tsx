@@ -1,26 +1,20 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function PerformanceSkeleton() {
   return (
-    <Card className="bg-card shadow-sm ring-0">
-      <CardHeader>
-        <Skeleton className="h-5 w-56" />
-        <Skeleton className="h-3 w-80" />
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="bg-card shadow-sm ring-0">
-              <CardContent>
-                <Skeleton className="h-[13px] w-24 mb-2" />
-                <Skeleton className="h-[28px] w-32" />
-              </CardContent>
-            </Card>
-          ))}
+    <div className="flex min-h-[420px] flex-col border border-line bg-panel">
+      <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
+        <Skeleton className="h-3 w-48" />
+        <Skeleton className="h-5 w-44" />
+      </div>
+      <div className="flex flex-1 flex-col p-3.5">
+        <Skeleton className="flex-1" />
+        <div className="mt-3 flex gap-6 border-t border-line-soft pt-3">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-28" />
         </div>
-        <Skeleton className="h-[320px] w-full" />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

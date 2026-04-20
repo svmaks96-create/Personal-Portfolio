@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PERIODS, type Period } from "@/shared/schemas/period";
 
 interface PeriodSelectorProps {
@@ -19,7 +19,6 @@ export function PeriodSelector({ currentPeriod }: PeriodSelectorProps) {
     if (period === currentPeriod) return;
     startTransition(() => {
       const params = new URLSearchParams(searchParams.toString());
-      // ITD is the default, so keep the URL clean when selected.
       if (period === "ITD") {
         params.delete("period");
       } else {
@@ -31,18 +30,30 @@ export function PeriodSelector({ currentPeriod }: PeriodSelectorProps) {
   }
 
   return (
-    <div role="group" aria-label="Time period" className="flex gap-1">
-      {PERIODS.map((p) => (
-        <Button
-          key={p}
-          size="sm"
-          variant={p === currentPeriod ? "secondary" : "ghost"}
-          aria-pressed={p === currentPeriod}
-          onClick={() => handleSelect(p)}
-        >
-          {p}
-        </Button>
-      ))}
+    <div
+      role="group"
+      aria-label="Time period"
+      className="flex border border-line font-mono"
+    >
+      {PERIODS.map((p) => {
+        const active = p === currentPeriod;
+        return (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={active}
+            onClick={() => handleSelect(p)}
+            className={cn(
+              "border-r border-line px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] transition-colors last:border-r-0",
+              active
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-pill-bg hover:text-foreground"
+            )}
+          >
+            {p}
+          </button>
+        );
+      })}
     </div>
   );
 }

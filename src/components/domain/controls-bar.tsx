@@ -7,22 +7,15 @@ import {
   refreshFxRates,
   refreshEtfHoldings,
 } from "@/server/actions/market-data";
-import { PortfolioSelector } from "@/components/domain/portfolio-selector";
 import { RefreshButton } from "@/components/domain/refresh-button";
 import { BackfillButton } from "@/components/domain/backfill-button";
 import { PriceTimestamp } from "@/components/domain/price-timestamp";
 
 interface ControlsBarProps {
-  portfolios: string[];
-  selectedPortfolio: string | undefined;
   timestamp: string | null;
 }
 
-export function ControlsBar({
-  portfolios,
-  selectedPortfolio,
-  timestamp,
-}: ControlsBarProps) {
+export function ControlsBar({ timestamp }: ControlsBarProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
@@ -68,11 +61,7 @@ export function ControlsBar({
   }
 
   return (
-    <div className="flex items-center gap-4">
-      <PortfolioSelector
-        portfolios={portfolios}
-        selectedPortfolio={selectedPortfolio}
-      />
+    <div className="flex items-center gap-3">
       <RefreshButton isRefreshing={isRefreshing} onRefresh={handleRefresh} />
       <BackfillButton />
       <PriceTimestamp

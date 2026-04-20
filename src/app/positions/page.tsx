@@ -9,7 +9,6 @@ import {
 } from "@/components/domain/positions-columns";
 import { getTransactionCount } from "@/server/queries/transactions";
 import { getActivePositions, getClosedPositions } from "@/server/queries/positions";
-import { getUniquePortfolios } from "@/server/queries/portfolios";
 import { getStalestMarketDate } from "@/server/queries/market-data";
 
 export default async function PositionsPage({
@@ -29,7 +28,6 @@ export default async function PositionsPage({
 
   const { rows: activeRows, totals: activeTotals } = getActivePositions(portfolioFilter);
   const { rows: closedRows, totals: closedTotals } = getClosedPositions(portfolioFilter);
-  const portfolios = getUniquePortfolios();
   const timestamp = getStalestMarketDate();
 
   const emptyMessage = portfolioFilter
@@ -38,11 +36,7 @@ export default async function PositionsPage({
 
   return (
     <div className="space-y-8">
-      <ControlsBar
-        portfolios={portfolios}
-        selectedPortfolio={portfolioFilter}
-        timestamp={timestamp}
-      />
+      <ControlsBar timestamp={timestamp} />
       <DrillDownPositionsTable
         data={activeRows}
         columns={activePositionsColumns}

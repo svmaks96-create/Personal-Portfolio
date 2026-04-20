@@ -16,17 +16,15 @@ const allItem = { value: ALL_PORTFOLIOS, label: "All Portfolios" };
 
 interface PortfolioSelectorProps {
   portfolios: string[];
-  selectedPortfolio: string | undefined;
 }
 
-export function PortfolioSelector({
-  portfolios,
-  selectedPortfolio,
-}: PortfolioSelectorProps) {
+export function PortfolioSelector({ portfolios }: PortfolioSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+
+  const selectedPortfolio = searchParams.get("portfolio");
 
   const items = [
     allItem,
@@ -50,7 +48,7 @@ export function PortfolioSelector({
 
   return (
     <Select value={currentValue} onValueChange={handleChange} items={items}>
-      <SelectTrigger>
+      <SelectTrigger className="h-9 rounded-md border border-line bg-card px-3.5 text-[13px] font-medium text-foreground hover:bg-pill-bg">
         <SelectValue placeholder="All Portfolios" />
       </SelectTrigger>
       <SelectContent>

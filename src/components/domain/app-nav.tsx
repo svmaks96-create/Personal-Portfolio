@@ -29,17 +29,17 @@ export function AppNav() {
   }
 
   return (
-    <nav className="flex gap-0 -mb-px">
+    <nav className="flex gap-1">
       {tabs.map((tab) => {
         const active = isActive(pathname, tab.href);
         return (
           <Link
             key={tab.href}
             href={buildHref(tab.href)}
-            className={`px-5 py-2.5 text-sm border-b-2 transition-colors ${
+            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
               active
-                ? "border-foreground text-foreground font-medium"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "bg-pill-bg text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label}

@@ -16,9 +16,9 @@ export function MetricCard({
 }: MetricCardProps) {
   const valueColor =
     variant === "pnl" && pnlDirection === "positive"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-pos"
       : variant === "pnl" && pnlDirection === "negative"
-        ? "text-red-600 dark:text-red-400"
+        ? "text-neg"
         : "text-card-foreground";
 
   return (
