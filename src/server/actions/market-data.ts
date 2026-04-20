@@ -16,7 +16,9 @@ import {
   fetchCompanyProfile,
   fetchEtfHoldings,
   fetchExchangeVariants,
+  BENCHMARK_TICKERS,
 } from "@/server/services/fmp";
+import { getEarliestTransactionDate } from "@/server/queries/market-data";
 import { getEtfHoldingsFetchedAt, getVariantsFetchedAt } from "@/server/queries/etf-holdings";
 import {
   getTickerProfilesMap,
@@ -24,23 +26,26 @@ import {
 } from "@/server/queries/ticker-profiles";
 import { and, eq } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
-import type { RefreshResult } from "@/server/types/market-data";
+import type { RefreshResult, BackfillResult } from "@/server/types/market-data";
+import type { FmpEodQuote } from "@/server/types/market-data";
 
 /**
- * Refresh stock prices for all unique tickers in the transactions table.
- * Always writes the latest EOD closing prices, overwriting any stale intraday data.
+ * Refresh stock prices for all unique tickers in the transactions table plus
+ * benchmark ETFs (SPY, QQQ). Writes every daily row returned by FMP — older
+ * dates are preserved in `market_data` so TWRR can chain through them.
  */
 export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
   try {
-    // 1. Get unique tickers from transactions
+    // 1. Get unique tickers from transactions, union benchmarks
     const rows = db.select({ ticker: transactions.ticker }).from(transactions).all();
-    const allTickers = [...new Set(rows.map((r) => r.ticker))];
+    const heldTickers = new Set(rows.map((r) => r.ticker));
+    const allTickers = [...new Set([...heldTickers, ...BENCHMARK_TICKERS])];
 
     if (allTickers.length === 0) {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
 
-    // 2. Fetch official closing prices via FMP EOD light endpoint
+    // 2. Fetch closing prices via FMP EOD light endpoint (default 7-day window).
     const quotes = await fetchStockPrices(allTickers);
 
     if (quotes.length === 0) {
@@ -50,49 +55,15 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       };
     }
 
-    // 3. Keep only the latest date per symbol (most recent close)
-    const latestBySymbol = new Map<string, (typeof quotes)[number]>();
-    for (const q of quotes) {
-      const existing = latestBySymbol.get(q.symbol);
-      if (!existing || q.date > existing.date) {
-        latestBySymbol.set(q.symbol, q);
-      }
-    }
-    const latestQuotes = [...latestBySymbol.values()];
-
-    // 4. Write results to market_data table (atomic, upsert via delete+insert).
+    // 3. Write every (symbol, date) returned, upserting on conflict.
     const fetchedAt = new Date().toISOString();
-    db.transaction((tx) => {
-      for (const quote of latestQuotes) {
-        tx.delete(marketData)
-          .where(
-            and(
-              eq(marketData.symbol, quote.symbol),
-              eq(marketData.type, "stock_price"),
-              eq(marketData.date, quote.date)
-            )
-          )
-          .run();
-        tx.insert(marketData)
-          .values({
-            symbol: quote.symbol,
-            type: "stock_price",
-            date: quote.date,
-            value: quote.price,
-            fetchedAt,
-          })
-          .run();
-      }
-    });
+    const symbolsTouched = upsertMarketDataRows(quotes, "stock_price", fetchedAt);
 
-    // 5. Revalidate
     revalidatePath("/", "layout");
 
-    // 6. Return result
-    const skipped = allTickers.length - latestQuotes.length;
     return {
       success: true,
-      data: { updated: latestQuotes.length, skipped },
+      data: { updated: symbolsTouched, skipped: allTickers.length - symbolsTouched },
     };
   } catch (error) {
     console.error("refreshPrices failed:", error);
@@ -105,7 +76,8 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
 
 /**
  * Refresh FX rates for all unique non-USD currencies in the transactions table.
- * Always writes the latest EOD closing rates, overwriting any stale data.
+ * Writes every daily row returned by FMP — older dates are preserved so TWRR
+ * can value historical positions in USD.
  */
 export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
   try {
@@ -119,7 +91,7 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
 
-    // 2. Fetch official closing FX rates via FMP EOD light endpoint
+    // 2. Fetch closing FX rates via FMP EOD light endpoint (default 7-day window).
     const fxQuotes = await fetchFxRates(allCurrencies);
 
     if (fxQuotes.length === 0) {
@@ -129,55 +101,167 @@ export async function refreshFxRates(): Promise<ActionResult<RefreshResult>> {
       };
     }
 
-    // 3. Keep only the latest date per symbol (most recent close)
-    const latestBySymbol = new Map<string, (typeof fxQuotes)[number]>();
-    for (const q of fxQuotes) {
-      const existing = latestBySymbol.get(q.symbol);
-      if (!existing || q.date > existing.date) {
-        latestBySymbol.set(q.symbol, q);
-      }
-    }
-    const latestQuotes = [...latestBySymbol.values()];
-
-    // 4. Write results to market_data table (atomic, upsert via delete+insert)
+    // 3. Write every (symbol, date) returned.
     const fetchedAt = new Date().toISOString();
-    db.transaction((tx) => {
-      for (const quote of latestQuotes) {
-        tx.delete(marketData)
-          .where(
-            and(
-              eq(marketData.symbol, quote.symbol),
-              eq(marketData.type, "fx_rate"),
-              eq(marketData.date, quote.date)
-            )
-          )
-          .run();
-        tx.insert(marketData)
-          .values({
-            symbol: quote.symbol,
-            type: "fx_rate",
-            date: quote.date,
-            value: quote.price,
-            fetchedAt,
-          })
-          .run();
-      }
-    });
+    const symbolsTouched = upsertMarketDataRows(fxQuotes, "fx_rate", fetchedAt);
 
-    // 5. Revalidate
     revalidatePath("/", "layout");
 
-    // 6. Return result
-    const skipped = allCurrencies.length - latestQuotes.length;
     return {
       success: true,
-      data: { updated: latestQuotes.length, skipped },
+      data: { updated: symbolsTouched, skipped: allCurrencies.length - symbolsTouched },
     };
   } catch (error) {
     console.error("refreshFxRates failed:", error);
     return {
       success: false,
       error: "Unable to fetch FX rates. Please try again.",
+    };
+  }
+}
+
+/**
+ * Upsert FMP EOD quotes into market_data, keyed on (symbol, type, date).
+ * Atomic: wrapped in a single transaction. Returns the count of distinct
+ * symbols that had at least one row written.
+ */
+function upsertMarketDataRows(
+  quotes: FmpEodQuote[],
+  type: "stock_price" | "fx_rate",
+  fetchedAt: string
+): number {
+  if (quotes.length === 0) return 0;
+
+  const symbolsTouched = new Set<string>();
+  db.transaction((tx) => {
+    for (const quote of quotes) {
+      tx.delete(marketData)
+        .where(
+          and(
+            eq(marketData.symbol, quote.symbol),
+            eq(marketData.type, type),
+            eq(marketData.date, quote.date)
+          )
+        )
+        .run();
+      tx.insert(marketData)
+        .values({
+          symbol: quote.symbol,
+          type,
+          date: quote.date,
+          value: quote.price,
+          fetchedAt,
+        })
+        .run();
+      symbolsTouched.add(quote.symbol);
+    }
+  });
+  return symbolsTouched.size;
+}
+
+const BACKFILL_CONCURRENCY = 10;
+
+/**
+ * Run an async fetcher across `items` with bounded concurrency.
+ * Uses Promise.allSettled per chunk so a single failure doesn't drop the rest.
+ * Failed items (rejection or empty result) are reported in `failed`.
+ */
+async function fetchInChunks<T extends string>(
+  items: T[],
+  fetcher: (item: T) => Promise<FmpEodQuote[]>,
+  concurrency: number
+): Promise<{ rows: FmpEodQuote[]; failed: T[] }> {
+  const allRows: FmpEodQuote[] = [];
+  const failed: T[] = [];
+
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(chunk.map((item) => fetcher(item)));
+    for (let j = 0; j < settled.length; j++) {
+      const result = settled[j];
+      const item = chunk[j];
+      if (result.status === "fulfilled" && result.value.length > 0) {
+        allRows.push(...result.value);
+      } else {
+        failed.push(item);
+      }
+    }
+  }
+
+  return { rows: allRows, failed };
+}
+
+/**
+ * One-time-use backfill: fetches the full daily price history for every held
+ * ticker, the benchmark ETFs (SPY, QQQ), and every non-USD FX pair, starting
+ * from the earliest transaction date. Idempotent: re-running upserts the same
+ * (symbol, date) rows. Required to power TWRR / benchmark comparison.
+ */
+export async function backfillHistory(): Promise<ActionResult<BackfillResult>> {
+  try {
+    const earliestDate = getEarliestTransactionDate();
+    if (earliestDate === null) {
+      return {
+        success: false,
+        error: "No transactions found. Import data before backfilling.",
+      };
+    }
+
+    const txRows = db
+      .select({ ticker: transactions.ticker, currency: transactions.currency })
+      .from(transactions)
+      .all();
+
+    const heldTickers = new Set(txRows.map((r) => r.ticker));
+    const tickerSymbols = [...new Set([...heldTickers, ...BENCHMARK_TICKERS])];
+    const fxCurrencies = [...new Set(txRows.map((r) => r.currency))].filter(
+      (c) => c !== "USD"
+    );
+
+    const fetchedAt = new Date().toISOString();
+
+    const stockResult = await fetchInChunks(
+      tickerSymbols,
+      (ticker) => fetchStockPrices([ticker], earliestDate),
+      BACKFILL_CONCURRENCY
+    );
+
+    const fxResult = await fetchInChunks(
+      fxCurrencies,
+      (currency) => fetchFxRates([currency], earliestDate),
+      BACKFILL_CONCURRENCY
+    );
+
+    const stockRowsWritten = stockResult.rows.length;
+    const fxRowsWritten = fxResult.rows.length;
+
+    upsertMarketDataRows(stockResult.rows, "stock_price", fetchedAt);
+    upsertMarketDataRows(fxResult.rows, "fx_rate", fetchedAt);
+
+    revalidatePath("/", "layout");
+
+    const symbolsAttempted = tickerSymbols.length + fxCurrencies.length;
+    const symbolsFailed = [
+      ...stockResult.failed,
+      ...fxResult.failed.map((c) => `${c}USD`),
+    ];
+    const symbolsSucceeded = symbolsAttempted - symbolsFailed.length;
+
+    return {
+      success: true,
+      data: {
+        symbolsAttempted,
+        symbolsSucceeded,
+        symbolsFailed,
+        rowsWritten: stockRowsWritten + fxRowsWritten,
+        earliestDate,
+      },
+    };
+  } catch (error) {
+    console.error("backfillHistory failed:", error);
+    return {
+      success: false,
+      error: "Backfill failed. Please try again.",
     };
   }
 }

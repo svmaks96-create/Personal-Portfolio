@@ -6,17 +6,24 @@ import type { FmpCompanyProfile, FmpEtfHolding, FmpExchangeVariant } from "@/ser
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 const EOD_LOOKBACK_DAYS = 7;
 
+/** Benchmark ETF tickers fetched alongside user holdings for performance comparison. */
+export const BENCHMARK_TICKERS = ["SPY", "QQQ"] as const;
+
 /**
  * Fetch official closing prices for given tickers via FMP EOD light endpoint.
- * Returns daily close data for the last 7 days (covers weekends + extended holidays).
+ * Defaults to the last 7 days. Pass `fromDate` (yyyy-MM-dd) to fetch full history
+ * starting from a specific date — used by the backfill action.
  * Pure function — no DB or framework imports.
  * Returns empty array on empty input or missing API key.
  */
-export async function fetchStockPrices(tickers: string[]): Promise<FmpEodQuote[]> {
+export async function fetchStockPrices(
+  tickers: string[],
+  fromDate?: string
+): Promise<FmpEodQuote[]> {
   if (tickers.length === 0) return [];
   if (!config.fmpApiKey) return [];
 
-  const from = format(subDays(new Date(), EOD_LOOKBACK_DAYS), "yyyy-MM-dd");
+  const from = fromDate ?? format(subDays(new Date(), EOD_LOOKBACK_DAYS), "yyyy-MM-dd");
   const results = await Promise.all(
     tickers.map((ticker) => fetchEodLight(ticker, from))
   );
@@ -27,14 +34,18 @@ export async function fetchStockPrices(tickers: string[]): Promise<FmpEodQuote[]
 /**
  * Fetch official closing FX rates for given non-USD currencies via FMP EOD light endpoint.
  * Currencies should be base currencies (e.g., "GBP", "EUR") — "USD" is appended automatically.
+ * Defaults to the last 7 days. Pass `fromDate` (yyyy-MM-dd) for full history backfill.
  * Pure function — no DB or framework imports.
  * Returns empty array on empty input or missing API key.
  */
-export async function fetchFxRates(currencies: string[]): Promise<FmpEodQuote[]> {
+export async function fetchFxRates(
+  currencies: string[],
+  fromDate?: string
+): Promise<FmpEodQuote[]> {
   if (currencies.length === 0) return [];
   if (!config.fmpApiKey) return [];
 
-  const from = format(subDays(new Date(), EOD_LOOKBACK_DAYS), "yyyy-MM-dd");
+  const from = fromDate ?? format(subDays(new Date(), EOD_LOOKBACK_DAYS), "yyyy-MM-dd");
   const results = await Promise.all(
     currencies.map((currency) => fetchEodLight(`${currency}USD`, from))
   );

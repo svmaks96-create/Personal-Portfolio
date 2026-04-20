@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
 import { marketData, transactions } from "@/server/db/schema";
-import { and, eq, max, inArray, sum, gt, sql } from "drizzle-orm";
+import { and, eq, max, min, inArray, sum, gt, gte, sql, asc } from "drizzle-orm";
+import type { MarketDataInput } from "@/server/types/positions";
 
 /**
  * Get existing (symbol, date) pairs for given symbols and type.
@@ -69,4 +70,63 @@ export function getStalestMarketDate(): string | null {
   }
 
   return stalest;
+}
+
+/**
+ * Earliest transaction date in the ledger as "yyyy-MM-dd", or null if empty.
+ * Used as the `from` parameter for the price-history backfill so it covers
+ * every day a position has existed.
+ */
+export function getEarliestTransactionDate(): string | null {
+  const row = db
+    .select({ earliest: min(transactions.date) })
+    .from(transactions)
+    .get();
+  return row?.earliest ?? null;
+}
+
+/**
+ * Fetch the daily price history for a set of symbols on or after `from`.
+ * Returns a map keyed by symbol to an ascending-by-date array of MarketDataInput.
+ * Used by the TWRR / benchmark performance pipeline.
+ */
+export function getPriceHistory(
+  symbols: string[],
+  type: "stock_price" | "fx_rate",
+  from: string
+): Record<string, MarketDataInput[]> {
+  if (symbols.length === 0) return {};
+
+  const rows = db
+    .select({
+      symbol: marketData.symbol,
+      date: marketData.date,
+      value: marketData.value,
+    })
+    .from(marketData)
+    .where(
+      and(
+        inArray(marketData.symbol, symbols),
+        eq(marketData.type, type),
+        gte(marketData.date, from)
+      )
+    )
+    .orderBy(asc(marketData.symbol), asc(marketData.date))
+    .all();
+
+  const out: Record<string, MarketDataInput[]> = {};
+  for (const row of rows) {
+    const list = out[row.symbol];
+    const point: MarketDataInput = {
+      symbol: row.symbol,
+      date: row.date,
+      value: row.value,
+    };
+    if (list) {
+      list.push(point);
+    } else {
+      out[row.symbol] = [point];
+    }
+  }
+  return out;
 }

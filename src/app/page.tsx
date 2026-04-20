@@ -4,6 +4,8 @@ import { DashboardMetrics } from "@/components/domain/dashboard-metrics";
 import { MetricCardsSkeleton } from "@/components/domain/metric-card-skeleton";
 import { PortfolioConcentration } from "@/components/domain/portfolio-concentration";
 import { ConcentrationChartSkeleton } from "@/components/domain/concentration-chart-skeleton";
+import { PerformanceVsBenchmarks } from "@/components/domain/performance-vs-benchmarks";
+import { PerformanceSkeleton } from "@/components/domain/performance-skeleton";
 import { ControlsBar } from "@/components/domain/controls-bar";
 import { getTransactionCount } from "@/server/queries/transactions";
 import { getUniquePortfolios } from "@/server/queries/portfolios";
@@ -42,6 +44,9 @@ export default async function DashboardPage({
       />
       <Suspense fallback={<MetricCardsSkeleton />}>
         <DashboardMetrics portfolio={portfolioFilter} />
+      </Suspense>
+      <Suspense fallback={<PerformanceSkeleton />}>
+        <PerformanceVsBenchmarks portfolio={portfolioFilter} />
       </Suspense>
       <Suspense fallback={<ConcentrationChartSkeleton />}>
         <PortfolioConcentration portfolio={portfolioFilter} />

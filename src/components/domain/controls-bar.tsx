@@ -9,6 +9,7 @@ import {
 } from "@/server/actions/market-data";
 import { PortfolioSelector } from "@/components/domain/portfolio-selector";
 import { RefreshButton } from "@/components/domain/refresh-button";
+import { BackfillButton } from "@/components/domain/backfill-button";
 import { PriceTimestamp } from "@/components/domain/price-timestamp";
 
 interface ControlsBarProps {
@@ -73,6 +74,7 @@ export function ControlsBar({
         selectedPortfolio={selectedPortfolio}
       />
       <RefreshButton isRefreshing={isRefreshing} onRefresh={handleRefresh} />
+      <BackfillButton />
       <PriceTimestamp
         timestamp={timestamp}
         isRefreshing={isRefreshing}
