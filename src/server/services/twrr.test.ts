@@ -202,11 +202,13 @@ describe("computePortfolioTWRR", () => {
     expect(result.annualizedReturnPct).toBeNull();
   });
 
-  it("(IPO gap) backward-fills first known price for pre-trading subscription days", () => {
+  it("(IPO gap) values pre-listing subscription at cost until quotes begin", () => {
     // Existing AAPL position; IPO subscribed on d2 but first traded on d5.
-    // Without backward-fill, the subscription day's CF lands while IPO MV is 0
-    // → spurious negative return. Backward-fill makes IPO contribute its first
-    // trading-day price across the gap, smoothing the chain to r ≈ 1.0.
+    // Without any gap handling, the subscription day's CF lands while IPO
+    // MV is 0 → spurious negative return. Seeding a synthetic cost-basis
+    // price at the subscription date makes IPO contribute its subscription
+    // price across the gap, netting the CF to r ≈ 1.0 and letting any
+    // listing-day premium show up on the actual listing day.
     const calendar = [
       "2026-01-02",
       "2026-01-05",
@@ -249,15 +251,60 @@ describe("computePortfolioTWRR", () => {
 
     expect(result.series[0].growthOfDollar).toBeCloseTo(1, 9);
     expect(result.series[1].growthOfDollar).toBeCloseTo(1, 9);
-    // Subscription day: backward-fill makes IPO contribute 200*$5=$1000,
-    // exactly netting the +$1000 CF. r = (6000 - 1000) / 5000 = 1.0.
+    // Subscription day: synthetic cost-basis price ($1000/200=$5) makes
+    // IPO contribute $1000, netting the +$1000 CF. r = (6000 - 1000) / 5000 = 1.0.
     expect(result.series[2].growthOfDollar).toBeCloseTo(1, 9);
     expect(result.series[3].growthOfDollar).toBeCloseTo(1, 9);
     expect(result.series[4].growthOfDollar).toBeCloseTo(1, 9);
-    // First real IPO price (d5): same as the backward-filled value, so r=1.
+    // First real IPO price (d5) equals cost basis here, so r=1.
     expect(result.series[5].growthOfDollar).toBeCloseTo(1, 9);
     // d6: AAPL flat, IPO $5 → $5.50. MV: 5000 + 200*5.50 = 6100. r=6100/6000.
     expect(result.series[6].growthOfDollar).toBeCloseTo(6100 / 6000, 9);
+  });
+
+  it("(IPO gap) listing premium lands on listing day, not subscription day", () => {
+    // Regression for the PARKIN-style IPO: subscription price ≠ listing
+    // price. Subscription @ $5, listing @ $7 on d5. The +40% pop must show
+    // up as a return on d5 (listing day), not be collapsed into d2.
+    const calendar = [
+      "2026-01-02",
+      "2026-01-05",
+      "2026-01-07",
+      "2026-01-08",
+      "2026-01-09",
+      "2026-01-12",
+    ];
+    const txns = [
+      tx(1, "2026-01-02", "AAPL", "buy", 100, 5000),
+      tx(2, "2026-01-07", "IPO", "buy", 200, 1000), // $5/share subscription
+    ];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 50],
+        ["2026-01-05", 50],
+        ["2026-01-07", 50],
+        ["2026-01-08", 50],
+        ["2026-01-09", 50],
+        ["2026-01-12", 50],
+      ]),
+      IPO: priceSeries("IPO", [["2026-01-12", 7]]), // lists at $7 (+40%)
+    };
+
+    const result = computePortfolioTWRR(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-12"
+    );
+
+    // Subscription day: IPO valued at cost ($5) → MV=6000, CF=1000, r=1.
+    expect(result.series[2].growthOfDollar).toBeCloseTo(1, 9);
+    expect(result.series[3].growthOfDollar).toBeCloseTo(1, 9);
+    expect(result.series[4].growthOfDollar).toBeCloseTo(1, 9);
+    // Listing day: IPO revalues $5 → $7, MV goes 6000 → 6400, r=6400/6000.
+    expect(result.series[5].growthOfDollar).toBeCloseTo(6400 / 6000, 9);
   });
 
   it("ignores dividends in CF (total-return convention)", () => {

@@ -65,7 +65,7 @@ export function computePortfolioTWRR(
 
   const txByDate = groupTransactionsByDate(transactions);
   const fxByPair = groupFxByPair(fxHistory);
-  const priceLookups = buildPriceLookups(priceHistory);
+  const priceLookups = buildPriceLookups(priceHistory, transactions);
 
   const sharesByTicker = new Map<string, Decimal>();
   const currencyByTicker = new Map<string, string>();
@@ -237,14 +237,51 @@ function groupFxByPair(
 }
 
 function buildPriceLookups(
-  priceHistory: Record<string, MarketDataInput[]>
+  priceHistory: Record<string, MarketDataInput[]>,
+  transactions: TransactionInput[]
 ): Map<string, MarketDataInput[]> {
   const out = new Map<string, MarketDataInput[]>();
   for (const [symbol, rows] of Object.entries(priceHistory)) {
     const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
     out.set(symbol, sorted);
   }
+  seedSyntheticPricesFromFirstBuy(out, transactions);
   return out;
+}
+
+/**
+ * For each ticker, if no quoted price exists at/before its first buy date,
+ * insert a synthetic price at that date using the transaction's effective
+ * cost per share (grossAmount / quantity, in the ticker's currency).
+ *
+ * This handles IPO subscription gaps: shares exist from subscription day
+ * but quotes only begin on listing day. Valuing at cost until quotes start
+ * keeps day-1 TWRR flat and makes the listing-day price move land on the
+ * correct date, instead of collapsing the listing premium into day 1.
+ */
+function seedSyntheticPricesFromFirstBuy(
+  priceLookups: Map<string, MarketDataInput[]>,
+  transactions: TransactionInput[]
+): void {
+  const earliestBuy = new Map<string, TransactionInput>();
+  for (const t of transactions) {
+    if (t.action !== "buy" || t.quantity <= 0) continue;
+    const existing = earliestBuy.get(t.ticker);
+    if (!existing || t.date < existing.date) earliestBuy.set(t.ticker, t);
+  }
+
+  for (const [ticker, t] of earliestBuy) {
+    const list = priceLookups.get(ticker) ?? [];
+    const firstKnownDate = list[0]?.date;
+    if (firstKnownDate !== undefined && firstKnownDate <= t.date) continue;
+    const impliedPrice = t.grossAmount / t.quantity;
+    const synthetic: MarketDataInput = {
+      symbol: ticker,
+      date: t.date,
+      value: impliedPrice,
+    };
+    priceLookups.set(ticker, [synthetic, ...list]);
+  }
 }
 
 function computeMarketValue(
@@ -285,16 +322,18 @@ function forwardFillFxRate(
 ): number | null {
   if (currency === "USD") return 1;
   const list = fxByPair.get(`${currency}USD`);
-  if (!list) return null;
+  if (!list || list.length === 0) return null;
   const idx = lastIndexAtOrBefore(list, targetDate);
-  return idx === -1 ? null : list[idx].value;
+  // If the target date predates our FX history, fall back to the earliest
+  // known rate — FX rates don't have a "listing day" and the nearest
+  // available quote is the best available approximation.
+  return idx === -1 ? list[0].value : list[idx].value;
 }
 
 /**
  * Binary search: index of last entry whose `date <= targetDate`.
- * Falls back to the earliest entry (index 0) when no entry has `date <= target`
- * but the array is non-empty — handles IPO subscription gaps where shares
- * exist before the first quoted price. Returns -1 only when the array is empty.
+ * Returns -1 when no such entry exists (empty array or target predates all
+ * entries). Callers decide how to handle the pre-history case.
  */
 function lastIndexAtOrBefore(
   sorted: MarketDataInput[],
@@ -313,5 +352,5 @@ function lastIndexAtOrBefore(
       hi = mid - 1;
     }
   }
-  return best === -1 ? 0 : best;
+  return best;
 }
