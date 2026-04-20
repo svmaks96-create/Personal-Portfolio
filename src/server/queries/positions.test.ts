@@ -14,14 +14,16 @@ vi.mock("@/server/services/computation", () => ({
   computePositions: vi.fn(),
   computeAggregates: vi.fn(),
   mergePositionsByTicker: vi.fn((positions: unknown[]) => positions),
+  computePortfolioIRR: vi.fn(),
 }));
 
 import { getActivePositions, getClosedPositions } from "./positions";
-import { computePositions, computeAggregates } from "@/server/services/computation";
+import { computePositions, computeAggregates, computePortfolioIRR } from "@/server/services/computation";
 import type { AggregateMetrics, ComputedPosition } from "@/server/types/positions";
 
 const mockComputePositions = vi.mocked(computePositions);
 const mockComputeAggregates = vi.mocked(computeAggregates);
+const mockComputePortfolioIRR = vi.mocked(computePortfolioIRR);
 
 function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPosition {
   return {
@@ -45,6 +47,7 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
     unrealizedPnl: 250,
     currentFxRate: 1,
     cashReturned: 50,
+    irr: null,
     isClosed: false,
     hasInvalidState: false,
     ...overrides,
@@ -164,6 +167,7 @@ describe("getActivePositions", () => {
         { ...b, weight: 60 },
       ],
     });
+    mockComputePortfolioIRR.mockReturnValue(12.5);
 
     const { totals } = getActivePositions();
     expect(totals).not.toBeNull();
@@ -172,8 +176,50 @@ describe("getActivePositions", () => {
     expect(totals!.dividends).toEqual({ value: 50, display: "$50" });
     expect(totals!.sellProceeds).toEqual({ value: 100, display: "$100" });
     expect(totals!.pnl).toEqual({ value: 800, display: "+$800" });
+    expect(totals!.irr).toEqual({ value: 12.5, display: "+13%" });
     // Weight total is the actual sum — deviation from 100% is a bug signal.
     expect(totals!.weight).toEqual({ value: 100, display: "100.0%" });
+  });
+
+  it("totals IRR is computed via computePortfolioIRR over active tickers only", () => {
+    const active = makePosition({ ticker: "AAPL", isClosed: false });
+    const closed = makePosition({ ticker: "MSFT", isClosed: true, sharesHeld: 0 });
+
+    mockComputePositions.mockReturnValue([active, closed]);
+    mockComputeAggregates.mockReturnValue({
+      totalValue: 1750,
+      totalCostBasis: 1500,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 250,
+      positions: [{ ...active, weight: 100 }],
+    });
+    mockComputePortfolioIRR.mockReturnValue(8.2);
+
+    const { totals } = getActivePositions();
+
+    expect(totals!.irr).toEqual({ value: 8.2, display: "+8%" });
+    // Positions passed to computePortfolioIRR should be active-only so no
+    // terminal market value is appended for the closed ticker.
+    const positionsArg = mockComputePortfolioIRR.mock.calls[0][1];
+    expect(positionsArg).toHaveLength(1);
+    expect(positionsArg[0].ticker).toBe("AAPL");
+  });
+
+  it("totals IRR surfaces N/A when solver cannot converge", () => {
+    const a = makePosition({ ticker: "AAPL" });
+    mockComputePositions.mockReturnValue([a]);
+    mockComputeAggregates.mockReturnValue({
+      totalValue: 1750,
+      totalCostBasis: 1500,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 250,
+      positions: [{ ...a, weight: 100 }],
+    });
+    mockComputePortfolioIRR.mockReturnValue(null);
+
+    const { totals } = getActivePositions();
+
+    expect(totals!.irr).toEqual({ value: null, display: "N/A" });
   });
 
   it("totals null-propagate: one null row field forces total null / N/A", () => {
@@ -316,6 +362,7 @@ describe("getClosedPositions", () => {
     const b = makePosition({ ticker: "AMD", isClosed: true, sharesHeld: 0, totalInvested: 1000, totalSellProceeds: 900, totalDividends: 10, totalPnl: -90 });
 
     mockComputePositions.mockReturnValue([a, b]);
+    mockComputePortfolioIRR.mockReturnValue(15.4);
 
     const { totals } = getClosedPositions();
     expect(totals).not.toBeNull();
@@ -323,5 +370,24 @@ describe("getClosedPositions", () => {
     expect(totals!.totalProceeds).toEqual({ value: 3400, display: "$3,400" });
     expect(totals!.dividends).toEqual({ value: 40, display: "$40" });
     expect(totals!.realizedPnl).toEqual({ value: 440, display: "+$440" });
+    expect(totals!.irr).toEqual({ value: 15.4, display: "+15%" });
+  });
+
+  it("totals IRR is computed over closed tickers only (no terminal value appended)", () => {
+    const active = makePosition({ ticker: "AAPL", isClosed: false });
+    const closed = makePosition({ ticker: "TSLA", isClosed: true, sharesHeld: 0 });
+
+    mockComputePositions.mockReturnValue([active, closed]);
+    mockComputePortfolioIRR.mockReturnValue(-5.1);
+
+    const { totals } = getClosedPositions();
+
+    expect(totals!.irr).toEqual({ value: -5.1, display: "-5%" });
+    // Only the closed position should be passed — the active ticker's
+    // transactions must NOT be included in the closed-totals XIRR.
+    const positionsArg = mockComputePortfolioIRR.mock.calls[0][1];
+    expect(positionsArg).toHaveLength(1);
+    expect(positionsArg[0].ticker).toBe("TSLA");
+    expect(positionsArg[0].isClosed).toBe(true);
   });
 });

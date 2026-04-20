@@ -1,4 +1,4 @@
-import { computeAggregates, mergePositionsByTicker } from "@/server/services/computation";
+import { computeAggregates, computePortfolioIRR, mergePositionsByTicker } from "@/server/services/computation";
 import {
   formatCurrency,
   formatCurrencyRounded,
@@ -51,6 +51,7 @@ export interface ActivePositionsTotals {
   dividends: MoneyCell;
   sellProceeds: MoneyCell;
   pnl: MoneyCell;
+  irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
 
@@ -59,6 +60,7 @@ export interface ClosedPositionsTotals {
   totalProceeds: MoneyCell;
   dividends: MoneyCell;
   realizedPnl: MoneyCell;
+  irr: { value: number | null; display: string };
 }
 
 export interface ActivePositionsResult {
@@ -135,12 +137,18 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
   const pnlTotal = sumOrNull(rows, (r) => r.pnl.value);
   const weightTotal = sumOrNull(rows, (r) => r.weight.value);
 
+  // Totals IRR is a fresh XIRR over the slice — per-row IRRs can't be summed.
+  const activeTickers = new Set(activePositions.map((p) => p.ticker));
+  const activeTxns = txInputs.filter((t) => activeTickers.has(t.ticker));
+  const irrTotal = computePortfolioIRR(activeTxns, activePositions, fxRates, today);
+
   const totals: ActivePositionsTotals = {
     costBasis: { value: costBasisTotal, display: formatCurrencyRounded(costBasisTotal) },
     marketValue: { value: marketValueTotal, display: formatCurrencyRounded(marketValueTotal) },
     dividends: { value: dividendsTotal, display: formatCurrencyRounded(dividendsTotal) },
     sellProceeds: { value: sellProceedsTotal, display: formatCurrencyRounded(sellProceedsTotal) },
     pnl: { value: pnlTotal, display: formatPnLRounded(pnlTotal) },
+    irr: { value: irrTotal, display: formatIRRRounded(irrTotal) },
     weight: { value: weightTotal, display: formatPercent(weightTotal) },
   };
 
@@ -178,11 +186,18 @@ export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
   const dividendsSum = sumOrNull(rows, (r) => r.dividends.value);
   const realizedPnlSum = sumOrNull(rows, (r) => r.realizedPnl.value);
 
+  // All positions here are closed, so computePortfolioIRR skips the terminal
+  // market-value step and the XIRR runs over pure realized cashflows.
+  const closedTickers = new Set(closedPositions.map((p) => p.ticker));
+  const closedTxns = txInputs.filter((t) => closedTickers.has(t.ticker));
+  const irrTotal = computePortfolioIRR(closedTxns, closedPositions, fxRates, today);
+
   const totals: ClosedPositionsTotals = {
     totalInvested: { value: totalInvestedSum, display: formatCurrencyRounded(totalInvestedSum) },
     totalProceeds: { value: totalProceedsSum, display: formatCurrencyRounded(totalProceedsSum) },
     dividends: { value: dividendsSum, display: formatCurrencyRounded(dividendsSum) },
     realizedPnl: { value: realizedPnlSum, display: formatPnLRounded(realizedPnlSum) },
+    irr: { value: irrTotal, display: formatIRRRounded(irrTotal) },
   };
 
   return { rows, totals };

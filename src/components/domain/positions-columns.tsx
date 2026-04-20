@@ -259,7 +259,11 @@ export function ActivePositionsTotalsRow({ totals: t }: { totals: ActivePosition
           {t.pnl.display}
         </span>
       </TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>
+        <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>
+          {t.irr.display}
+        </span>
+      </TableCell>
       <TableCell className={totalCellCls}>
         <NumericCell display={t.weight.display} />
       </TableCell>
@@ -288,7 +292,11 @@ export function ClosedPositionsTotalsRow({ totals: t }: { totals: ClosedPosition
           {t.realizedPnl.display}
         </span>
       </TableCell>
-      <TableCell className={totalCellCls}>{DASH}</TableCell>
+      <TableCell className={totalCellCls}>
+        <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>
+          {t.irr.display}
+        </span>
+      </TableCell>
     </TableRow>
   );
 }
