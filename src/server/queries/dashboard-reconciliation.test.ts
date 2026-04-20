@@ -88,4 +88,28 @@ describe("getDashboardMetrics reconciliation", () => {
     // AAPL active in IBKR: 50 × (200 − 120) = $4k.
     expect(all.totalUnrealizedPnl).toBeCloseTo(5000, 6);
   });
+
+  it("totalRealizedPnl + totalUnrealizedPnl equals Σ position.totalPnl", () => {
+    // Ensures nothing is double-counted or dropped between the per-position
+    // realized/unrealized split and the aggregate totals. Regression guard
+    // for future filter/aggregation changes.
+    const all = getDashboardMetrics();
+    const perPositionTotal = all.positions.reduce(
+      (sum, p) => sum + (p.totalPnl ?? 0),
+      0,
+    );
+    const aggregate = (all.totalRealizedPnl ?? 0) + (all.totalUnrealizedPnl ?? 0);
+    expect(aggregate).toBeCloseTo(perPositionTotal, 6);
+  });
+
+  it("per-position realizedPnl + unrealizedPnl equals totalPnl", () => {
+    // Invariant at the position level: the split must add back to the whole.
+    const all = getDashboardMetrics();
+    for (const p of all.positions) {
+      if (p.realizedPnl === null || p.unrealizedPnl === null || p.totalPnl === null) {
+        continue;
+      }
+      expect(p.realizedPnl + p.unrealizedPnl).toBeCloseTo(p.totalPnl, 6);
+    }
+  });
 });
