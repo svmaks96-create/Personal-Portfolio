@@ -7,9 +7,13 @@ import { PERIODS, type Period } from "@/shared/schemas/period";
 
 interface PeriodSelectorProps {
   currentPeriod: Period;
+  paramName?: string;
 }
 
-export function PeriodSelector({ currentPeriod }: PeriodSelectorProps) {
+export function PeriodSelector({
+  currentPeriod,
+  paramName = "period",
+}: PeriodSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -20,9 +24,9 @@ export function PeriodSelector({ currentPeriod }: PeriodSelectorProps) {
     startTransition(() => {
       const params = new URLSearchParams(searchParams.toString());
       if (period === "1Y") {
-        params.delete("period");
+        params.delete(paramName);
       } else {
-        params.set("period", period);
+        params.set(paramName, period);
       }
       const qs = params.toString();
       router.push(qs ? `${pathname}?${qs}` : pathname);

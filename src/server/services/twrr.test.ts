@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   computePortfolioTWRR,
   computeBenchmarkSeries,
+  computeValueVsCostBasisSeries,
   sliceAndReanchor,
 } from "./twrr";
+import { computePositions } from "./computation";
 import type {
   TransactionInput,
   MarketDataInput,
@@ -459,6 +461,243 @@ describe("sliceAndReanchor", () => {
       "2026-01-02",
     );
     expect(out.series).toEqual([]);
+  });
+});
+
+describe("computeValueVsCostBasisSeries", () => {
+  it("single buy then hold: basis flat, value tracks price", () => {
+    const calendar = ["2026-01-02", "2026-01-03", "2026-01-04"];
+    const txns = [tx(1, "2026-01-02", "AAPL", "buy", 10, 1000, { fees: 5 })];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 100],
+        ["2026-01-03", 110],
+        ["2026-01-04", 120],
+      ]),
+    };
+
+    const result = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-04",
+    );
+
+    expect(result).toHaveLength(3);
+    // Cost basis = 1000 + 5 = 1005 on every day
+    expect(result[0].costBasis).toBeCloseTo(1005, 9);
+    expect(result[1].costBasis).toBeCloseTo(1005, 9);
+    expect(result[2].costBasis).toBeCloseTo(1005, 9);
+    // Market value tracks price
+    expect(result[0].portfolioValue).toBeCloseTo(1000, 9);
+    expect(result[1].portfolioValue).toBeCloseTo(1100, 9);
+    expect(result[2].portfolioValue).toBeCloseTo(1200, 9);
+  });
+
+  it("buy then partial sell: basis drops proportionally", () => {
+    const calendar = ["2026-01-02", "2026-01-03", "2026-01-04"];
+    const txns = [
+      tx(1, "2026-01-02", "AAPL", "buy", 10, 1000),
+      tx(2, "2026-01-03", "AAPL", "sell", 5, 600),
+    ];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 100],
+        ["2026-01-03", 120],
+        ["2026-01-04", 120],
+      ]),
+    };
+
+    const result = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-04",
+    );
+
+    // Day 1: buy 10 @ 100 → shares=10, basis=1000
+    expect(result[0].costBasis).toBeCloseTo(1000, 9);
+    // Day 2: sell 5, reduction = (5/10) * 1000 = 500 → basis=500
+    expect(result[1].costBasis).toBeCloseTo(500, 9);
+    expect(result[1].portfolioValue).toBeCloseTo(5 * 120, 9);
+    // Day 3: no tx, basis unchanged
+    expect(result[2].costBasis).toBeCloseTo(500, 9);
+  });
+
+  it("terminal cost basis matches computePositions on same inputs", () => {
+    const calendar = ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"];
+    const txns = [
+      tx(1, "2026-01-02", "AAPL", "buy", 10, 1000, { fees: 2 }),
+      tx(2, "2026-01-03", "AAPL", "buy", 5, 600, { fees: 1 }),
+      tx(3, "2026-01-04", "AAPL", "sell", 3, 400),
+    ];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 100],
+        ["2026-01-03", 120],
+        ["2026-01-04", 130],
+        ["2026-01-05", 130],
+      ]),
+    };
+
+    const series = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-05",
+    );
+
+    // Latest price map shape used by computePositions
+    const priceMap = {
+      AAPL: { symbol: "AAPL", date: "2026-01-05", value: 130 },
+    };
+    const positions = computePositions(txns, priceMap, [], "2026-01-05");
+    const terminalBasis = positions.reduce(
+      (acc, p) => acc + (p.costBasis ?? 0),
+      0,
+    );
+
+    expect(series.at(-1)!.costBasis).toBeCloseTo(terminalBasis, 6);
+  });
+
+  it("dividend does not change cost basis", () => {
+    const calendar = ["2026-01-02", "2026-01-03", "2026-01-04"];
+    const txns = [
+      tx(1, "2026-01-02", "AAPL", "buy", 10, 1000),
+      tx(2, "2026-01-03", "AAPL", "dividend", 0, 50),
+    ];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 100],
+        ["2026-01-03", 100],
+        ["2026-01-04", 100],
+      ]),
+    };
+
+    const result = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-04",
+    );
+
+    expect(result[0].costBasis).toBeCloseTo(1000, 9);
+    expect(result[1].costBasis).toBeCloseTo(1000, 9);
+    expect(result[2].costBasis).toBeCloseTo(1000, 9);
+  });
+
+  it("fee transaction bumps cost basis", () => {
+    const calendar = ["2026-01-02", "2026-01-03"];
+    const txns = [
+      tx(1, "2026-01-02", "AAPL", "buy", 10, 1000),
+      tx(2, "2026-01-03", "AAPL", "fee", 0, 0, { fees: 15 }),
+    ];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 100],
+        ["2026-01-03", 100],
+      ]),
+    };
+
+    const result = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-02",
+      "2026-01-03",
+    );
+
+    expect(result[0].costBasis).toBeCloseTo(1000, 9);
+    expect(result[1].costBasis).toBeCloseTo(1015, 9);
+  });
+
+  it("non-USD basis is FX-converted to USD", () => {
+    const calendar = ["2026-01-02", "2026-01-03"];
+    const txns = [
+      tx(1, "2026-01-02", "VOD.L", "buy", 100, 50, { currency: "GBP" }),
+    ];
+    const prices = {
+      "VOD.L": priceSeries("VOD.L", [
+        ["2026-01-02", 0.5],
+        ["2026-01-03", 0.6],
+      ]),
+    };
+    const fx: FxRateInput[] = [
+      { symbol: "GBPUSD", date: "2026-01-02", value: 1.25 },
+      { symbol: "GBPUSD", date: "2026-01-03", value: 1.25 },
+    ];
+
+    const result = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      fx,
+      calendar,
+      "2026-01-02",
+      "2026-01-03",
+    );
+
+    // Basis: 50 GBP * 1.25 = 62.5 USD
+    expect(result[0].costBasis).toBeCloseTo(62.5, 9);
+    // Value: 100 * 0.5 * 1.25 = 62.5 USD day 1, 100 * 0.6 * 1.25 = 75 USD day 2
+    expect(result[0].portfolioValue).toBeCloseTo(62.5, 9);
+    expect(result[1].portfolioValue).toBeCloseTo(75, 9);
+  });
+
+  it("period window excludes pre-window points but preserves state", () => {
+    // Buy well before window; window should still show the correct basis and value
+    const calendar = [
+      "2026-01-02",
+      "2026-01-03",
+      "2026-01-04",
+      "2026-01-05",
+      "2026-01-06",
+    ];
+    const txns = [tx(1, "2026-01-02", "AAPL", "buy", 10, 1000)];
+    const prices = {
+      AAPL: priceSeries("AAPL", [
+        ["2026-01-02", 100],
+        ["2026-01-03", 110],
+        ["2026-01-04", 120],
+        ["2026-01-05", 130],
+        ["2026-01-06", 140],
+      ]),
+    };
+
+    const result = computeValueVsCostBasisSeries(
+      txns,
+      prices,
+      [],
+      calendar,
+      "2026-01-05",
+      "2026-01-06",
+    );
+
+    expect(result.map((p) => p.date)).toEqual(["2026-01-05", "2026-01-06"]);
+    // Basis established before window (day 1) but still present in all emitted rows
+    expect(result[0].costBasis).toBeCloseTo(1000, 9);
+    expect(result[0].portfolioValue).toBeCloseTo(1300, 9);
+    expect(result[1].portfolioValue).toBeCloseTo(1400, 9);
+  });
+
+  it("returns empty on no transactions", () => {
+    const result = computeValueVsCostBasisSeries(
+      [],
+      {},
+      [],
+      ["2026-01-02"],
+      "2026-01-02",
+      "2026-01-02",
+    );
+    expect(result).toEqual([]);
   });
 });
 

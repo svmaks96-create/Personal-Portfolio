@@ -177,6 +177,121 @@ export function computeBenchmarkSeries(
 }
 
 /**
+ * One trading-day snapshot of portfolio market value and cost basis in USD.
+ */
+export interface ValueVsBasisPoint {
+  date: string;
+  portfolioValue: number;
+  costBasis: number;
+}
+
+/**
+ * Walks the trading calendar forward day by day, maintaining per-ticker
+ * `shares` and `costBasis` state, and emits {portfolioValue, costBasis} in
+ * USD for each date in [startDate, endDate]. Cost-basis semantics match
+ * `computePositions` exactly so the terminal value matches the Cost Basis KPI.
+ *
+ * Rules per transaction (mirroring computation.ts):
+ *   buy:      shares += qty; costBasis += (gross + fees) * fx
+ *   sell:     costBasis -= (qty / sharesPrior) * costBasis; shares -= qty
+ *   fee:      costBasis += fees * fx
+ *   dividend: no effect on cost basis
+ *
+ * Missing FX for a transaction is treated the same way as computation.ts:
+ * shares are still updated, but the cost-basis leg for that transaction is
+ * skipped. Rare and surfaced elsewhere as a data-quality issue.
+ */
+export function computeValueVsCostBasisSeries(
+  transactions: TransactionInput[],
+  priceHistory: Record<string, MarketDataInput[]>,
+  fxHistory: FxRateInput[],
+  tradingCalendar: string[],
+  startDate: string,
+  endDate: string,
+): ValueVsBasisPoint[] {
+  if (tradingCalendar.length === 0 || transactions.length === 0) return [];
+
+  // Walk the whole calendar so per-ticker state accumulates from inception,
+  // but only emit points within [startDate, endDate]. This mirrors how
+  // sliceAndReanchor handles TWRR period slicing.
+  const calendar = tradingCalendar.filter((d) => d <= endDate);
+  if (calendar.length === 0) return [];
+
+  const txByDate = groupTransactionsByDate(transactions);
+  const fxByPair = groupFxByPair(fxHistory);
+  const priceLookups = buildPriceLookups(priceHistory, transactions);
+
+  const sharesByTicker = new Map<string, Decimal>();
+  const costBasisByTicker = new Map<string, Decimal>();
+  const currencyByTicker = new Map<string, string>();
+
+  const series: ValueVsBasisPoint[] = [];
+
+  for (const date of calendar) {
+    const dayTxns = txByDate.get(date) ?? [];
+
+    for (const t of dayTxns) {
+      currencyByTicker.set(t.ticker, t.currency);
+      const fxRate = forwardFillFxRate(fxByPair, t.currency, t.date);
+      const qty = new Decimal(t.quantity);
+      const priorShares = sharesByTicker.get(t.ticker) ?? new Decimal(0);
+      const priorBasis = costBasisByTicker.get(t.ticker) ?? new Decimal(0);
+
+      switch (t.action) {
+        case "buy": {
+          sharesByTicker.set(t.ticker, priorShares.plus(qty));
+          if (fxRate !== null) {
+            const rate = new Decimal(fxRate);
+            const buyCost = new Decimal(t.grossAmount).plus(t.fees).times(rate);
+            costBasisByTicker.set(t.ticker, priorBasis.plus(buyCost));
+          }
+          break;
+        }
+        case "sell": {
+          if (priorShares.greaterThan(0)) {
+            const reduction = qty.div(priorShares).times(priorBasis);
+            costBasisByTicker.set(t.ticker, priorBasis.minus(reduction));
+          }
+          sharesByTicker.set(t.ticker, priorShares.minus(qty));
+          break;
+        }
+        case "fee": {
+          if (fxRate !== null) {
+            const rate = new Decimal(fxRate);
+            const feeUsd = new Decimal(t.fees).times(rate);
+            costBasisByTicker.set(t.ticker, priorBasis.plus(feeUsd));
+          }
+          break;
+        }
+        case "dividend":
+          break;
+      }
+    }
+
+    const mv = computeMarketValue(
+      sharesByTicker,
+      currencyByTicker,
+      priceLookups,
+      fxByPair,
+      date,
+    );
+
+    if (date >= startDate) {
+      let totalBasis = new Decimal(0);
+      for (const basis of costBasisByTicker.values()) totalBasis = totalBasis.plus(basis);
+
+      series.push({
+        date,
+        portfolioValue: mv.toNumber(),
+        costBasis: totalBasis.toNumber(),
+      });
+    }
+  }
+
+  return series;
+}
+
+/**
  * Re-anchors an ITD `TwrrSeries` to a sub-period starting at `periodStart`.
  *
  * TWRR is chain-linked, so for any day B in [periodStart, end]:

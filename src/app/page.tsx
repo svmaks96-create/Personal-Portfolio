@@ -6,6 +6,8 @@ import { PortfolioConcentration } from "@/components/domain/portfolio-concentrat
 import { ConcentrationChartSkeleton } from "@/components/domain/concentration-chart-skeleton";
 import { PerformanceVsBenchmarks } from "@/components/domain/performance-vs-benchmarks";
 import { PerformanceSkeleton } from "@/components/domain/performance-skeleton";
+import { PortfolioValueVsBasis } from "@/components/domain/portfolio-value-vs-basis";
+import { ValueVsBasisSkeleton } from "@/components/domain/value-vs-basis-skeleton";
 import { ControlsBar } from "@/components/domain/controls-bar";
 import { TerminalHeading } from "@/components/domain/terminal-heading";
 import { getTransactionCount } from "@/server/queries/transactions";
@@ -29,10 +31,15 @@ export default async function DashboardPage({
     );
   }
 
-  const { portfolio, period: periodRaw } = await searchParams;
+  const {
+    portfolio,
+    period: periodRaw,
+    valuePeriod: valuePeriodRaw,
+  } = await searchParams;
   const portfolioFilter =
     typeof portfolio === "string" ? portfolio : undefined;
   const period = periodSchema.catch("1Y").parse(periodRaw);
+  const valuePeriod = periodSchema.catch("1Y").parse(valuePeriodRaw);
 
   const timestamp = getStalestMarketDate();
 
@@ -42,6 +49,9 @@ export default async function DashboardPage({
       <ControlsBar timestamp={timestamp} />
       <Suspense fallback={<MetricCardsSkeleton />}>
         <DashboardMetrics portfolio={portfolioFilter} />
+      </Suspense>
+      <Suspense fallback={<ValueVsBasisSkeleton />}>
+        <PortfolioValueVsBasis portfolio={portfolioFilter} period={valuePeriod} />
       </Suspense>
       <div className="grid grid-cols-[1.6fr_1fr] gap-4">
         <Suspense fallback={<PerformanceSkeleton />}>
