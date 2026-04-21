@@ -32,7 +32,7 @@ export default async function DashboardPage({
   const { portfolio, period: periodRaw } = await searchParams;
   const portfolioFilter =
     typeof portfolio === "string" ? portfolio : undefined;
-  const period = periodSchema.catch("ITD").parse(periodRaw);
+  const period = periodSchema.catch("1Y").parse(periodRaw);
 
   const timestamp = getStalestMarketDate();
 

@@ -19,7 +19,7 @@ export function PeriodSelector({ currentPeriod }: PeriodSelectorProps) {
     if (period === currentPeriod) return;
     startTransition(() => {
       const params = new URLSearchParams(searchParams.toString());
-      if (period === "ITD") {
+      if (period === "1Y") {
         params.delete("period");
       } else {
         params.set("period", period);

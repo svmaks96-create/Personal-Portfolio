@@ -20,6 +20,8 @@ export function resolvePeriodStart(
         return startOfYear(today);
       case "1Y":
         return subYears(today, 1);
+      case "3Y":
+        return subYears(today, 3);
       case "ITD":
         return null;
     }
@@ -34,6 +36,7 @@ const SUBTITLES: Record<Period, string> = {
   "1M": "over the last month",
   YTD: "year-to-date",
   "1Y": "over the last year",
+  "3Y": "over the last 3 years",
   ITD: "since the first transaction",
 };
 

@@ -55,7 +55,7 @@ function emptySeries(): TwrrSeries {
 
 export function getPerformanceData(
   portfolio?: string,
-  period: Period = "ITD",
+  period: Period = "1Y",
 ): PerformanceData {
   const earliest = getEarliestTransactionDate();
   if (earliest === null) return EMPTY;
