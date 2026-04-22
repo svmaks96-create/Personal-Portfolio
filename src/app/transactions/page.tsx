@@ -97,17 +97,20 @@ export default async function TransactionsPage({
       label: "Buys",
       value: String(summary.buys),
       sub: `Net out ${formatCurrencyRounded(summary.buyNet)}`,
+      privateSub: true,
     },
     {
       label: "Sells",
       value: String(summary.sells),
       sub: `Net in ${formatCurrencyRounded(summary.sellNet)}`,
+      privateSub: true,
     },
     {
       label: "Dividends",
       value: String(summary.dividends),
       valueTone: summary.dividends > 0 ? "pos" : null,
       sub: `Collected ${formatCurrencyRounded(summary.divNet)}`,
+      privateSub: true,
     },
     {
       label: "Tickers",

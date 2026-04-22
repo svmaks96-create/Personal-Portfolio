@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { AppNav } from "@/components/domain/app-nav";
+import { DemoModeToggle } from "@/components/domain/demo-mode-toggle";
 import { PortfolioSelector } from "@/components/domain/portfolio-selector";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -44,6 +45,14 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('demo-mode')!=='false')document.documentElement.classList.add('demo-mode')}catch(_){document.documentElement.classList.add('demo-mode')}",
+          }}
+        />
+      </head>
       <body className="min-h-full bg-background font-sans">
         <ThemeProvider>
           <header className="sticky top-0 z-10 border-b border-line-soft bg-background">
@@ -79,6 +88,7 @@ export default function RootLayout({
                 <Suspense>
                   <PortfolioSelector portfolios={portfolios} />
                 </Suspense>
+                <DemoModeToggle />
                 <ThemeToggle />
               </div>
             </div>

@@ -7,8 +7,10 @@ export interface TerminalKpiCell {
   label: string;
   value: string;
   valueTone?: KpiTone;
+  privateValue?: boolean;
   sub?: string;
   subTone?: KpiTone;
+  privateSub?: boolean;
   extra?: ReactNode;
 }
 
@@ -53,7 +55,11 @@ export function TerminalKpiStrip({ cells, columns, className }: TerminalKpiStrip
               toneClass(cell.valueTone, "value"),
             )}
           >
-            {cell.value}
+            {cell.privateValue ? (
+              <span className="demo-mask">{cell.value}</span>
+            ) : (
+              cell.value
+            )}
           </div>
           {cell.sub ? (
             <div
@@ -62,7 +68,11 @@ export function TerminalKpiStrip({ cells, columns, className }: TerminalKpiStrip
                 toneClass(cell.subTone, "sub"),
               )}
             >
-              {cell.sub}
+              {cell.privateSub ? (
+                <span className="demo-mask">{cell.sub}</span>
+              ) : (
+                cell.sub
+              )}
             </div>
           ) : null}
           {cell.extra}

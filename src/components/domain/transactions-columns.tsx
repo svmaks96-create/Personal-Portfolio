@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { TransactionRow } from "@/server/queries/transactions";
 import { EditableCell } from "@/components/domain/editable-cell";
 import { NumericCell } from "@/components/domain/numeric-cell";
+import { Private } from "@/components/domain/private";
 import { ACTION_OPTIONS } from "@/shared/schemas/transaction-fields";
 import { cn } from "@/lib/utils";
 
@@ -179,6 +180,8 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
           row.original.grossAmount.display,
           "number",
           ctx,
+          undefined,
+          <Private>{row.original.grossAmount.display}</Private>,
         ),
       meta: { align: "center" as const },
     },
@@ -195,6 +198,8 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
           row.original.fees.display,
           "number",
           ctx,
+          undefined,
+          <Private>{row.original.fees.display}</Private>,
         ),
       meta: { align: "center" as const },
     },
@@ -203,14 +208,16 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
       header: "Net Amount",
       accessorFn: (row) => row.netAmount.value,
       cell: ({ row }) => (
-        <span
-          className={cn(
-            "tabular-nums",
-            row.original.action === "dividend" && "text-pos",
-          )}
-        >
-          {row.original.netAmount.display}
-        </span>
+        <Private>
+          <span
+            className={cn(
+              "tabular-nums",
+              row.original.action === "dividend" && "text-pos",
+            )}
+          >
+            {row.original.netAmount.display}
+          </span>
+        </Private>
       ),
       meta: { align: "center" as const },
     },

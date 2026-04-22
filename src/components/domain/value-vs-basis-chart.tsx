@@ -46,7 +46,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
             style={{ backgroundColor: entry.color }}
           />
           <span className="text-muted-foreground">{entry.name}:</span>
-          <span className="text-foreground">{formatCurrency(entry.value)}</span>
+          <span className="demo-mask text-foreground">{formatCurrency(entry.value)}</span>
         </p>
       ))}
     </div>
@@ -63,7 +63,7 @@ export function ValueVsBasisChart({ data }: ValueVsBasisChartProps) {
   }
 
   return (
-    <div className="h-[280px] w-full">
+    <div className="demo-mask-chart-y h-[280px] w-full">
       <ResponsiveContainer
         width="100%"
         height="100%"

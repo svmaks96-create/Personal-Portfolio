@@ -1,6 +1,7 @@
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 import { ValueVsBasisChart } from "@/components/domain/value-vs-basis-chart";
 import { PeriodSelector } from "@/components/domain/period-selector";
+import { Private } from "@/components/domain/private";
 import { getValueHistoryData } from "@/server/queries/value-history";
 import { formatCurrencyRounded } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,7 @@ function LegendItem({ label, value, color, dashed }: LegendItemProps) {
         {label}
       </span>
       <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground">
-        {formatCurrencyRounded(value)}
+        <Private>{formatCurrencyRounded(value)}</Private>
       </span>
     </div>
   );

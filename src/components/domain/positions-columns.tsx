@@ -9,6 +9,7 @@ import type {
   ClosedPositionsTotals,
 } from "@/server/queries/positions";
 import { NumericCell } from "@/components/domain/numeric-cell";
+import { Private } from "@/components/domain/private";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { pnlColorClass } from "@/lib/pnl";
 
@@ -97,7 +98,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "Cost Basis",
     accessorFn: (row) => row.costBasis.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.costBasis.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.costBasis.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -105,7 +110,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "Mkt Value",
     accessorFn: (row) => row.marketValue.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.marketValue.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.marketValue.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -113,7 +122,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "Dividends",
     accessorFn: (row) => row.dividends.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.dividends.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.dividends.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -121,7 +134,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "Sell Proceeds",
     accessorFn: (row) => row.sellProceeds.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.sellProceeds.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.sellProceeds.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -130,9 +147,11 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     accessorFn: (row) => row.pnl.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => (
-      <span className={`tabular-nums ${pnlColorClass(row.original.pnl.value)}`}>
-        {row.original.pnl.display}
-      </span>
+      <Private>
+        <span className={`tabular-nums ${pnlColorClass(row.original.pnl.value)}`}>
+          {row.original.pnl.display}
+        </span>
+      </Private>
     ),
     meta: { align: "center" as const },
   },
@@ -199,7 +218,11 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     header: "Total Invested",
     accessorFn: (row) => row.totalInvested.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.totalInvested.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.totalInvested.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -207,7 +230,11 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     header: "Total Proceeds",
     accessorFn: (row) => row.totalProceeds.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.totalProceeds.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.totalProceeds.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -215,7 +242,11 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     header: "Dividends",
     accessorFn: (row) => row.dividends.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => <NumericCell display={row.original.dividends.display} />,
+    cell: ({ row }) => (
+      <Private>
+        <NumericCell display={row.original.dividends.display} />
+      </Private>
+    ),
     meta: { align: "center" as const },
   },
   {
@@ -224,9 +255,11 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     accessorFn: (row) => row.realizedPnl.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => (
-      <span className={`tabular-nums ${pnlColorClass(row.original.realizedPnl.value)}`}>
-        {row.original.realizedPnl.display}
-      </span>
+      <Private>
+        <span className={`tabular-nums ${pnlColorClass(row.original.realizedPnl.value)}`}>
+          {row.original.realizedPnl.display}
+        </span>
+      </Private>
     ),
     meta: { align: "center" as const },
   },
@@ -261,21 +294,31 @@ export function ActivePositionsTotalsRow({ totals: t }: { totals: ActivePosition
       <TableCell className={totalDashCls}>{DASH}</TableCell>
       <TableCell className={totalDashCls}>{DASH}</TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.costBasis.display} />
+        <Private>
+          <NumericCell display={t.costBasis.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.marketValue.display} />
+        <Private>
+          <NumericCell display={t.marketValue.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.dividends.display} />
+        <Private>
+          <NumericCell display={t.dividends.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.sellProceeds.display} />
+        <Private>
+          <NumericCell display={t.sellProceeds.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <span className={`tabular-nums ${pnlColorClass(t.pnl.value)}`}>
-          {t.pnl.display}
-        </span>
+        <Private>
+          <span className={`tabular-nums ${pnlColorClass(t.pnl.value)}`}>
+            {t.pnl.display}
+          </span>
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>
@@ -297,18 +340,26 @@ export function ClosedPositionsTotalsRow({ totals: t }: { totals: ClosedPosition
       <TableCell className={totalDashCls}>{DASH}</TableCell>
       <TableCell className={totalDashCls}>{DASH}</TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.totalInvested.display} />
+        <Private>
+          <NumericCell display={t.totalInvested.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.totalProceeds.display} />
+        <Private>
+          <NumericCell display={t.totalProceeds.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <NumericCell display={t.dividends.display} />
+        <Private>
+          <NumericCell display={t.dividends.display} />
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
-        <span className={`tabular-nums ${pnlColorClass(t.realizedPnl.value)}`}>
-          {t.realizedPnl.display}
-        </span>
+        <Private>
+          <span className={`tabular-nums ${pnlColorClass(t.realizedPnl.value)}`}>
+            {t.realizedPnl.display}
+          </span>
+        </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>

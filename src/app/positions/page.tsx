@@ -94,22 +94,26 @@ export default async function PositionsPage({
       label: "Active Positions",
       value: String(activeCount),
       sub: `Total market value ${totalMarketValueDisplay}`,
+      privateSub: true,
     },
     {
       label: "Unrealized P&L",
       value: unrealizedPnlDisplay,
       valueTone: toTone(unrealizedPnlValue),
+      privateValue: true,
       sub: unrealizedSub,
     },
     {
       label: "Realized P&L",
       value: realizedPnlDisplay,
       valueTone: toTone(realizedPnlValue),
+      privateValue: true,
       sub: `Across ${closedCount} closed`,
     },
     {
       label: "Dividends Collected",
       value: formatCurrencyRounded(totalDividends),
+      privateValue: true,
       sub: "Lifetime",
     },
   ];

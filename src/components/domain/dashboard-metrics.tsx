@@ -49,6 +49,7 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
     {
       label: "Total Value",
       value: formatCurrencyRounded(metrics.totalValue),
+      privateValue: true,
       extra:
         sparkData.length >= 2 ? (
           <div className="mt-1">
@@ -66,18 +67,21 @@ export async function DashboardMetrics({ portfolio }: DashboardMetricsProps) {
     {
       label: "Cost Basis",
       value: formatCurrencyRounded(metrics.totalCostBasis),
+      privateValue: true,
       sub: `${activePositions} position${activePositions === 1 ? "" : "s"}`,
     },
     {
       label: "Unrealized P&L",
       value: formatPnLRounded(metrics.totalUnrealizedPnl),
       valueTone: toTone(metrics.totalUnrealizedPnl),
+      privateValue: true,
       sub: unrealizedSub,
     },
     {
       label: "Realized P&L",
       value: formatPnLRounded(metrics.totalRealizedPnl),
       valueTone: toTone(metrics.totalRealizedPnl),
+      privateValue: true,
       sub: "Lifetime",
     },
     {
