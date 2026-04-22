@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db } from "@/server/db";
 import { transactions, marketData } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -20,7 +21,7 @@ export interface PositionInputs {
   nameMap: Record<string, string>;
 }
 
-export function fetchPositionInputs(portfolio?: string): PositionInputs {
+export const fetchPositionInputs = cache((portfolio?: string): PositionInputs => {
   // 1. Fetch transactions
   const txRows = portfolio
     ? db.select().from(transactions).where(eq(transactions.portfolio, portfolio)).all()
@@ -84,4 +85,4 @@ export function fetchPositionInputs(portfolio?: string): PositionInputs {
   const positions = computePositions(txInputs, priceMap, fxRates, today);
 
   return { txInputs, priceMap, fxRates, today, positions, nameMap };
-}
+});

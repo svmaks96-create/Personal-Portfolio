@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db } from "@/server/db";
 import { tickerProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,7 +11,7 @@ export interface TickerProfile {
 /**
  * Get all cached ticker profiles as a map from ticker to profile.
  */
-export function getTickerProfilesMap(): Record<string, TickerProfile> {
+export const getTickerProfilesMap = cache((): Record<string, TickerProfile> => {
   const rows = db
     .select({
       ticker: tickerProfiles.ticker,
@@ -25,7 +26,7 @@ export function getTickerProfilesMap(): Record<string, TickerProfile> {
     map[row.ticker] = { name: row.name, isEtf: row.isEtf };
   }
   return map;
-}
+});
 
 /**
  * Get the fetchedAt timestamp for a ticker's cached profile.

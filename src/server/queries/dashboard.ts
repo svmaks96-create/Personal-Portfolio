@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { computeAggregates, computePortfolioIRR, mergePositionsByTicker, computeConcentration } from "@/server/services/computation";
 import { getEtfHoldingsMap, getVariantToTickerMap } from "@/server/queries/etf-holdings";
 import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
@@ -5,7 +6,7 @@ import { formatPercent } from "@/lib/formatting";
 import type { AggregateMetrics } from "@/server/types/positions";
 import type { ConcentrationData } from "@/server/types/concentration";
 
-export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
+export const getDashboardMetrics = cache((portfolio?: string): AggregateMetrics => {
   const { txInputs, fxRates, today, positions: allPositions } = fetchPositionInputs(portfolio);
   // Merge all positions by ticker so a ticker active in one portfolio but
   // closed in another resolves to a single row. We aggregate over merged
@@ -22,9 +23,9 @@ export function getDashboardMetrics(portfolio?: string): AggregateMetrics {
   aggregates.irr = computePortfolioIRR(txInputs, allPositions, fxRates, today);
 
   return aggregates;
-}
+});
 
-export function getConcentrationData(portfolio?: string): ConcentrationData {
+export const getConcentrationData = cache((portfolio?: string): ConcentrationData => {
   const metrics = getDashboardMetrics(portfolio);
   const activePositions = metrics.positions.filter((p) => !p.isClosed);
 
@@ -47,4 +48,4 @@ export function getConcentrationData(portfolio?: string): ConcentrationData {
   }));
 
   return { holdings, etfTickers };
-}
+});
