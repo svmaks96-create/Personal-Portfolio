@@ -6,6 +6,7 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   flexRender,
+  type Table as TanstackTable,
   type SortingState,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown } from "lucide-react";
@@ -33,7 +34,10 @@ import {
   updateAllocationTarget,
   deleteAllocationTarget,
 } from "@/server/actions/allocation-targets";
-import { getAllocationColumns } from "@/components/domain/allocation-columns";
+import {
+  getTickerAllocationColumns,
+  getCashAllocationColumns,
+} from "@/components/domain/allocation-columns";
 import { formatCurrency, formatPercent } from "@/lib/formatting";
 import { Private } from "@/components/domain/private";
 import type { AllocationTargetRow } from "@/server/queries/allocation-targets";
@@ -69,8 +73,11 @@ export function AllocationEditor({
   const [editingCell, setEditingCell] = useState<{ rowId: number; field: string } | null>(null);
   const [cellError, setCellError] = useState<{ rowId: number; field: string; message: string } | null>(null);
   const [highlightedCells, setHighlightedCells] = useState<Set<string>>(new Set());
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "kind", desc: true },
+  const [tickerSorting, setTickerSorting] = useState<SortingState>([
+    { id: "targetWeight", desc: true },
+  ]);
+  const [cashSorting, setCashSorting] = useState<SortingState>([
+    { id: "targetWeight", desc: true },
   ]);
   const [addForm, setAddForm] = useState<AddForm | null>(null);
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
@@ -215,49 +222,67 @@ export function AllocationEditor({
     }
   }
 
-  function updateAddField<K extends keyof (AddForm & { cashAmountUsd?: string })>(
-    key: K,
-    value: string,
-  ) {
+  function updateAddField(key: string, value: string) {
     if (!addForm) return;
     setAddForm({ ...addForm, [key]: value } as AddForm);
     setAddErrors((prev) => {
       const next = { ...prev };
-      delete next[key as string];
+      delete next[key];
       return next;
     });
   }
 
-  const columns = useMemo(
-    () =>
-      getAllocationColumns({
-        editingCell,
-        cellError,
-        highlightedCells,
-        onStartEdit: handleStartEdit,
-        onSave: handleSaveCell,
-        onCancel: handleCancelEdit,
-        onTabToNext: handleTabToNext,
-        onDeleteClick: handleDeleteClick,
-        isDeleting,
-      }),
+  const columnCtx = {
+    editingCell,
+    cellError,
+    highlightedCells,
+    onStartEdit: handleStartEdit,
+    onSave: handleSaveCell,
+    onCancel: handleCancelEdit,
+    onTabToNext: handleTabToNext,
+    onDeleteClick: handleDeleteClick,
+    isDeleting,
+  };
+
+  const tickerColumns = useMemo(
+    () => getTickerAllocationColumns(columnCtx),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editingCell, cellError, highlightedCells, isDeleting],
+  );
+  const cashColumns = useMemo(
+    () => getCashAllocationColumns(columnCtx),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [editingCell, cellError, highlightedCells, isDeleting],
   );
 
-  const table = useReactTable({
-    data: rows,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
+  const tickerRows = useMemo(
+    () => rows.filter((r) => r.kind === "ticker"),
+    [rows],
+  );
+  const cashRows = useMemo(
+    () => rows.filter((r) => r.kind === "cash"),
+    [rows],
+  );
+
+  const tickerTable = useReactTable({
+    data: tickerRows,
+    columns: tickerColumns,
+    state: { sorting: tickerSorting },
+    onSortingChange: setTickerSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const cashTable = useReactTable({
+    data: cashRows,
+    columns: cashColumns,
+    state: { sorting: cashSorting },
+    onSortingChange: setCashSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
   const sumOk = sumIsOneHundred(totalTargetWeight);
-  const addColumnCount = 5;
-
-  const inputClasses =
-    "w-full h-7 px-1 text-[14px] bg-card rounded ring-1 ring-foreground outline-none";
 
   return (
     <div className="border border-line bg-panel">
@@ -289,7 +314,7 @@ export function AllocationEditor({
             <Private>{formatCurrency(totalCashUsd)}</Private>
           </div>
           <div className="font-mono text-[10px] tracking-[0.05em] text-muted-foreground">
-            {rows.filter((r) => r.kind === "cash").length} account{rows.filter((r) => r.kind === "cash").length === 1 ? "" : "s"}
+            {cashRows.length} account{cashRows.length === 1 ? "" : "s"}
           </div>
         </div>
       </div>
@@ -318,185 +343,55 @@ export function AllocationEditor({
         </button>
       </div>
 
-      {/* Table */}
-      <Table className="table-fixed font-mono tabular-nums">
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow
-              key={headerGroup.id}
-              className="border-b border-line bg-panel-strong hover:bg-panel-strong"
-            >
-              {headerGroup.headers.map((header) => {
-                const align =
-                  (header.column.columnDef.meta as { align?: string })?.align;
-                const sorted = header.column.getIsSorted();
-                return (
-                  <TableHead
-                    key={header.id}
-                    className={cn(
-                      "h-auto cursor-pointer select-none px-3.5 py-2 font-mono text-[9px] font-normal uppercase tracking-[0.22em] text-muted-foreground",
-                      align === "left" ? "text-left" : "text-center",
-                    )}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1",
-                        align === "left" ? "" : "justify-center",
-                      )}
-                    >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                      {sorted === "asc" && <ChevronUp className="h-3 w-3" />}
-                      {sorted === "desc" && <ChevronDown className="h-3 w-3" />}
-                    </span>
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {addForm && (
-            <>
-              <TableRow className="h-10 border-b border-line bg-panel-strong">
-                <TableCell className="text-center">
-                  <span
-                    className={cn(
-                      "inline-block border px-2 py-[1px] font-mono text-[10px] uppercase tracking-[0.12em]",
-                      addForm.kind === "ticker"
-                        ? "text-foreground border-foreground"
-                        : "text-muted-foreground border-line",
-                    )}
-                  >
-                    {addForm.kind === "ticker" ? "TICKER" : "CASH"}
-                  </span>
-                </TableCell>
-                <TableCell className="text-left">
-                  <input
-                    type="text"
-                    className={inputClasses}
-                    value={addForm.name}
-                    onChange={(e) => updateAddField("name", e.target.value)}
-                    placeholder={addForm.kind === "ticker" ? "AAPL" : "Schwab Cash"}
-                    autoFocus
-                  />
-                  {addErrors.name && (
-                    <span className="block text-red-500 dark:text-red-400 text-xs">
-                      {addErrors.name}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="text-center">
-                  <input
-                    type="number"
-                    step="0.01"
-                    className={cn(inputClasses, "tabular-nums")}
-                    value={addForm.targetWeight}
-                    onChange={(e) => updateAddField("targetWeight", e.target.value)}
-                    placeholder="0"
-                  />
-                  {addErrors.targetWeight && (
-                    <span className="block text-red-500 dark:text-red-400 text-xs">
-                      {addErrors.targetWeight}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="text-center">
-                  {addForm.kind === "cash" ? (
-                    <>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className={cn(inputClasses, "tabular-nums")}
-                        value={addForm.cashAmountUsd}
-                        onChange={(e) => updateAddField("cashAmountUsd", e.target.value)}
-                        placeholder="0.00"
-                      />
-                      {addErrors.cashAmountUsd && (
-                        <span className="block text-red-500 dark:text-red-400 text-xs">
-                          {addErrors.cashAmountUsd}
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">{"—"}</span>
-                  )}
-                </TableCell>
-                <TableCell />
-              </TableRow>
-              {addErrors._form && (
-                <TableRow className="border-b border-line">
-                  <TableCell colSpan={addColumnCount} className="py-1 px-4">
-                    <span className="text-red-500 dark:text-red-400 text-xs">
-                      {addErrors._form}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              )}
-              <TableRow className="border-b border-line">
-                <TableCell colSpan={addColumnCount} className="py-2 px-4">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={handleSubmitAdd}
-                      className="border border-foreground bg-foreground px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-background hover:opacity-90 disabled:opacity-35"
-                    >
-                      {isSaving ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={() => {
-                        setAddForm(null);
-                        setAddErrors({});
-                      }}
-                      className="border border-line bg-panel px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground disabled:opacity-35"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </>
-          )}
-          {rows.length === 0 && !addForm && (
-            <TableRow>
-              <TableCell
-                colSpan={addColumnCount}
-                className="py-12 text-center font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground"
-              >
-                No allocation targets yet. Add a ticker or cash account to begin.
-              </TableCell>
-            </TableRow>
-          )}
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              className="border-b border-line transition-colors hover:bg-panel-strong"
-            >
-              {row.getVisibleCells().map((cell) => {
-                const align =
-                  (cell.column.columnDef.meta as { align?: string })?.align;
-                return (
-                  <TableCell
-                    key={cell.id}
-                    className={cn(
-                      "px-3.5 py-[7px] font-mono text-[12px] text-foreground",
-                      align === "left" ? "text-left" : "text-center",
-                    )}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <AllocationTableSection
+        label="Tickers"
+        rowCount={tickerRows.length}
+        table={tickerTable}
+        columnCount={tickerColumns.length}
+        emptyMessage="No tickers yet. Click + Ticker to add one."
+        showAddForm={addForm?.kind === "ticker"}
+        renderAddRow={() =>
+          addForm?.kind === "ticker" ? (
+            <TickerAddRow
+              addForm={addForm}
+              addErrors={addErrors}
+              isSaving={isSaving}
+              updateAddField={updateAddField}
+              onSubmit={handleSubmitAdd}
+              onCancel={() => {
+                setAddForm(null);
+                setAddErrors({});
+              }}
+              columnCount={tickerColumns.length}
+            />
+          ) : null
+        }
+      />
+
+      <AllocationTableSection
+        label="Cash Accounts"
+        rowCount={cashRows.length}
+        table={cashTable}
+        columnCount={cashColumns.length}
+        emptyMessage="No cash accounts yet. Click + Cash Account to add one."
+        showAddForm={addForm?.kind === "cash"}
+        renderAddRow={() =>
+          addForm?.kind === "cash" ? (
+            <CashAddRow
+              addForm={addForm}
+              addErrors={addErrors}
+              isSaving={isSaving}
+              updateAddField={updateAddField}
+              onSubmit={handleSubmitAdd}
+              onCancel={() => {
+                setAddForm(null);
+                setAddErrors({});
+              }}
+              columnCount={cashColumns.length}
+            />
+          ) : null
+        }
+      />
 
       {/* Footer hint */}
       <div className="flex items-center justify-between border-t border-line px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -543,3 +438,309 @@ export function AllocationEditor({
     </div>
   );
 }
+
+interface AllocationTableSectionProps {
+  label: string;
+  rowCount: number;
+  table: TanstackTable<AllocationTargetRow>;
+  columnCount: number;
+  emptyMessage: string;
+  showAddForm: boolean;
+  renderAddRow: () => React.ReactNode;
+}
+
+function AllocationTableSection({
+  label,
+  rowCount,
+  table,
+  columnCount,
+  emptyMessage,
+  showAddForm,
+  renderAddRow,
+}: AllocationTableSectionProps) {
+  return (
+    <div className="border-b border-line last:border-b-0">
+      <div className="flex items-center justify-between border-b border-line bg-panel-strong px-3.5 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-foreground">
+          {label}
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          {rowCount} row{rowCount === 1 ? "" : "s"}
+        </span>
+      </div>
+      <Table className="table-fixed font-mono tabular-nums">
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow
+              key={headerGroup.id}
+              className="border-b border-line bg-panel-strong hover:bg-panel-strong"
+            >
+              {headerGroup.headers.map((header) => {
+                const align =
+                  (header.column.columnDef.meta as { align?: string })?.align;
+                const sorted = header.column.getIsSorted();
+                return (
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      "h-auto cursor-pointer select-none px-3.5 py-2 font-mono text-[9px] font-normal uppercase tracking-[0.22em] text-muted-foreground",
+                      align === "left" ? "text-left" : "text-center",
+                    )}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1",
+                        align === "left" ? "" : "justify-center",
+                      )}
+                    >
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                      {sorted === "asc" && <ChevronUp className="h-3 w-3" />}
+                      {sorted === "desc" && <ChevronDown className="h-3 w-3" />}
+                    </span>
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {showAddForm && renderAddRow()}
+          {rowCount === 0 && !showAddForm && (
+            <TableRow>
+              <TableCell
+                colSpan={columnCount}
+                className="py-10 text-center font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground"
+              >
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          )}
+          {table.getRowModel().rows.map((row) => (
+            <TableRow
+              key={row.id}
+              className="border-b border-line transition-colors hover:bg-panel-strong last:border-b-0"
+            >
+              {row.getVisibleCells().map((cell) => {
+                const align =
+                  (cell.column.columnDef.meta as { align?: string })?.align;
+                return (
+                  <TableCell
+                    key={cell.id}
+                    className={cn(
+                      "px-3.5 py-[7px] font-mono text-[12px] text-foreground",
+                      align === "left" ? "text-left" : "text-center",
+                    )}
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+const inputClasses =
+  "w-full h-7 px-1 text-[14px] bg-card rounded ring-1 ring-foreground outline-none";
+
+interface TickerAddRowProps {
+  addForm: Extract<AddForm, { kind: "ticker" }>;
+  addErrors: Record<string, string>;
+  isSaving: boolean;
+  updateAddField: (key: string, value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  columnCount: number;
+}
+
+function TickerAddRow({
+  addForm,
+  addErrors,
+  isSaving,
+  updateAddField,
+  onSubmit,
+  onCancel,
+  columnCount,
+}: TickerAddRowProps) {
+  return (
+    <>
+      <TableRow className="h-10 border-b border-line bg-panel-strong">
+        <TableCell className="text-left">
+          <input
+            type="text"
+            className={inputClasses}
+            value={addForm.name}
+            onChange={(e) => updateAddField("name", e.target.value)}
+            placeholder="AAPL"
+            autoFocus
+          />
+          {addErrors.name && (
+            <span className="block text-red-500 dark:text-red-400 text-xs">
+              {addErrors.name}
+            </span>
+          )}
+        </TableCell>
+        <TableCell className="text-center">
+          <input
+            type="number"
+            step="0.01"
+            className={cn(inputClasses, "tabular-nums")}
+            value={addForm.targetWeight}
+            onChange={(e) => updateAddField("targetWeight", e.target.value)}
+            placeholder="0"
+          />
+          {addErrors.targetWeight && (
+            <span className="block text-red-500 dark:text-red-400 text-xs">
+              {addErrors.targetWeight}
+            </span>
+          )}
+        </TableCell>
+        <TableCell />
+        <TableCell />
+        <TableCell />
+      </TableRow>
+      {addErrors._form && (
+        <TableRow className="border-b border-line">
+          <TableCell colSpan={columnCount} className="py-1 px-4">
+            <span className="text-red-500 dark:text-red-400 text-xs">
+              {addErrors._form}
+            </span>
+          </TableCell>
+        </TableRow>
+      )}
+      <TableRow className="border-b border-line">
+        <TableCell colSpan={columnCount} className="py-2 px-4">
+          <AddFormButtons isSaving={isSaving} onSubmit={onSubmit} onCancel={onCancel} />
+        </TableCell>
+      </TableRow>
+    </>
+  );
+}
+
+interface CashAddRowProps {
+  addForm: Extract<AddForm, { kind: "cash" }>;
+  addErrors: Record<string, string>;
+  isSaving: boolean;
+  updateAddField: (key: string, value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  columnCount: number;
+}
+
+function CashAddRow({
+  addForm,
+  addErrors,
+  isSaving,
+  updateAddField,
+  onSubmit,
+  onCancel,
+  columnCount,
+}: CashAddRowProps) {
+  return (
+    <>
+      <TableRow className="h-10 border-b border-line bg-panel-strong">
+        <TableCell className="text-left">
+          <input
+            type="text"
+            className={inputClasses}
+            value={addForm.name}
+            onChange={(e) => updateAddField("name", e.target.value)}
+            placeholder="Schwab Cash"
+            autoFocus
+          />
+          {addErrors.name && (
+            <span className="block text-red-500 dark:text-red-400 text-xs">
+              {addErrors.name}
+            </span>
+          )}
+        </TableCell>
+        <TableCell className="text-center">
+          <input
+            type="number"
+            step="0.01"
+            className={cn(inputClasses, "tabular-nums")}
+            value={addForm.targetWeight}
+            onChange={(e) => updateAddField("targetWeight", e.target.value)}
+            placeholder="0"
+          />
+          {addErrors.targetWeight && (
+            <span className="block text-red-500 dark:text-red-400 text-xs">
+              {addErrors.targetWeight}
+            </span>
+          )}
+        </TableCell>
+        <TableCell className="text-center">
+          <input
+            type="number"
+            step="0.01"
+            className={cn(inputClasses, "tabular-nums")}
+            value={addForm.cashAmountUsd}
+            onChange={(e) => updateAddField("cashAmountUsd", e.target.value)}
+            placeholder="0.00"
+          />
+          {addErrors.cashAmountUsd && (
+            <span className="block text-red-500 dark:text-red-400 text-xs">
+              {addErrors.cashAmountUsd}
+            </span>
+          )}
+        </TableCell>
+        <TableCell />
+        <TableCell />
+        <TableCell />
+      </TableRow>
+      {addErrors._form && (
+        <TableRow className="border-b border-line">
+          <TableCell colSpan={columnCount} className="py-1 px-4">
+            <span className="text-red-500 dark:text-red-400 text-xs">
+              {addErrors._form}
+            </span>
+          </TableCell>
+        </TableRow>
+      )}
+      <TableRow className="border-b border-line">
+        <TableCell colSpan={columnCount} className="py-2 px-4">
+          <AddFormButtons isSaving={isSaving} onSubmit={onSubmit} onCancel={onCancel} />
+        </TableCell>
+      </TableRow>
+    </>
+  );
+}
+
+function AddFormButtons({
+  isSaving,
+  onSubmit,
+  onCancel,
+}: {
+  isSaving: boolean;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={onSubmit}
+        className="border border-foreground bg-foreground px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-background hover:opacity-90 disabled:opacity-35"
+      >
+        {isSaving ? "Saving…" : "Save"}
+      </button>
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={onCancel}
+        className="border border-line bg-panel px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground disabled:opacity-35"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
