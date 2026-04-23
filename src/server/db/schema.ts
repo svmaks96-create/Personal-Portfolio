@@ -74,3 +74,20 @@ export const tickerVariants = sqliteTable(
     uniqueIndex("ticker_variants_variant_idx").on(table.variant),
   ]
 );
+
+export const allocationTargets = sqliteTable(
+  "allocation_targets",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind").$type<"ticker" | "cash">().notNull(),
+    name: text("name").notNull(),
+    targetWeight: real("target_weight").notNull(),
+    cashAmountUsd: real("cash_amount_usd"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("allocation_targets_kind_name_idx").on(table.kind, table.name),
+  ]
+);
