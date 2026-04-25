@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { etfHoldings, tickerVariants } from "@/server/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 /**
  * Get cached ETF holdings grouped by ETF symbol.
@@ -35,18 +35,28 @@ export function getEtfHoldingsMap(
 }
 
 /**
- * Get the fetchedAt timestamp for an ETF's cached holdings.
- * Returns null if no holdings are cached for this ETF.
+ * Map of ETF symbol -> fetchedAt timestamp for the given ETFs.
+ * ETFs with no cached holdings are absent from the map.
  */
-export function getEtfHoldingsFetchedAt(etfSymbol: string): string | null {
-  const row = db
-    .select({ fetchedAt: etfHoldings.fetchedAt })
+export function getEtfHoldingsFetchedAtMap(
+  etfSymbols: string[]
+): Record<string, string> {
+  if (etfSymbols.length === 0) return {};
+
+  const rows = db
+    .selectDistinct({
+      etfSymbol: etfHoldings.etfSymbol,
+      fetchedAt: etfHoldings.fetchedAt,
+    })
     .from(etfHoldings)
-    .where(eq(etfHoldings.etfSymbol, etfSymbol))
-    .limit(1)
+    .where(inArray(etfHoldings.etfSymbol, etfSymbols))
     .all();
 
-  return row.length > 0 ? row[0].fetchedAt : null;
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    map[row.etfSymbol] = row.fetchedAt;
+  }
+  return map;
 }
 
 /**
@@ -80,16 +90,26 @@ export function getVariantToTickerMap(
 }
 
 /**
- * Get the fetchedAt timestamp for a ticker's cached variants.
- * Returns null if no variants are cached.
+ * Map of ticker -> fetchedAt timestamp for the given tickers' cached variants.
+ * Tickers with no cached variants are absent from the map.
  */
-export function getVariantsFetchedAt(ticker: string): string | null {
-  const row = db
-    .select({ fetchedAt: tickerVariants.fetchedAt })
+export function getVariantsFetchedAtMap(
+  tickers: string[]
+): Record<string, string> {
+  if (tickers.length === 0) return {};
+
+  const rows = db
+    .selectDistinct({
+      ticker: tickerVariants.ticker,
+      fetchedAt: tickerVariants.fetchedAt,
+    })
     .from(tickerVariants)
-    .where(eq(tickerVariants.ticker, ticker))
-    .limit(1)
+    .where(inArray(tickerVariants.ticker, tickers))
     .all();
 
-  return row.length > 0 ? row[0].fetchedAt : null;
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    map[row.ticker] = row.fetchedAt;
+  }
+  return map;
 }

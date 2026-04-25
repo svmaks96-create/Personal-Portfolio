@@ -18,13 +18,19 @@ import {
   fetchExchangeVariants,
   BENCHMARK_TICKERS,
 } from "@/server/services/fmp";
-import { getEarliestTransactionDate } from "@/server/queries/market-data";
-import { getEtfHoldingsFetchedAt, getVariantsFetchedAt } from "@/server/queries/etf-holdings";
+import {
+  getEarliestTransactionDate,
+  getCurrentlyHeldTickers,
+} from "@/server/queries/market-data";
+import {
+  getEtfHoldingsFetchedAtMap,
+  getVariantsFetchedAtMap,
+} from "@/server/queries/etf-holdings";
 import {
   getTickerProfilesMap,
-  getTickerProfileFetchedAt,
+  getTickerProfileFetchedAtMap,
 } from "@/server/queries/ticker-profiles";
-import { eq } from "drizzle-orm";
+import { eq, notInArray } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type {
   RefreshResult,
@@ -249,43 +255,58 @@ export async function refreshTickerProfiles(): Promise<ActionResult<RefreshResul
     }
 
     const now = new Date();
-    let updated = 0;
-    let skipped = 0;
+    const fetchedAtMap = getTickerProfileFetchedAtMap(allTickers);
 
-    for (const ticker of allTickers) {
-      const fetchedAt = getTickerProfileFetchedAt(ticker);
-      if (fetchedAt !== null) {
-        const daysSinceFetch = differenceInDays(now, parseISO(fetchedAt));
-        if (daysSinceFetch < TICKER_PROFILE_STALENESS_DAYS) {
-          skipped++;
-          continue;
-        }
-      }
+    const staleTickers = allTickers.filter((ticker) => {
+      const fetchedAt = fetchedAtMap[ticker];
+      if (!fetchedAt) return true;
+      return differenceInDays(now, parseISO(fetchedAt)) >= TICKER_PROFILE_STALENESS_DAYS;
+    });
 
-      const profile = await fetchCompanyProfile(ticker);
-      if (profile === null) {
+    let skipped = allTickers.length - staleTickers.length;
+
+    if (staleTickers.length === 0) {
+      return { success: true, data: { updated: 0, skipped } };
+    }
+
+    const settled = await Promise.allSettled(
+      staleTickers.map((ticker) => fetchCompanyProfile(ticker))
+    );
+
+    const successful: { ticker: string; name: string | null; isEtf: boolean }[] = [];
+    for (let i = 0; i < settled.length; i++) {
+      const result = settled[i];
+      if (result.status === "fulfilled" && result.value !== null) {
+        successful.push({
+          ticker: staleTickers[i],
+          name: result.value.companyName,
+          isEtf: result.value.isEtf,
+        });
+      } else {
         skipped++;
-        continue;
       }
+    }
 
+    if (successful.length > 0) {
       const fetchedAtStr = now.toISOString();
       db.transaction((tx) => {
-        tx.delete(tickerProfiles).where(eq(tickerProfiles.ticker, ticker)).run();
-        tx.insert(tickerProfiles)
-          .values({
-            ticker,
-            name: profile.companyName,
-            isEtf: profile.isEtf,
-            fetchedAt: fetchedAtStr,
-          })
-          .run();
+        for (const profile of successful) {
+          tx.delete(tickerProfiles).where(eq(tickerProfiles.ticker, profile.ticker)).run();
+          tx.insert(tickerProfiles)
+            .values({
+              ticker: profile.ticker,
+              name: profile.name,
+              isEtf: profile.isEtf,
+              fetchedAt: fetchedAtStr,
+            })
+            .run();
+        }
       });
-      updated++;
     }
 
     revalidatePath("/", "layout");
 
-    return { success: true, data: { updated, skipped } };
+    return { success: true, data: { updated: successful.length, skipped } };
   } catch (error) {
     console.error("refreshTickerProfiles failed:", error);
     return {
@@ -302,103 +323,141 @@ export async function refreshTickerProfiles(): Promise<ActionResult<RefreshResul
  */
 export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>> {
   try {
-    // 1. Get unique tickers from transactions
-    const rows = db.select({ ticker: transactions.ticker }).from(transactions).all();
-    const allTickers = [...new Set(rows.map((r) => r.ticker))];
+    // 1. Operate on currently-held tickers only. Holdings/variants for closed
+    // positions are never read by concentration/look-through, so we don't store them.
+    const heldTickers = getCurrentlyHeldTickers();
 
-    if (allTickers.length === 0) {
-      return { success: true, data: { updated: 0, skipped: 0 } };
-    }
-
-    // 2. Split tickers by ETF status from the cached ticker_profiles table.
-    // Tickers missing from the cache are skipped — refreshTickerProfiles will
-    // populate them on the next run.
+    // 2. Split by ETF status from the cached ticker_profiles table. Tickers
+    // missing from the cache are skipped — refreshTickerProfiles populates them.
     const profilesMap = getTickerProfilesMap();
-    const etfTickers = allTickers.filter((t) => profilesMap[t]?.isEtf === true);
-    const stockTickers = allTickers.filter((t) => profilesMap[t]?.isEtf === false);
+    const etfTickers = heldTickers.filter((t) => profilesMap[t]?.isEtf === true);
+    const stockTickers = heldTickers.filter((t) => profilesMap[t]?.isEtf === false);
+
+    // 3. Drop rows for ETFs/tickers no longer held — keeps the DB lean.
+    db.transaction((tx) => {
+      if (etfTickers.length === 0) {
+        tx.delete(etfHoldings).run();
+      } else {
+        tx.delete(etfHoldings)
+          .where(notInArray(etfHoldings.etfSymbol, etfTickers))
+          .run();
+      }
+      if (stockTickers.length === 0) {
+        tx.delete(tickerVariants).run();
+      } else {
+        tx.delete(tickerVariants)
+          .where(notInArray(tickerVariants.ticker, stockTickers))
+          .run();
+      }
+    });
 
     const now = new Date();
+    const fetchedAtStr = now.toISOString();
     let updated = 0;
     let skipped = 0;
 
-    // 3. Fetch exchange variants for non-ETF tickers (ADR ↔ local share mappings)
-    for (const ticker of stockTickers) {
-      const fetchedAt = getVariantsFetchedAt(ticker);
+    // 4. Variants: bulk staleness, parallel fetch, single batched transaction.
+    const variantsFetchedAtMap = getVariantsFetchedAtMap(stockTickers);
+    const staleStockTickers = stockTickers.filter((ticker) => {
+      const fetchedAt = variantsFetchedAtMap[ticker];
+      if (!fetchedAt) return true;
+      return differenceInDays(now, parseISO(fetchedAt)) >= ETF_HOLDINGS_STALENESS_DAYS;
+    });
 
-      if (fetchedAt !== null) {
-        const daysSinceFetch = differenceInDays(now, parseISO(fetchedAt));
-        if (daysSinceFetch < ETF_HOLDINGS_STALENESS_DAYS) {
-          continue;
-        }
+    if (staleStockTickers.length > 0) {
+      const variantResults = await Promise.allSettled(
+        staleStockTickers.map((ticker) => fetchExchangeVariants(ticker))
+      );
+
+      const variantWrites: { ticker: string; variants: string[] }[] = [];
+      for (let i = 0; i < variantResults.length; i++) {
+        const result = variantResults[i];
+        if (result.status !== "fulfilled") continue;
+        if (result.value.length <= 1) continue; // Only the ticker itself, no variants
+        variantWrites.push({
+          ticker: staleStockTickers[i],
+          variants: result.value.map((v) => v.symbol),
+        });
       }
 
-      const variants = await fetchExchangeVariants(ticker);
-
-      if (variants.length <= 1) continue; // Only the ticker itself, no variants
-
-      const fetchedAtStr = now.toISOString();
-      db.transaction((tx) => {
-        tx.delete(tickerVariants)
-          .where(eq(tickerVariants.ticker, ticker))
-          .run();
-
-        for (const variant of variants) {
-          tx.insert(tickerVariants)
-            .values({
-              ticker,
-              variant: variant.symbol,
-              fetchedAt: fetchedAtStr,
-            })
-            .onConflictDoNothing()
-            .run();
-        }
-      });
+      if (variantWrites.length > 0) {
+        db.transaction((tx) => {
+          for (const write of variantWrites) {
+            tx.delete(tickerVariants).where(eq(tickerVariants.ticker, write.ticker)).run();
+            for (const variant of write.variants) {
+              tx.insert(tickerVariants)
+                .values({ ticker: write.ticker, variant, fetchedAt: fetchedAtStr })
+                .onConflictDoNothing()
+                .run();
+            }
+          }
+        });
+      }
     }
 
-    // 4. Check staleness and fetch holdings for stale/missing ETFs
+    // 5. Holdings: bulk staleness, parallel fetch, single batched transaction.
+    const holdingsFetchedAtMap = getEtfHoldingsFetchedAtMap(etfTickers);
+    const staleEtfTickers: string[] = [];
     for (const etfSymbol of etfTickers) {
-      const fetchedAt = getEtfHoldingsFetchedAt(etfSymbol);
+      const fetchedAt = holdingsFetchedAtMap[etfSymbol];
+      if (!fetchedAt) {
+        staleEtfTickers.push(etfSymbol);
+        continue;
+      }
+      if (differenceInDays(now, parseISO(fetchedAt)) >= ETF_HOLDINGS_STALENESS_DAYS) {
+        staleEtfTickers.push(etfSymbol);
+      } else {
+        skipped++;
+      }
+    }
 
-      if (fetchedAt !== null) {
-        const daysSinceFetch = differenceInDays(now, parseISO(fetchedAt));
-        if (daysSinceFetch < ETF_HOLDINGS_STALENESS_DAYS) {
+    if (staleEtfTickers.length > 0) {
+      const holdingsResults = await Promise.allSettled(
+        staleEtfTickers.map((etfSymbol) => fetchEtfHoldings(etfSymbol))
+      );
+
+      const holdingsWrites: {
+        etfSymbol: string;
+        holdings: { asset: string; weightPercentage: number; name: string }[];
+      }[] = [];
+      for (let i = 0; i < holdingsResults.length; i++) {
+        const result = holdingsResults[i];
+        const etfSymbol = staleEtfTickers[i];
+        if (result.status !== "fulfilled" || result.value.length === 0) {
           skipped++;
           continue;
         }
+        holdingsWrites.push({
+          etfSymbol,
+          holdings: result.value.map((h) => ({
+            asset: h.asset,
+            weightPercentage: h.weightPercentage,
+            name: h.name,
+          })),
+        });
       }
 
-      const holdings = await fetchEtfHoldings(etfSymbol);
-
-      if (holdings.length === 0) {
-        skipped++;
-        continue;
+      if (holdingsWrites.length > 0) {
+        db.transaction((tx) => {
+          for (const write of holdingsWrites) {
+            tx.delete(etfHoldings).where(eq(etfHoldings.etfSymbol, write.etfSymbol)).run();
+            for (const holding of write.holdings) {
+              tx.insert(etfHoldings)
+                .values({
+                  etfSymbol: write.etfSymbol,
+                  asset: holding.asset,
+                  weightPercentage: holding.weightPercentage,
+                  name: holding.name,
+                  fetchedAt: fetchedAtStr,
+                })
+                .run();
+            }
+          }
+        });
+        updated = holdingsWrites.length;
       }
-
-      const fetchedAtStr = now.toISOString();
-      db.transaction((tx) => {
-        // Delete existing holdings for this ETF
-        tx.delete(etfHoldings)
-          .where(eq(etfHoldings.etfSymbol, etfSymbol))
-          .run();
-
-        // Insert new holdings
-        for (const holding of holdings) {
-          tx.insert(etfHoldings)
-            .values({
-              etfSymbol,
-              asset: holding.asset,
-              weightPercentage: holding.weightPercentage,
-              name: holding.name,
-              fetchedAt: fetchedAtStr,
-            })
-            .run();
-        }
-      });
-
-      updated++;
     }
 
-    // 5. Revalidate
     revalidatePath("/", "layout");
 
     return {

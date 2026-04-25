@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { db } from "@/server/db";
 import { tickerProfiles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 export interface TickerProfile {
   name: string | null;
@@ -29,16 +29,26 @@ export const getTickerProfilesMap = cache((): Record<string, TickerProfile> => {
 });
 
 /**
- * Get the fetchedAt timestamp for a ticker's cached profile.
- * Returns null if no profile is cached for this ticker.
+ * Map of ticker -> fetchedAt timestamp for the given tickers.
+ * Tickers with no cached profile are absent from the map.
  */
-export function getTickerProfileFetchedAt(ticker: string): string | null {
-  const row = db
-    .select({ fetchedAt: tickerProfiles.fetchedAt })
+export function getTickerProfileFetchedAtMap(
+  tickers: string[]
+): Record<string, string> {
+  if (tickers.length === 0) return {};
+
+  const rows = db
+    .select({
+      ticker: tickerProfiles.ticker,
+      fetchedAt: tickerProfiles.fetchedAt,
+    })
     .from(tickerProfiles)
-    .where(eq(tickerProfiles.ticker, ticker))
-    .limit(1)
+    .where(inArray(tickerProfiles.ticker, tickers))
     .all();
 
-  return row.length > 0 ? row[0].fetchedAt : null;
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    map[row.ticker] = row.fetchedAt;
+  }
+  return map;
 }

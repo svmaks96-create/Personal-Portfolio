@@ -24,14 +24,17 @@ export function getExistingSymbolDates(
 }
 
 /**
- * Get the oldest (stalest) trading date across the latest entry per symbol.
- * This represents the freshness of the least-current data point,
- * so the user knows if ANY position has stale prices.
- * Returns a "yyyy-MM-dd" string or null if no market data exists.
+ * Tickers with net shares > 0 across all portfolios (open positions only).
+ * Closed positions — bought and fully sold — are excluded.
+ *
+ * Threshold is 1e-9, not 0: SQLite REAL is IEEE-754 double, so SUM(buy - sell)
+ * across many transactions leaves float dust (~1e-15) when buys exactly cancel
+ * sells. The reference position-computation service uses decimal.js and gets a
+ * true zero; this SQL path needs an epsilon to match. Smallest fractional share
+ * any broker issues is ~1e-4, so 1e-9 is safely below any real holding.
  */
-export function getStalestMarketDate(): string | null {
-  // Only consider symbols with open positions (net shares > 0)
-  const activeTickers = db
+export function getCurrentlyHeldTickers(): string[] {
+  return db
     .select({ ticker: transactions.ticker })
     .from(transactions)
     .groupBy(transactions.ticker)
@@ -40,11 +43,21 @@ export function getStalestMarketDate(): string | null {
         sum(
           sql`CASE WHEN ${transactions.action} = 'buy' THEN ${transactions.quantity} WHEN ${transactions.action} = 'sell' THEN -${transactions.quantity} ELSE 0 END`
         ),
-        0
+        1e-9
       )
     )
     .all()
     .map((r) => r.ticker);
+}
+
+/**
+ * Get the oldest (stalest) trading date across the latest entry per symbol.
+ * This represents the freshness of the least-current data point,
+ * so the user knows if ANY position has stale prices.
+ * Returns a "yyyy-MM-dd" string or null if no market data exists.
+ */
+export function getStalestMarketDate(): string | null {
+  const activeTickers = getCurrentlyHeldTickers();
 
   if (activeTickers.length === 0) return null;
 
