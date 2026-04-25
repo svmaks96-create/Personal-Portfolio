@@ -4,6 +4,7 @@ import {
   formatShares,
   formatSharesDelta,
   formatPercent,
+  formatPercentDetailed,
   formatPnL,
   formatDate,
   formatTimestampDate,
@@ -104,6 +105,24 @@ describe("formatPercent", () => {
 
   it("returns N/A for null", () => {
     expect(formatPercent(null)).toBe("N/A");
+  });
+});
+
+describe("formatPercentDetailed", () => {
+  it("formats with 2 decimal places and % suffix", () => {
+    expect(formatPercentDetailed(21.5)).toBe("21.50%");
+  });
+
+  it("formats zero", () => {
+    expect(formatPercentDetailed(0)).toBe("0.00%");
+  });
+
+  it("formats negative percent", () => {
+    expect(formatPercentDetailed(-5.75)).toBe("-5.75%");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatPercentDetailed(null)).toBe("N/A");
   });
 });
 

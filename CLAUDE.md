@@ -12,7 +12,7 @@ A localhost web application for tracking investment positions across multiple br
 - **Validation:** Zod (shared client/server schemas)
 - **Financial Math:** decimal.js (server-side only)
 - **Excel:** ExcelJS (server-side)
-- **Dates:** date-fns (never `new Date()`)
+- **Dates:** date-fns for parsing/formatting; `new Date()` (no args, "now") is fine — never `new Date(string)`
 - **Testing:** Vitest (unit), Playwright (E2E)
 
 ## MCP Server Usage
@@ -98,7 +98,7 @@ ENV ACCESS:      src/server/config.ts (only file reading process.env)
 - Server Components by default; `'use client'` only for hooks/event handlers/browser APIs
 - No API route files (`route.ts`) — all server logic via Server Actions
 - `decimal.js` for all financial arithmetic (server-side only)
-- `date-fns` for all date handling (never `new Date()`)
+- `date-fns` for all date parsing and formatting; `new Date()` with no args (current time) is fine — never `new Date(string)`, use `parseISO`
 - Nullable price-dependent fields — return `null` when no price, UI shows "N/A"
 - Domain components receive `{ value: number, display: string }` — never format in components
 - URL search params (`?portfolio=`) for filter state persistence

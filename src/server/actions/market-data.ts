@@ -358,11 +358,19 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
 
     // 4. Variants: bulk staleness, parallel fetch, single batched transaction.
     const variantsFetchedAtMap = getVariantsFetchedAtMap(stockTickers);
-    const staleStockTickers = stockTickers.filter((ticker) => {
+    const staleStockTickers: string[] = [];
+    for (const ticker of stockTickers) {
       const fetchedAt = variantsFetchedAtMap[ticker];
-      if (!fetchedAt) return true;
-      return differenceInDays(now, parseISO(fetchedAt)) >= ETF_HOLDINGS_STALENESS_DAYS;
-    });
+      if (!fetchedAt) {
+        staleStockTickers.push(ticker);
+        continue;
+      }
+      if (differenceInDays(now, parseISO(fetchedAt)) >= ETF_HOLDINGS_STALENESS_DAYS) {
+        staleStockTickers.push(ticker);
+      } else {
+        skipped++;
+      }
+    }
 
     if (staleStockTickers.length > 0) {
       const variantResults = await Promise.allSettled(
@@ -392,6 +400,7 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
             }
           }
         });
+        updated += variantWrites.length;
       }
     }
 
@@ -454,7 +463,7 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
             }
           }
         });
-        updated = holdingsWrites.length;
+        updated += holdingsWrites.length;
       }
     }
 

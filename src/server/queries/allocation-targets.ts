@@ -81,7 +81,10 @@ export function getAllocationModel(): AllocationModel {
   for (const pos of activeMerged) {
     marketValueByTicker.set(pos.ticker, pos.marketValue);
     if (pos.sharesHeld > 0 && pos.marketValue !== null) {
-      usdPriceByTicker.set(pos.ticker, pos.marketValue / pos.sharesHeld);
+      usdPriceByTicker.set(
+        pos.ticker,
+        new Decimal(pos.marketValue).div(pos.sharesHeld).toNumber(),
+      );
     } else {
       usdPriceByTicker.set(pos.ticker, null);
     }
@@ -156,7 +159,7 @@ function mapTickerRow(
   const lastPriceUsd = usdPriceByTicker.get(row.name) ?? null;
   const deltaShares =
     deltaValue !== null && lastPriceUsd !== null && lastPriceUsd > 0
-      ? deltaValue / lastPriceUsd
+      ? new Decimal(deltaValue).div(lastPriceUsd).toNumber()
       : null;
 
   return {

@@ -1,4 +1,5 @@
 import { TerminalPanel } from "@/components/domain/terminal-panel";
+import { formatPercentDetailed } from "@/lib/formatting";
 import type { ConcentrationData } from "@/server/types/concentration";
 
 interface ConcentrationChartProps {
@@ -11,8 +12,8 @@ function buildTooltip(
   return sources
     .map((s) =>
       s.type === "direct"
-        ? `Direct: ${s.weight.toFixed(2)}%`
-        : `via ${s.etfTicker}: ${s.weight.toFixed(2)}%`
+        ? `Direct: ${formatPercentDetailed(s.weight)}`
+        : `via ${s.etfTicker}: ${formatPercentDetailed(s.weight)}`
     )
     .join(" · ");
 }

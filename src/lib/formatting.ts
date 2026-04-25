@@ -34,6 +34,11 @@ const percentRoundedFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
+const percentDetailedFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export function formatCurrency(value: number | null): string {
   if (value === null) return "N/A";
   return currencyFormatter.format(value);
@@ -59,6 +64,11 @@ export function formatSharesDelta(value: number | null): string {
 export function formatPercent(value: number | null): string {
   if (value === null) return "N/A";
   return `${percentFormatter.format(value)}%`;
+}
+
+export function formatPercentDetailed(value: number | null): string {
+  if (value === null) return "N/A";
+  return `${percentDetailedFormatter.format(value)}%`;
 }
 
 export function formatAmount(value: number | null): string {
