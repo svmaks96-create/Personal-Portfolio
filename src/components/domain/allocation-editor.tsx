@@ -32,15 +32,21 @@ import { cn } from "@/lib/utils";
 import {
   createAllocationTarget,
   updateAllocationTarget,
+  updateCashTargetWeight,
   deleteAllocationTarget,
 } from "@/server/actions/allocation-targets";
 import {
   getTickerAllocationColumns,
   getCashAllocationColumns,
 } from "@/components/domain/allocation-columns";
+import { EditableCell } from "@/components/domain/editable-cell";
 import { formatCurrency, formatPercent } from "@/lib/formatting";
+import { pnlColorClass } from "@/lib/pnl";
 import { Private } from "@/components/domain/private";
-import type { AllocationTargetRow } from "@/server/queries/allocation-targets";
+import type {
+  AllocationTargetRow,
+  CashAggregate,
+} from "@/server/queries/allocation-targets";
 import type { UpdatableField } from "@/shared/schemas/allocation-target";
 
 const EDITABLE_FIELD_ORDER: UpdatableField[] = [
@@ -49,15 +55,19 @@ const EDITABLE_FIELD_ORDER: UpdatableField[] = [
   "cashAmountUsd",
 ];
 
+const CASH_AGGREGATE_ROW_ID = -1;
+const CASH_AGGREGATE_FIELD = "cashAggregateTarget";
+
 interface AllocationEditorProps {
   rows: AllocationTargetRow[];
   totalTargetWeight: number;
   totalCashUsd: number;
+  cashAggregate: CashAggregate;
 }
 
 type AddForm =
   | { kind: "ticker"; name: string; targetWeight: string }
-  | { kind: "cash"; name: string; targetWeight: string; cashAmountUsd: string };
+  | { kind: "cash"; name: string; cashAmountUsd: string };
 
 const SUM_TOLERANCE = 0.01;
 
@@ -69,6 +79,7 @@ export function AllocationEditor({
   rows,
   totalTargetWeight,
   totalCashUsd,
+  cashAggregate,
 }: AllocationEditorProps) {
   const [editingCell, setEditingCell] = useState<{ rowId: number; field: string } | null>(null);
   const [cellError, setCellError] = useState<{ rowId: number; field: string; message: string } | null>(null);
@@ -77,7 +88,7 @@ export function AllocationEditor({
     { id: "targetWeight", desc: true },
   ]);
   const [cashSorting, setCashSorting] = useState<SortingState>([
-    { id: "targetWeight", desc: true },
+    { id: "name", desc: false },
   ]);
   const [addForm, setAddForm] = useState<AddForm | null>(null);
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
@@ -96,30 +107,49 @@ export function AllocationEditor({
     });
   }
 
+  function clearCellState(rowId: number, field: string) {
+    setEditingCell((current) => {
+      if (current?.rowId === rowId && current?.field === field) return null;
+      return current;
+    });
+    setCellError((current) => {
+      if (current?.rowId === rowId && current?.field === field) return null;
+      return current;
+    });
+    const key = `${rowId}-${field}`;
+    setHighlightedCells((prev) => new Set(prev).add(key));
+    setTimeout(() => {
+      setHighlightedCells((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }, 700);
+  }
+
   async function handleSaveCell(rowId: number, field: string, value: string | number) {
+    if (rowId === CASH_AGGREGATE_ROW_ID && field === CASH_AGGREGATE_FIELD) {
+      const num = typeof value === "number" ? value : Number(value);
+      if (!Number.isFinite(num)) {
+        setCellError({ rowId, field, message: "Enter a valid number" });
+        return;
+      }
+      const result = await updateCashTargetWeight(num);
+      if (result.success) {
+        clearCellState(rowId, field);
+      } else {
+        setCellError({ rowId, field, message: result.error });
+      }
+      return;
+    }
+
     const result = await updateAllocationTarget(
       rowId,
       field as UpdatableField,
       value,
     );
     if (result.success) {
-      setEditingCell((current) => {
-        if (current?.rowId === rowId && current?.field === field) return null;
-        return current;
-      });
-      setCellError((current) => {
-        if (current?.rowId === rowId && current?.field === field) return null;
-        return current;
-      });
-      const key = `${rowId}-${field}`;
-      setHighlightedCells((prev) => new Set(prev).add(key));
-      setTimeout(() => {
-        setHighlightedCells((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
-      }, 700);
+      clearCellState(rowId, field);
     } else {
       setCellError({ rowId, field, message: result.error });
     }
@@ -174,7 +204,7 @@ export function AllocationEditor({
     if (kind === "ticker") {
       setAddForm({ kind: "ticker", name: "", targetWeight: "" });
     } else {
-      setAddForm({ kind: "cash", name: "", targetWeight: "", cashAmountUsd: "" });
+      setAddForm({ kind: "cash", name: "", cashAmountUsd: "" });
     }
   }
 
@@ -185,8 +215,8 @@ export function AllocationEditor({
     setAddErrors({});
 
     try {
-      const weightNum = Number(addForm.targetWeight);
       if (addForm.kind === "ticker") {
+        const weightNum = Number(addForm.targetWeight);
         const result = await createAllocationTarget({
           kind: "ticker",
           name: addForm.name,
@@ -205,7 +235,7 @@ export function AllocationEditor({
         const result = await createAllocationTarget({
           kind: "cash",
           name: addForm.name,
-          targetWeight: addForm.targetWeight === "" ? -1 : weightNum,
+          targetWeight: 0,
           cashAmountUsd: addForm.cashAmountUsd === "" ? Number.NaN : cashNum,
         });
         if (result.success) {
@@ -283,6 +313,17 @@ export function AllocationEditor({
   });
 
   const sumOk = sumIsOneHundred(totalTargetWeight);
+
+  const isEditingCashAggregate =
+    editingCell?.rowId === CASH_AGGREGATE_ROW_ID &&
+    editingCell?.field === CASH_AGGREGATE_FIELD;
+  const cashAggregateError =
+    cellError?.rowId === CASH_AGGREGATE_ROW_ID &&
+    cellError?.field === CASH_AGGREGATE_FIELD
+      ? cellError.message
+      : null;
+  const cashAggregateHighlightKey = `${CASH_AGGREGATE_ROW_ID}-${CASH_AGGREGATE_FIELD}`;
+  const cashAggregateHighlighted = highlightedCells.has(cashAggregateHighlightKey);
 
   return (
     <div className="border border-line bg-panel">
@@ -391,6 +432,21 @@ export function AllocationEditor({
             />
           ) : null
         }
+        renderFooterRow={() => (
+          <CashTotalsRow
+            cashAggregate={cashAggregate}
+            isEditing={isEditingCashAggregate}
+            error={cashAggregateError}
+            isHighlighted={cashAggregateHighlighted}
+            onStartEdit={() =>
+              handleStartEdit(CASH_AGGREGATE_ROW_ID, CASH_AGGREGATE_FIELD)
+            }
+            onSave={(v) =>
+              handleSaveCell(CASH_AGGREGATE_ROW_ID, CASH_AGGREGATE_FIELD, v)
+            }
+            onCancel={handleCancelEdit}
+          />
+        )}
       />
 
       {/* Footer hint */}
@@ -447,6 +503,7 @@ interface AllocationTableSectionProps {
   emptyMessage: string;
   showAddForm: boolean;
   renderAddRow: () => React.ReactNode;
+  renderFooterRow?: () => React.ReactNode;
 }
 
 function AllocationTableSection({
@@ -457,6 +514,7 @@ function AllocationTableSection({
   emptyMessage,
   showAddForm,
   renderAddRow,
+  renderFooterRow,
 }: AllocationTableSectionProps) {
   return (
     <div className="border-b border-line last:border-b-0">
@@ -541,9 +599,78 @@ function AllocationTableSection({
               })}
             </TableRow>
           ))}
+          {renderFooterRow?.()}
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+interface CashTotalsRowProps {
+  cashAggregate: CashAggregate;
+  isEditing: boolean;
+  error: string | null;
+  isHighlighted: boolean;
+  onStartEdit: () => void;
+  onSave: (value: string | number) => void;
+  onCancel: () => void;
+}
+
+function CashTotalsRow({
+  cashAggregate,
+  isEditing,
+  error,
+  isHighlighted,
+  onStartEdit,
+  onSave,
+  onCancel,
+}: CashTotalsRowProps) {
+  return (
+    <TableRow className="border-t-2 border-line bg-panel-strong hover:bg-panel-strong">
+      <TableCell className="px-3.5 py-[7px] text-left font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground">
+        Total Cash
+      </TableCell>
+      <TableCell className="px-3.5 py-[7px] text-center font-mono text-[12px] text-foreground">
+        <EditableCell
+          rawValue={cashAggregate.targetWeight.value}
+          displayValue={cashAggregate.targetWeight.display}
+          isEditing={isEditing}
+          error={error}
+          isHighlighted={isHighlighted}
+          inputType="number"
+          onStartEdit={onStartEdit}
+          onSave={onSave}
+          onCancel={onCancel}
+          onTabToNext={onCancel}
+        />
+      </TableCell>
+      <TableCell className="px-3.5 py-[7px] text-center font-mono text-[12px] text-foreground">
+        <Private>{cashAggregate.totalCash.display}</Private>
+      </TableCell>
+      <TableCell className="px-3.5 py-[7px] text-center font-mono text-[12px] text-foreground">
+        {cashAggregate.realWeight.display}
+      </TableCell>
+      <TableCell
+        className={cn(
+          "px-3.5 py-[7px] text-center font-mono text-[12px]",
+          pnlColorClass(cashAggregate.diff.value),
+        )}
+      >
+        {cashAggregate.diff.display}
+      </TableCell>
+      <TableCell className="px-3.5 py-[7px] text-center font-mono text-[12px] text-muted-foreground">
+        —
+      </TableCell>
+      <TableCell
+        className={cn(
+          "px-3.5 py-[7px] text-center font-mono text-[12px]",
+          pnlColorClass(cashAggregate.deltaValue.value),
+        )}
+      >
+        <Private>{cashAggregate.deltaValue.display}</Private>
+      </TableCell>
+      <TableCell className="px-3.5 py-[7px]" />
+    </TableRow>
   );
 }
 
@@ -605,6 +732,9 @@ function TickerAddRow({
         <TableCell />
         <TableCell />
         <TableCell />
+        <TableCell />
+        <TableCell />
+        <TableCell />
       </TableRow>
       {addErrors._form && (
         <TableRow className="border-b border-line">
@@ -661,21 +791,7 @@ function CashAddRow({
             </span>
           )}
         </TableCell>
-        <TableCell className="text-center">
-          <input
-            type="number"
-            step="0.01"
-            className={cn(inputClasses, "tabular-nums")}
-            value={addForm.targetWeight}
-            onChange={(e) => updateAddField("targetWeight", e.target.value)}
-            placeholder="0"
-          />
-          {addErrors.targetWeight && (
-            <span className="block text-red-500 dark:text-red-400 text-xs">
-              {addErrors.targetWeight}
-            </span>
-          )}
-        </TableCell>
+        <TableCell className="text-center text-muted-foreground">—</TableCell>
         <TableCell className="text-center">
           <input
             type="number"
@@ -691,6 +807,8 @@ function CashAddRow({
             </span>
           )}
         </TableCell>
+        <TableCell />
+        <TableCell />
         <TableCell />
         <TableCell />
         <TableCell />
@@ -743,4 +861,3 @@ function AddFormButtons({
     </div>
   );
 }
-

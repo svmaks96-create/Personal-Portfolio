@@ -3,6 +3,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { EditableCell } from "@/components/domain/editable-cell";
 import { Private } from "@/components/domain/private";
+import { pnlColorClass } from "@/lib/pnl";
+import { cn } from "@/lib/utils";
 import type { AllocationTargetRow } from "@/server/queries/allocation-targets";
 
 interface AllocationEditContext {
@@ -79,15 +81,47 @@ function targetWeightColumn(
   return {
     accessorKey: "targetWeight",
     header: "Target %",
-    accessorFn: (row) => row.targetWeight.value,
+    accessorFn: (row) => row.targetWeight.value ?? undefined,
+    sortUndefined: "last",
     cell: ({ row }) =>
       renderEditable(
         row,
         "targetWeight",
-        row.original.targetWeight.value,
+        row.original.targetWeight.value ?? 0,
         row.original.targetWeight.display,
         "number",
       ),
+    meta: { align: "center" as const },
+  };
+}
+
+function targetWeightDashColumn(): ColumnDef<AllocationTargetRow> {
+  return {
+    id: "targetWeight",
+    header: "Target %",
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.targetWeight.display}
+      </span>
+    ),
+    enableSorting: false,
+    meta: { align: "center" as const },
+  };
+}
+
+function positionValueColumn(): ColumnDef<AllocationTargetRow> {
+  return {
+    id: "positionValue",
+    header: "Position $",
+    accessorFn: (row) => row.positionValue.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => (
+      <Private>
+        <span className="text-foreground">
+          {row.original.positionValue.display}
+        </span>
+      </Private>
+    ),
     meta: { align: "center" as const },
   };
 }
@@ -112,9 +146,41 @@ function diffColumn(): ColumnDef<AllocationTargetRow> {
     accessorFn: (row) => row.realWeightDiff.value ?? undefined,
     sortUndefined: "last",
     cell: ({ row }) => (
-      <span className="text-foreground">
+      <span className={cn("text-foreground", pnlColorClass(row.original.realWeightDiff.value))}>
         {row.original.realWeightDiff.display}
       </span>
+    ),
+    meta: { align: "center" as const },
+  };
+}
+
+function deltaSharesColumn(): ColumnDef<AllocationTargetRow> {
+  return {
+    id: "deltaShares",
+    header: "Δ Shares",
+    accessorFn: (row) => row.deltaShares.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => (
+      <span className={cn("text-foreground", pnlColorClass(row.original.deltaShares.value))}>
+        {row.original.deltaShares.display}
+      </span>
+    ),
+    meta: { align: "center" as const },
+  };
+}
+
+function deltaValueColumn(): ColumnDef<AllocationTargetRow> {
+  return {
+    id: "deltaValue",
+    header: "Δ Value",
+    accessorFn: (row) => row.deltaValue.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => (
+      <Private>
+        <span className={cn("text-foreground", pnlColorClass(row.original.deltaValue.value))}>
+          {row.original.deltaValue.display}
+        </span>
+      </Private>
     ),
     meta: { align: "center" as const },
   };
@@ -172,8 +238,11 @@ export function getTickerAllocationColumns(
   return [
     nameColumn(renderEditable),
     targetWeightColumn(renderEditable),
+    positionValueColumn(),
     realWeightColumn(),
     diffColumn(),
+    deltaSharesColumn(),
+    deltaValueColumn(),
     deleteColumn(ctx),
   ];
 }
@@ -184,10 +253,12 @@ export function getCashAllocationColumns(
   const renderEditable = makeRenderEditable(ctx);
   return [
     nameColumn(renderEditable),
-    targetWeightColumn(renderEditable),
+    targetWeightDashColumn(),
     cashAmountColumn(renderEditable),
     realWeightColumn(),
     diffColumn(),
+    deltaSharesColumn(),
+    deltaValueColumn(),
     deleteColumn(ctx),
   ];
 }

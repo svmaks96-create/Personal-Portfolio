@@ -17,6 +17,7 @@ export default function AllocationPage() {
         rows={model.rows}
         totalTargetWeight={model.totalTargetWeight}
         totalCashUsd={model.totalCashUsd}
+        cashAggregate={model.cashAggregate}
       />
     </div>
   );

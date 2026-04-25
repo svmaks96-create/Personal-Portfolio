@@ -39,3 +39,8 @@ export type AllocationTargetInput = z.infer<typeof allocationTargetSchema>;
 
 export const UPDATABLE_FIELDS = ["name", "targetWeight", "cashAmountUsd"] as const;
 export type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
+
+export const cashTargetWeightSchema = z
+  .number()
+  .min(0, "Target weight cannot be negative")
+  .max(100, "Target weight cannot exceed 100");

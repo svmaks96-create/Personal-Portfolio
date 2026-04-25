@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatCurrency,
   formatShares,
+  formatSharesDelta,
   formatPercent,
   formatPnL,
   formatDate,
@@ -54,6 +55,33 @@ describe("formatShares", () => {
 
   it("returns N/A for null", () => {
     expect(formatShares(null)).toBe("N/A");
+  });
+});
+
+describe("formatSharesDelta", () => {
+  it("formats positive with + prefix and 1dp", () => {
+    expect(formatSharesDelta(12.5)).toBe("+12.5");
+  });
+
+  it("formats negative with - prefix and 1dp", () => {
+    expect(formatSharesDelta(-12.5)).toBe("-12.5");
+  });
+
+  it("formats zero as positive", () => {
+    expect(formatSharesDelta(0)).toBe("+0.0");
+  });
+
+  it("rounds fractional shares to 1dp", () => {
+    expect(formatSharesDelta(3.456)).toBe("+3.5");
+    expect(formatSharesDelta(-3.456)).toBe("-3.5");
+  });
+
+  it("formats large delta with commas", () => {
+    expect(formatSharesDelta(1500.25)).toBe("+1,500.3");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatSharesDelta(null)).toBe("N/A");
   });
 });
 

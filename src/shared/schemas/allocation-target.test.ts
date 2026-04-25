@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { allocationTargetSchema } from "./allocation-target";
+import {
+  allocationTargetSchema,
+  cashTargetWeightSchema,
+} from "./allocation-target";
 
 function validTicker(overrides: Record<string, unknown> = {}) {
   return {
@@ -103,6 +106,36 @@ describe("allocationTargetSchema — cash", () => {
   it("rejects empty cash label", () => {
     const result = allocationTargetSchema.safeParse(validCash({ name: "" }));
     expect(result.success).toBe(false);
+  });
+});
+
+describe("cashTargetWeightSchema", () => {
+  it("accepts zero", () => {
+    expect(cashTargetWeightSchema.safeParse(0).success).toBe(true);
+  });
+
+  it("accepts the upper bound 100", () => {
+    expect(cashTargetWeightSchema.safeParse(100).success).toBe(true);
+  });
+
+  it("accepts a fractional value in range", () => {
+    const result = cashTargetWeightSchema.safeParse(15.5);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toBe(15.5);
+    }
+  });
+
+  it("rejects negative values", () => {
+    expect(cashTargetWeightSchema.safeParse(-1).success).toBe(false);
+  });
+
+  it("rejects values above 100", () => {
+    expect(cashTargetWeightSchema.safeParse(101).success).toBe(false);
+  });
+
+  it("rejects non-numeric input", () => {
+    expect(cashTargetWeightSchema.safeParse("15").success).toBe(false);
   });
 });
 

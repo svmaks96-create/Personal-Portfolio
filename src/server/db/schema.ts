@@ -91,3 +91,9 @@ export const allocationTargets = sqliteTable(
     uniqueIndex("allocation_targets_kind_name_idx").on(table.kind, table.name),
   ]
 );
+
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

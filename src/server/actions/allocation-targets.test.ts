@@ -2,6 +2,11 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+vi.mock("@/server/queries/app-settings", () => ({
+  setCashTargetWeight: vi.fn(),
+  getCashTargetWeight: vi.fn().mockReturnValue(0),
+}));
+
 vi.mock("@/server/db", () => {
   const mockUpdateRun = vi.fn();
   const mockUpdateWhere = vi.fn().mockReturnValue({ run: mockUpdateRun });
@@ -47,9 +52,11 @@ vi.mock("@/server/db", () => {
 });
 
 import { db } from "@/server/db";
+import { setCashTargetWeight } from "@/server/queries/app-settings";
 import {
   createAllocationTarget,
   updateAllocationTarget,
+  updateCashTargetWeight,
   deleteAllocationTarget,
 } from "./allocation-targets";
 
@@ -222,6 +229,43 @@ describe("updateAllocationTarget", () => {
   it("rejects negative target weight", async () => {
     mocks.mockGet.mockReturnValue(existingTickerRow());
     const result = await updateAllocationTarget(1, "targetWeight", -5);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateCashTargetWeight", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("persists a valid value via setCashTargetWeight", async () => {
+    const result = await updateCashTargetWeight(15);
+    expect(result.success).toBe(true);
+    expect(setCashTargetWeight).toHaveBeenCalledWith(15);
+  });
+
+  it("accepts boundary values 0 and 100", async () => {
+    expect((await updateCashTargetWeight(0)).success).toBe(true);
+    expect((await updateCashTargetWeight(100)).success).toBe(true);
+  });
+
+  it("rejects negative values without writing", async () => {
+    const result = await updateCashTargetWeight(-1);
+    expect(result.success).toBe(false);
+    expect(setCashTargetWeight).not.toHaveBeenCalled();
+  });
+
+  it("rejects values above 100 without writing", async () => {
+    const result = await updateCashTargetWeight(101);
+    expect(result.success).toBe(false);
+    expect(setCashTargetWeight).not.toHaveBeenCalled();
+  });
+
+  it("returns error when persistence throws", async () => {
+    vi.mocked(setCashTargetWeight).mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    const result = await updateCashTargetWeight(20);
     expect(result.success).toBe(false);
   });
 });

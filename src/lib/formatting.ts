@@ -49,6 +49,13 @@ export function formatShares(value: number | null): string {
   return sharesFormatter.format(value);
 }
 
+export function formatSharesDelta(value: number | null): string {
+  if (value === null) return "N/A";
+  const formatted = sharesFormatter.format(Math.abs(value));
+  if (value >= 0) return `+${formatted}`;
+  return `-${formatted}`;
+}
+
 export function formatPercent(value: number | null): string {
   if (value === null) return "N/A";
   return `${percentFormatter.format(value)}%`;

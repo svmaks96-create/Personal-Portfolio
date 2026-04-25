@@ -6,11 +6,13 @@ import { allocationTargets } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import {
   allocationTargetSchema,
+  cashTargetWeightSchema,
   UPDATABLE_FIELDS,
   type AllocationKind,
   type UpdatableField,
 } from "@/shared/schemas/allocation-target";
 import type { ActionResult } from "@/server/types/action-result";
+import { setCashTargetWeight } from "@/server/queries/app-settings";
 
 interface CreateInput {
   kind: AllocationKind;
@@ -171,6 +173,28 @@ export async function updateAllocationTarget(
     return {
       success: false,
       error: "Failed to update allocation row. Please try again.",
+    };
+  }
+}
+
+export async function updateCashTargetWeight(
+  value: number,
+): Promise<ActionResult> {
+  const parsed = cashTargetWeightSchema.safeParse(value);
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Invalid target weight";
+    return { success: false, error: message };
+  }
+
+  try {
+    setCashTargetWeight(parsed.data);
+    revalidatePath("/", "layout");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("updateCashTargetWeight failed:", error);
+    return {
+      success: false,
+      error: "Failed to update cash target weight. Please try again.",
     };
   }
 }
