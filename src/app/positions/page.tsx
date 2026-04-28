@@ -63,24 +63,34 @@ export default async function PositionsPage({
     ? formatCurrencyRounded(activeTotals.marketValue.value)
     : "—";
 
-  const unrealizedPnlValue = activeTotals?.pnl.value ?? null;
+  // Closed positions have unrealizedPnl = 0 by construction, so the
+  // unrealized total equals the active-side sum. We still surface "—" when
+  // there are no active rows to mirror the original empty state.
+  const unrealizedPnlValue = activeTotals?.unrealizedPnl.value ?? null;
   const unrealizedPnlDisplay = activeTotals
-    ? formatPnLRounded(activeTotals.pnl.value)
+    ? formatPnLRounded(unrealizedPnlValue)
     : "—";
   const unrealizedOnCost =
     activeTotals &&
-    activeTotals.pnl.value !== null &&
+    unrealizedPnlValue !== null &&
     activeTotals.costBasis.value !== null &&
     activeTotals.costBasis.value > 0
-      ? (activeTotals.pnl.value / activeTotals.costBasis.value) * 100
+      ? (unrealizedPnlValue / activeTotals.costBasis.value) * 100
       : null;
   const unrealizedSub =
     unrealizedOnCost !== null ? `${formatPercent(unrealizedOnCost)} on cost` : "—";
 
-  const realizedPnlValue = closedTotals?.realizedPnl.value ?? null;
-  const realizedPnlDisplay = closedTotals
-    ? formatPnLRounded(closedTotals.realizedPnl.value)
-    : "—";
+  // Realized P&L spans every position: dividends + completed sells inside
+  // still-open holdings *and* fully-closed positions. Summing only closed
+  // would drop the realized portion of active rows.
+  const activeRealized = activeTotals?.realizedPnl.value ?? null;
+  const closedRealized = closedTotals?.realizedPnl.value ?? null;
+  const realizedPnlValue =
+    activeRealized === null && closedRealized === null
+      ? null
+      : (activeRealized ?? 0) + (closedRealized ?? 0);
+  const realizedPnlDisplay =
+    activeTotals || closedTotals ? formatPnLRounded(realizedPnlValue) : "—";
 
   const activeDividends = activeTotals?.dividends.value ?? null;
   const closedDividends = closedTotals?.dividends.value ?? null;

@@ -172,6 +172,39 @@ describe("computePositions", () => {
     expect(pos.cashReturned).toBeCloseTo(15 + 4210.01, 2);
   });
 
+  it("realizedPnl and unrealizedPnl are distinct from totalPnl on active partial-sell positions", () => {
+    // Regression guard: previously the positions page used totalPnl as
+    // 'Unrealized P&L', which silently included realized gains from partial
+    // sells + dividends. This test pins down that the three values diverge
+    // and that the identity holds.
+    const transactions: TransactionInput[] = [
+      tx({ id: 1, date: "2025-06-15", action: "buy", quantity: 100, grossAmount: 10000, fees: 0 }),
+      tx({ id: 2, date: "2025-12-10", action: "sell", quantity: 40, grossAmount: 5200, fees: 0 }),
+      tx({ id: 3, date: "2026-01-15", action: "dividend", quantity: 0, grossAmount: 60, fees: 0 }),
+    ];
+    const marketData: Record<string, MarketDataInput> = {
+      AAPL: { symbol: "AAPL", date: "2026-04-04", value: 110 },
+    };
+    const pos = computePositions(transactions, marketData, [], "2026-04-10")[0];
+
+    // 60 shares @ $110 = $6600 market value; cost basis after sell: $6000
+    expect(pos.sharesHeld).toBe(60);
+    expect(pos.marketValue).toBeCloseTo(6600, 2);
+    expect(pos.costBasis).toBeCloseTo(6000, 2);
+
+    // Unrealized = marketValue - costBasis = 600
+    expect(pos.unrealizedPnl).toBeCloseTo(600, 2);
+    // Realized = sellProceeds + dividends - costOfShareSold = 5200 + 60 - 4000 = 1260
+    expect(pos.realizedPnl).toBeCloseTo(1260, 2);
+    // Total = 600 + 1260 = 1860
+    expect(pos.totalPnl).toBeCloseTo(1860, 2);
+
+    // The bug we're guarding against: unrealized != total
+    expect(pos.unrealizedPnl).not.toBeCloseTo(pos.totalPnl!, 0);
+    expect(pos.realizedPnl).not.toBeCloseTo(pos.totalPnl!, 0);
+    expect(pos.realizedPnl! + pos.unrealizedPnl!).toBeCloseTo(pos.totalPnl!, 2);
+  });
+
   it("returns null for price-dependent fields when no market data", () => {
     const transactions: TransactionInput[] = [
       tx({ id: 1, action: "buy", quantity: 10, grossAmount: 1000, fees: 0 }),

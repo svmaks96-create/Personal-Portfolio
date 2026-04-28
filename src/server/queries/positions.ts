@@ -28,6 +28,8 @@ export interface ActivePositionRow {
   dividends: MoneyCell;
   sellProceeds: MoneyCell;
   pnl: MoneyCell;
+  realizedPnl: MoneyCell;
+  unrealizedPnl: MoneyCell;
   irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
@@ -51,6 +53,8 @@ export interface ActivePositionsTotals {
   dividends: MoneyCell;
   sellProceeds: MoneyCell;
   pnl: MoneyCell;
+  realizedPnl: MoneyCell;
+  unrealizedPnl: MoneyCell;
   irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
@@ -122,6 +126,8 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
     dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },
     sellProceeds: { value: p.totalSellProceeds, display: formatCurrencyRounded(p.totalSellProceeds) },
     pnl: { value: p.totalPnl, display: formatPnLRounded(p.totalPnl) },
+    realizedPnl: { value: p.realizedPnl, display: formatPnLRounded(p.realizedPnl) },
+    unrealizedPnl: { value: p.unrealizedPnl, display: formatPnLRounded(p.unrealizedPnl) },
     irr: { value: p.irr, display: formatIRRRounded(p.irr) },
     weight: { value: p.weight, display: formatPercent(p.weight) },
   }));
@@ -135,6 +141,8 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
   const dividendsTotal = sumOrNull(rows, (r) => r.dividends.value);
   const sellProceedsTotal = sumOrNull(rows, (r) => r.sellProceeds.value);
   const pnlTotal = sumOrNull(rows, (r) => r.pnl.value);
+  const realizedPnlTotal = sumOrNull(rows, (r) => r.realizedPnl.value);
+  const unrealizedPnlTotal = sumOrNull(rows, (r) => r.unrealizedPnl.value);
   const weightTotal = sumOrNull(rows, (r) => r.weight.value);
 
   // Totals IRR is a fresh XIRR over the slice — per-row IRRs can't be summed.
@@ -148,6 +156,8 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
     dividends: { value: dividendsTotal, display: formatCurrencyRounded(dividendsTotal) },
     sellProceeds: { value: sellProceedsTotal, display: formatCurrencyRounded(sellProceedsTotal) },
     pnl: { value: pnlTotal, display: formatPnLRounded(pnlTotal) },
+    realizedPnl: { value: realizedPnlTotal, display: formatPnLRounded(realizedPnlTotal) },
+    unrealizedPnl: { value: unrealizedPnlTotal, display: formatPnLRounded(unrealizedPnlTotal) },
     irr: { value: irrTotal, display: formatIRRRounded(irrTotal) },
     weight: { value: weightTotal, display: formatPercent(weightTotal) },
   };
@@ -173,7 +183,7 @@ export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
     totalInvested: { value: p.totalInvested, display: formatCurrencyRounded(p.totalInvested) },
     totalProceeds: { value: p.totalSellProceeds, display: formatCurrencyRounded(p.totalSellProceeds) },
     dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },
-    realizedPnl: { value: p.totalPnl, display: formatPnLRounded(p.totalPnl) },
+    realizedPnl: { value: p.realizedPnl, display: formatPnLRounded(p.realizedPnl) },
     irr: { value: p.irr, display: formatIRRRounded(p.irr) },
   }));
 

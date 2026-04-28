@@ -102,6 +102,8 @@ describe("getActivePositions", () => {
     expect(row.dividends).toEqual({ value: 50, display: "$50" });
     expect(row.sellProceeds).toEqual({ value: 0, display: "$0" });
     expect(row.pnl).toEqual({ value: 300, display: "+$300" });
+    expect(row.realizedPnl).toEqual({ value: 50, display: "+$50" });
+    expect(row.unrealizedPnl).toEqual({ value: 250, display: "+$250" });
     expect(row.weight).toEqual({ value: 57.3, display: "57.3%" });
   });
 
@@ -133,6 +135,8 @@ describe("getActivePositions", () => {
       lastPrice: null,
       marketValue: null,
       totalPnl: null,
+      realizedPnl: null,
+      unrealizedPnl: null,
     });
 
     mockComputePositions.mockReturnValue([naPosition]);
@@ -149,19 +153,21 @@ describe("getActivePositions", () => {
     expect(result.rows[0].lastPrice).toEqual({ value: null, display: "N/A" });
     expect(result.rows[0].marketValue).toEqual({ value: null, display: "N/A" });
     expect(result.rows[0].pnl).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].realizedPnl).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].unrealizedPnl).toEqual({ value: null, display: "N/A" });
     expect(result.rows[0].weight).toEqual({ value: null, display: "N/A" });
   });
 
   it("totals sum each additive field across all active rows", () => {
-    const a = makePosition({ ticker: "AAPL", costBasis: 1000, marketValue: 1500, totalDividends: 20, totalSellProceeds: 100, totalPnl: 600 });
-    const b = makePosition({ ticker: "MSFT", costBasis: 2000, marketValue: 2200, totalDividends: 30, totalSellProceeds: 0, totalPnl: 200 });
+    const a = makePosition({ ticker: "AAPL", costBasis: 1000, marketValue: 1500, totalDividends: 20, totalSellProceeds: 100, totalPnl: 600, realizedPnl: 100, unrealizedPnl: 500 });
+    const b = makePosition({ ticker: "MSFT", costBasis: 2000, marketValue: 2200, totalDividends: 30, totalSellProceeds: 0, totalPnl: 200, realizedPnl: 30, unrealizedPnl: 170 });
 
     mockComputePositions.mockReturnValue([a, b]);
     mockComputeAggregates.mockReturnValue({
       totalValue: 3700,
       totalCostBasis: 3000,
-      totalRealizedPnl: 150,
-      totalUnrealizedPnl: 650,
+      totalRealizedPnl: 130,
+      totalUnrealizedPnl: 670,
       positions: [
         { ...a, weight: 40 },
         { ...b, weight: 60 },
@@ -176,6 +182,11 @@ describe("getActivePositions", () => {
     expect(totals!.dividends).toEqual({ value: 50, display: "$50" });
     expect(totals!.sellProceeds).toEqual({ value: 100, display: "$100" });
     expect(totals!.pnl).toEqual({ value: 800, display: "+$800" });
+    expect(totals!.realizedPnl).toEqual({ value: 130, display: "+$130" });
+    expect(totals!.unrealizedPnl).toEqual({ value: 670, display: "+$670" });
+    // Identity: realized + unrealized = pnl. If the page mistakes one for
+    // the other, this assertion stays green but the KPI labels do not.
+    expect(totals!.realizedPnl.value! + totals!.unrealizedPnl.value!).toBe(totals!.pnl.value);
     expect(totals!.irr).toEqual({ value: 12.5, display: "+13%" });
     // Weight total is the actual sum — deviation from 100% is a bug signal.
     expect(totals!.weight).toEqual({ value: 100, display: "100.0%" });
@@ -229,6 +240,8 @@ describe("getActivePositions", () => {
       costBasis: null,
       marketValue: null,
       totalPnl: null,
+      realizedPnl: null,
+      unrealizedPnl: null,
     });
 
     mockComputePositions.mockReturnValue([a, bNa]);
@@ -247,6 +260,8 @@ describe("getActivePositions", () => {
     expect(totals!.costBasis).toEqual({ value: null, display: "N/A" });
     expect(totals!.marketValue).toEqual({ value: null, display: "N/A" });
     expect(totals!.pnl).toEqual({ value: null, display: "N/A" });
+    expect(totals!.realizedPnl).toEqual({ value: null, display: "N/A" });
+    expect(totals!.unrealizedPnl).toEqual({ value: null, display: "N/A" });
     expect(totals!.weight).toEqual({ value: null, display: "N/A" });
     // Dividends and sell proceeds are both non-null on every row → still sum.
     expect(totals!.dividends.value).toBe(70); // 20 + 50 (default from makePosition)
@@ -267,6 +282,9 @@ describe("getClosedPositions", () => {
   });
 
   it("returns only closed positions with correct formatting", () => {
+    // Diverging totalPnl vs realizedPnl pins the row mapping to p.realizedPnl —
+    // they would always agree for a real closed position, but using a
+    // divergent fixture here proves the query reads the right field name.
     const closedPosition = makePosition({
       ticker: "TSLA",
       portfolio: "Schwab",
@@ -278,7 +296,9 @@ describe("getClosedPositions", () => {
       totalInvested: 2150,
       totalSellProceeds: 2400,
       totalDividends: 30,
-      totalPnl: 280,
+      totalPnl: 999,
+      realizedPnl: 280,
+      unrealizedPnl: 0,
     });
     const activePosition = makePosition({ ticker: "AAPL", isClosed: false });
 
@@ -337,6 +357,8 @@ describe("getClosedPositions", () => {
       sharesHeld: 0,
       lastPrice: null,
       totalPnl: null,
+      realizedPnl: null,
+      unrealizedPnl: null,
       totalInvested: null,
       totalSellProceeds: null,
       totalDividends: null,
@@ -358,8 +380,8 @@ describe("getClosedPositions", () => {
   });
 
   it("totals sum each additive field across all closed rows", () => {
-    const a = makePosition({ ticker: "TSLA", isClosed: true, sharesHeld: 0, totalInvested: 2000, totalSellProceeds: 2500, totalDividends: 30, totalPnl: 530 });
-    const b = makePosition({ ticker: "AMD", isClosed: true, sharesHeld: 0, totalInvested: 1000, totalSellProceeds: 900, totalDividends: 10, totalPnl: -90 });
+    const a = makePosition({ ticker: "TSLA", isClosed: true, sharesHeld: 0, totalInvested: 2000, totalSellProceeds: 2500, totalDividends: 30, totalPnl: 530, realizedPnl: 530, unrealizedPnl: 0 });
+    const b = makePosition({ ticker: "AMD", isClosed: true, sharesHeld: 0, totalInvested: 1000, totalSellProceeds: 900, totalDividends: 10, totalPnl: -90, realizedPnl: -90, unrealizedPnl: 0 });
 
     mockComputePositions.mockReturnValue([a, b]);
     mockComputePortfolioIRR.mockReturnValue(15.4);
