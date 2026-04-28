@@ -80,15 +80,22 @@ export default async function PositionsPage({
   const unrealizedSub =
     unrealizedOnCost !== null ? `${formatPercent(unrealizedOnCost)} on cost` : "—";
 
-  // Realized P&L spans every position: dividends + completed sells inside
-  // still-open holdings *and* fully-closed positions. Summing only closed
-  // would drop the realized portion of active rows.
+  // Realized P&L spans active rows (dividends + completed sells inside
+  // still-open holdings) *and* fully-closed positions. Summing only closed
+  // would drop the realized portion of active rows. Match the dashboard's
+  // strict null propagation: if either side has an N/A row the total is
+  // N/A — coalescing to zero would silently understate the figure.
   const activeRealized = activeTotals?.realizedPnl.value ?? null;
   const closedRealized = closedTotals?.realizedPnl.value ?? null;
+  const realizedPoisoned =
+    (activeTotals !== null && activeRealized === null) ||
+    (closedTotals !== null && closedRealized === null);
   const realizedPnlValue =
-    activeRealized === null && closedRealized === null
+    activeTotals === null && closedTotals === null
       ? null
-      : (activeRealized ?? 0) + (closedRealized ?? 0);
+      : realizedPoisoned
+        ? null
+        : (activeRealized ?? 0) + (closedRealized ?? 0);
   const realizedPnlDisplay =
     activeTotals || closedTotals ? formatPnLRounded(realizedPnlValue) : "—";
 
@@ -118,7 +125,7 @@ export default async function PositionsPage({
       value: realizedPnlDisplay,
       valueTone: toTone(realizedPnlValue),
       privateValue: true,
-      sub: `Across ${closedCount} closed`,
+      sub: "Lifetime",
     },
     {
       label: "Dividends Collected",
