@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   useReactTable,
@@ -165,6 +165,7 @@ export function DrillDownPositionsTable<TData extends { ticker: string }>({
   totalsRow,
 }: DrillDownPositionsTableProps<TData>) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   return (
     <PositionsTable
@@ -174,8 +175,11 @@ export function DrillDownPositionsTable<TData extends { ticker: string }>({
       emptyMessage={emptyMessage}
       totalsRow={totalsRow}
       onRowClick={(row) => {
-        const params = new URLSearchParams({ ticker: row.ticker });
-        router.push(`/transactions?${params.toString()}`);
+        const portfolio = searchParams.get("portfolio");
+        const qs = portfolio
+          ? `?portfolio=${encodeURIComponent(portfolio)}`
+          : "";
+        router.push(`/positions/${encodeURIComponent(row.ticker)}${qs}`);
       }}
     />
   );
