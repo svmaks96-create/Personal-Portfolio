@@ -158,4 +158,3 @@ npm run test:run     # Vitest single run
 npm run lint         # Next.js lint
 ```
 
-@AGENTS.md
