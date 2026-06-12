@@ -39,8 +39,8 @@ yarn-error.log*
 .env.local
 .env.test
 
-# database
-data/portfolio.db
+# database (including backup copies)
+data/*.db
 
 # personal manual price files (README is tracked)
 data/manual-prices/*.csv
