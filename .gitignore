@@ -14,11 +14,8 @@
 /coverage
 .playwright-mcp
 
-# claude / bmad
+# claude
 .claude
-.agents
-_bmad-output
-_bmad
 
 # next.js
 /.next/

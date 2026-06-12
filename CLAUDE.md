@@ -158,9 +158,4 @@ npm run test:run     # Vitest single run
 npm run lint         # Next.js lint
 ```
 
-## Planning Artifacts
-
-Full requirements, architecture, UX specs, and epic breakdown are in:
-`_bmad-output/planning-artifacts/`
-
 @AGENTS.md
