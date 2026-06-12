@@ -26,6 +26,7 @@ function tx(
     date,
     ticker,
     action,
+    instrument: "stock",
     quantity,
     grossAmount,
     fees: 0,
@@ -703,3 +704,85 @@ describe("computeValueVsCostBasisSeries", () => {
 
 // Guard against accidental re-export drift: keep epsilon in scope.
 void EPS;
+
+describe("option handling", () => {
+  const calendar = ["2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07"];
+  const flatPrices = {
+    AAA: priceSeries("AAA", [
+      ["2026-01-02", 100],
+      ["2026-01-05", 100],
+      ["2026-01-06", 100],
+      ["2026-01-07", 100],
+    ]),
+  };
+
+  it("is return-neutral on option open and books realized P&L on close", () => {
+    const txns = [
+      tx(1, "2026-01-02", "AAA", "buy", 1, 100),
+      tx(2, "2026-01-05", "AAA", "buy", 1, 500, { instrument: "option" }),
+      tx(3, "2026-01-07", "AAA", "sell", 1, 700, { instrument: "option" }),
+    ];
+
+    const result = computePortfolioTWRR(
+      txns, flatPrices, [], calendar, "2026-01-02", "2026-01-07"
+    );
+
+    const g = result.series.map((p) => p.growthOfDollar);
+    // Open day: MV 100+500, CF 500 → flat. Carry day: at cost → flat.
+    expect(g[1]).toBeCloseTo(1, EPS_DIGITS);
+    expect(g[2]).toBeCloseTo(1, EPS_DIGITS);
+    // Close day: MV 100, CF -700, prev 600 → (100 + 700) / 600
+    expect(g[3]).toBeCloseTo(800 / 600, EPS_DIGITS);
+  });
+
+  it("values open options at fresh marks between trades", () => {
+    const txns = [
+      tx(1, "2026-01-02", "AAA", "buy", 1, 100),
+      tx(2, "2026-01-05", "AAA", "buy", 1, 500, { instrument: "option" }),
+    ];
+    const marks = {
+      AAA: priceSeries("AAA", [["2026-01-06", 550]]),
+    };
+
+    const result = computePortfolioTWRR(
+      txns, flatPrices, [], calendar, "2026-01-02", "2026-01-07", marks
+    );
+
+    // 2026-01-06: MV = 100 stock + 550 mark
+    expect(result.series[2].marketValueUsd).toBeCloseTo(650, EPS_DIGITS);
+    expect(result.series[2].growthOfDollar).toBeCloseTo(650 / 600, EPS_DIGITS);
+  });
+
+  it("seeds synthetic prices from the first STOCK buy, ignoring earlier option buys", () => {
+    // Option buy predates the stock buy; without the instrument guard the
+    // synthetic seed would price CCC at 500/unit instead of the stock's 100.
+    const txns = [
+      tx(1, "2026-01-02", "CCC", "buy", 1, 500, { instrument: "option" }),
+      tx(2, "2026-01-05", "CCC", "buy", 1, 100),
+    ];
+
+    const result = computePortfolioTWRR(
+      txns, {}, [], calendar, "2026-01-02", "2026-01-07"
+    );
+
+    // 2026-01-05: option basis 500 + 1 share at synthetic cost 100
+    expect(result.series[1].marketValueUsd).toBeCloseTo(600, EPS_DIGITS);
+  });
+
+  it("includes option basis in both lines of the value-vs-cost-basis series", () => {
+    const txns = [
+      tx(1, "2026-01-02", "AAA", "buy", 1, 100),
+      tx(2, "2026-01-05", "AAA", "buy", 1, 500, { instrument: "option" }),
+    ];
+
+    const series = computeValueVsCostBasisSeries(
+      txns, flatPrices, [], calendar, "2026-01-02", "2026-01-07"
+    );
+
+    const last = series[series.length - 1];
+    expect(last.costBasis).toBeCloseTo(600, EPS_DIGITS);
+    expect(last.portfolioValue).toBeCloseTo(600, EPS_DIGITS);
+  });
+});
+
+const EPS_DIGITS = 9;

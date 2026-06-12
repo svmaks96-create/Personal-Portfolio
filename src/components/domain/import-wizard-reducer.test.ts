@@ -17,6 +17,7 @@ function makeRow(
       date: "2025-03-15",
       ticker: "AAPL",
       action: "buy",
+      instrument: "stock",
       quantity: 10,
       grossAmount: 1500,
       fees: 4.95,

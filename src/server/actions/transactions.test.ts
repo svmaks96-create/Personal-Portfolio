@@ -49,6 +49,7 @@ function existingRow() {
     date: "2025-03-15",
     ticker: "AAPL",
     action: "buy" as const,
+    instrument: "stock" as const,
     quantity: 10,
     grossAmount: 1500,
     fees: 4.95,
@@ -62,6 +63,7 @@ function validAddData() {
     date: "2025-04-01",
     ticker: "MSFT",
     action: "buy",
+    instrument: "stock",
     quantity: 5,
     grossAmount: 2000,
     fees: 4.95,
@@ -256,7 +258,7 @@ describe("addTransaction", () => {
   it("rejects sell-more-than-held", async () => {
     // Existing: bought 10 AAPL in Main
     mocks.mockAll.mockReturnValue([
-      { ticker: "AAPL", portfolio: "Main", action: "buy", quantity: 10 },
+      { ticker: "AAPL", portfolio: "Main", action: "buy", instrument: "stock", quantity: 10 },
     ]);
     const result = await addTransaction({
       ...validAddData(),
@@ -272,7 +274,7 @@ describe("addTransaction", () => {
 
   it("allows sell within held quantity", async () => {
     mocks.mockAll.mockReturnValue([
-      { ticker: "AAPL", portfolio: "Main", action: "buy", quantity: 10 },
+      { ticker: "AAPL", portfolio: "Main", action: "buy", instrument: "stock", quantity: 10 },
     ]);
     const result = await addTransaction({
       ...validAddData(),
@@ -291,6 +293,7 @@ describe("addTransaction", () => {
         date: "2025-04-01",
         ticker: "MSFT",
         action: "buy",
+        instrument: "stock",
         quantity: 5,
         grossAmount: 2000,
         portfolio: "Main",
@@ -310,6 +313,7 @@ describe("addTransaction", () => {
         date: "2025-04-01",
         ticker: "MSFT",
         action: "buy",
+        instrument: "stock",
         quantity: 5,
         grossAmount: 2000,
         portfolio: "Main",
@@ -331,7 +335,7 @@ describe("addTransaction", () => {
 
   it("does not insert on sell-more-than-held", async () => {
     mocks.mockAll.mockReturnValue([
-      { ticker: "AAPL", portfolio: "Main", action: "buy", quantity: 5 },
+      { ticker: "AAPL", portfolio: "Main", action: "buy", instrument: "stock", quantity: 5 },
     ]);
     await addTransaction({
       ...validAddData(),
@@ -349,6 +353,7 @@ describe("addTransaction", () => {
         date: "2025-04-01",
         ticker: "MSFT",
         action: "buy",
+        instrument: "stock",
         quantity: 5,
         grossAmount: 2000,
         portfolio: "Main",

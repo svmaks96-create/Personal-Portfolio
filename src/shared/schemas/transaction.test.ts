@@ -145,3 +145,41 @@ describe("transactionSchema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("instrument field", () => {
+  it("defaults instrument to stock when omitted", () => {
+    const result = transactionSchema.safeParse(validTransaction());
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.instrument).toBe("stock");
+    }
+  });
+
+  it("accepts option buy and sell", () => {
+    expect(
+      transactionSchema.safeParse(validTransaction({ instrument: "option" })).success
+    ).toBe(true);
+    expect(
+      transactionSchema.safeParse(
+        validTransaction({ instrument: "option", action: "sell" })
+      ).success
+    ).toBe(true);
+  });
+
+  it("rejects dividend and fee actions on option instrument", () => {
+    for (const action of ["dividend", "fee"]) {
+      const result = transactionSchema.safeParse(
+        validTransaction({ instrument: "option", action, quantity: 0 })
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((i) => i.path.includes("instrument"))).toBe(true);
+      }
+    }
+  });
+
+  it("rejects unknown instrument values", () => {
+    const result = transactionSchema.safeParse(validTransaction({ instrument: "future" }));
+    expect(result.success).toBe(false);
+  });
+});

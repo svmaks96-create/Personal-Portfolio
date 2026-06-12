@@ -8,6 +8,7 @@ export const transactionBaseFields = {
     .min(1, "Ticker is required")
     .transform((v) => v.toUpperCase()),
   action: z.enum(["buy", "sell", "dividend", "fee"]),
+  instrument: z.enum(["stock", "option"]).default("stock"),
   quantity: z.number().min(0, "Quantity cannot be negative"),
   grossAmount: z.number(),
   fees: z.number().min(0, "Fees cannot be negative"),
@@ -22,6 +23,7 @@ export const transactionBaseFields = {
 export function addTransactionRefinements<
   T extends z.ZodType<{
     action: string;
+    instrument: string;
     grossAmount: number;
     quantity: number;
   }>,
@@ -34,6 +36,10 @@ export function addTransactionRefinements<
     .refine(
       (data) => !["buy", "sell"].includes(data.action) || data.quantity > 0,
       { message: "Quantity must be greater than zero for buy/sell", path: ["quantity"] },
+    )
+    .refine(
+      (data) => data.instrument !== "option" || ["buy", "sell"].includes(data.action),
+      { message: "Options only support buy/sell actions", path: ["instrument"] },
     );
 }
 

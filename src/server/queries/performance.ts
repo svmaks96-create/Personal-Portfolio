@@ -3,6 +3,7 @@ import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 import {
   getPriceHistory,
   getEarliestTransactionDate,
+  getOptionMarkHistory,
 } from "@/server/queries/market-data";
 import {
   computePortfolioTWRR,
@@ -114,7 +115,8 @@ export function getPerformanceData(
     fxHistory,
     tradingCalendar,
     startDate,
-    endDate
+    endDate,
+    getOptionMarkHistory()
   );
 
   const spySeriesItd = hasBenchmarkData

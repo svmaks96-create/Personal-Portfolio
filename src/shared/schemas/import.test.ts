@@ -217,8 +217,8 @@ describe("importRowSchema re-validation edge cases", () => {
 });
 
 describe("COLUMN_MAP", () => {
-  it("maps all 8 required columns", () => {
-    expect(Object.keys(COLUMN_MAP)).toHaveLength(8);
+  it("maps all 9 columns (8 required + optional instrument)", () => {
+    expect(Object.keys(COLUMN_MAP)).toHaveLength(9);
   });
 
   it("maps 'gross amount' to 'grossAmount'", () => {
@@ -242,5 +242,9 @@ describe("REQUIRED_COLUMNS", () => {
     expect(REQUIRED_COLUMNS).toContain("fees");
     expect(REQUIRED_COLUMNS).toContain("portfolio");
     expect(REQUIRED_COLUMNS).toContain("currency");
+  });
+
+  it("does not require the optional instrument column", () => {
+    expect(REQUIRED_COLUMNS).not.toContain("instrument");
   });
 });

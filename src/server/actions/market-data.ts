@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, format, parseISO } from "date-fns";
 import { db } from "@/server/db";
 import {
   transactions,
@@ -21,7 +21,9 @@ import {
 import {
   getEarliestTransactionDate,
   getCurrentlyHeldTickers,
+  OPTION_MARK_SUFFIX,
 } from "@/server/queries/market-data";
+import { optionMarkSchema } from "@/shared/schemas/option-mark";
 import {
   getEtfHoldingsFetchedAtMap,
   getVariantsFetchedAtMap,
@@ -45,8 +47,13 @@ import type {
  */
 export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
   try {
-    // 1. Get unique tickers from transactions, union benchmarks
-    const rows = db.select({ ticker: transactions.ticker }).from(transactions).all();
+    // 1. Get unique stock tickers from transactions, union benchmarks
+    // (option rows are marked manually, never priced via FMP)
+    const rows = db
+      .select({ ticker: transactions.ticker })
+      .from(transactions)
+      .where(eq(transactions.instrument, "stock"))
+      .all();
     const heldTickers = new Set(rows.map((r) => r.ticker));
     const allTickers = [...new Set([...heldTickers, ...BENCHMARK_TICKERS])];
 
@@ -178,11 +185,19 @@ export async function backfillHistory(): Promise<ActionResult<BackfillResult>> {
     }
 
     const txRows = db
-      .select({ ticker: transactions.ticker, currency: transactions.currency })
+      .select({
+        ticker: transactions.ticker,
+        currency: transactions.currency,
+        instrument: transactions.instrument,
+      })
       .from(transactions)
       .all();
 
-    const heldTickers = new Set(txRows.map((r) => r.ticker));
+    // Only stock tickers get FMP price history; FX pairs come from all rows
+    // (non-USD option trades still need rates for cost conversion).
+    const heldTickers = new Set(
+      txRows.filter((r) => r.instrument === "stock").map((r) => r.ticker)
+    );
     const tickerSymbols = [...new Set([...heldTickers, ...BENCHMARK_TICKERS])];
     const fxCurrencies = [...new Set(txRows.map((r) => r.currency))].filter(
       (c) => c !== "USD"
@@ -247,7 +262,11 @@ const ETF_HOLDINGS_STALENESS_DAYS = 7;
  */
 export async function refreshTickerProfiles(): Promise<ActionResult<RefreshResult>> {
   try {
-    const rows = db.select({ ticker: transactions.ticker }).from(transactions).all();
+    const rows = db
+      .select({ ticker: transactions.ticker })
+      .from(transactions)
+      .where(eq(transactions.instrument, "stock"))
+      .all();
     const allTickers = [...new Set(rows.map((r) => r.ticker))];
 
     if (allTickers.length === 0) {
@@ -478,6 +497,52 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
     return {
       success: false,
       error: "Unable to fetch ETF holdings. Please try again.",
+    };
+  }
+}
+
+/**
+ * Set the current total USD value (mark) of an open option position.
+ * Stored as a dated `market_data` row (symbol "<TICKER>:OPT", type
+ * "option_mark"). Position valuation uses the latest mark only when it
+ * postdates the last option trade on the underlying; older marks are
+ * ignored and the position is carried at cost.
+ */
+export async function setOptionMark(
+  ticker: string,
+  value: number
+): Promise<ActionResult> {
+  const parsed = optionMarkSchema.safeParse({ ticker, value });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid mark",
+    };
+  }
+
+  try {
+    const today = format(new Date(), "yyyy-MM-dd");
+    upsertMarketDataRows(
+      [
+        {
+          symbol: `${parsed.data.ticker}${OPTION_MARK_SUFFIX}`,
+          date: today,
+          price: parsed.data.value,
+          volume: 0,
+        },
+      ],
+      "option_mark",
+      new Date().toISOString()
+    );
+
+    revalidatePath("/", "layout");
+
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("setOptionMark failed:", error);
+    return {
+      success: false,
+      error: "Failed to save option mark. Please try again.",
     };
   }
 }

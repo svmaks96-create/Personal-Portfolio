@@ -178,7 +178,11 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
   const merged = mergePositionsByTicker(rawPositions, txInputs, fxRates, today);
   const aggregates = computeAggregates(merged);
 
-  const position = aggregates.positions.find((p) => p.ticker === ticker);
+  // The detail page is stock-scoped: option positions on the same underlying
+  // are surfaced on the Positions page only (their rows don't navigate here).
+  const position = aggregates.positions.find(
+    (p) => p.ticker === ticker && p.instrument === "stock"
+  );
   if (!position) return null;
 
   const profilesMap = getTickerProfilesMap();
@@ -187,7 +191,9 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
   // Build a stable navigation order: active positions by market value desc,
   // then closed positions by realized P&L desc — same priority the Positions
   // page sorts by, so prev/next mirrors the user's last view.
-  const sorted = [...aggregates.positions].sort((a, b) => {
+  const sorted = aggregates.positions
+    .filter((p) => p.instrument === "stock")
+    .sort((a, b) => {
     if (a.isClosed !== b.isClosed) return a.isClosed ? 1 : -1;
     if (a.isClosed) {
       const ar = a.realizedPnl ?? -Infinity;
@@ -204,8 +210,11 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
   const nextTicker =
     idx >= 0 && idx < allTickers.length - 1 ? allTickers[idx + 1] : allTickers[0] ?? null;
 
-  // Per-ticker transactions for the trade-history table + held-since + annual income.
-  const txs = getTransactions(undefined, ticker);
+  // Per-ticker STOCK transactions for the trade-history table + held-since +
+  // annual income — option rows would corrupt the running-shares trace.
+  const txs = getTransactions(undefined, ticker).filter(
+    (t) => t.instrument === "stock"
+  );
   const trades = buildTradeEvents(txs);
 
   // Earliest BUY date is the canonical "held since"; falls back to first event

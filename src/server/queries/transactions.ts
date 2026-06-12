@@ -9,6 +9,7 @@ export interface TransactionRow {
   date: { value: string; display: string };
   ticker: string;
   action: string;
+  instrument: string;
   quantity: { value: number | null; display: string };
   grossAmount: { value: number | null; display: string };
   fees: { value: number | null; display: string };
@@ -71,6 +72,7 @@ export function getTransactions(
       date: { value: row.date, display: formatDate(row.date) },
       ticker: row.ticker,
       action: row.action,
+      instrument: row.instrument,
       quantity: {
         value: isDividend || isFee ? null : row.quantity,
         display: isDividend || isFee ? dash : formatShares(row.quantity),

@@ -7,6 +7,7 @@ export const transactions = sqliteTable(
     date: text("date").notNull(),
     ticker: text("ticker").notNull(),
     action: text("action").$type<"buy" | "sell" | "dividend" | "fee">().notNull(),
+    instrument: text("instrument").$type<"stock" | "option">().notNull().default("stock"),
     quantity: real("quantity").notNull(),
     grossAmount: real("gross_amount").notNull(),
     fees: real("fees").notNull().default(0),
@@ -24,7 +25,7 @@ export const marketData = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     symbol: text("symbol").notNull(),
-    type: text("type").$type<"stock_price" | "fx_rate">().notNull(),
+    type: text("type").$type<"stock_price" | "fx_rate" | "option_mark">().notNull(),
     date: text("date").notNull(),
     value: real("value").notNull(),
     fetchedAt: text("fetched_at").notNull(),

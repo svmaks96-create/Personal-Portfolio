@@ -4,6 +4,7 @@ import type {
   TransactionInput,
   MarketDataInput,
   FxRateInput,
+  OptionMarkInput,
   ComputedPosition,
   AggregateMetrics,
 } from "@/server/types/positions";
@@ -145,12 +146,14 @@ export function computePositions(
   transactions: TransactionInput[],
   marketData: Record<string, MarketDataInput>,
   fxRates: FxRateInput[],
-  today: string
+  today: string,
+  optionMarks: Record<string, OptionMarkInput> = {}
 ): ComputedPosition[] {
-  // Group transactions by ticker + portfolio
+  // Group transactions by ticker + portfolio + instrument
+  // (option rows on the same underlying form their own position)
   const groups = new Map<string, TransactionInput[]>();
   for (const t of transactions) {
-    const key = `${t.ticker}::${t.portfolio}`;
+    const key = `${t.ticker}::${t.portfolio}::${t.instrument}`;
     const group = groups.get(key);
     if (group) {
       group.push(t);
@@ -177,6 +180,8 @@ export function computePositions(
 
     const first = group[0];
     const currency = first.currency;
+    const isOption = first.instrument === "option";
+    const lastTxDate = group[group.length - 1].date;
 
     for (const t of group) {
       const qty = new Decimal(t.quantity);
@@ -243,6 +248,7 @@ export function computePositions(
       positions.push({
         ticker: first.ticker,
         portfolio: first.portfolio,
+        instrument: first.instrument,
         currency,
         sharesHeld: sharesHeld.toNumber(),
         totalSharesBought: totalSharesBought.toNumber(),
@@ -250,8 +256,9 @@ export function computePositions(
         avgEntryPrice: null,
         avgExitPrice: null,
         costBasis: null,
-        lastPrice: marketData[first.ticker]?.value ?? null,
-        lastPriceDate: marketData[first.ticker]?.date ?? null,
+        lastPrice: isOption ? null : marketData[first.ticker]?.value ?? null,
+        lastPriceDate: isOption ? null : marketData[first.ticker]?.date ?? null,
+        markDate: null,
         marketValue: null,
         totalDividends: null,
         totalSellProceeds: null,
@@ -280,8 +287,8 @@ export function computePositions(
 
     const isClosed = sharesHeld.isZero() && totalInvested.greaterThan(0);
 
-    // Market data lookup
-    const md = marketData[first.ticker];
+    // Market data lookup — never value option contracts at the underlying's stock price
+    const md = isOption ? undefined : marketData[first.ticker];
     const lastPrice = md ? md.value : null;
 
     // Look up FX rate for market value conversion
@@ -294,8 +301,28 @@ export function computePositions(
     let totalPnl: number | null = null;
     let realizedPnl: number | null = null;
     let unrealizedPnl: number | null = null;
+    let markDate: string | null = null;
 
-    if (lastPrice !== null && !isClosed) {
+    if (isOption && !isClosed) {
+      // Open option position: value at the latest mark if it postdates the
+      // last option trade (a trade invalidates the previous total-value mark);
+      // otherwise carry at cost. Cost basis is already in USD at trade-date FX.
+      const mark = optionMarks[first.ticker];
+      const markIsFresh = mark !== undefined && mark.date >= lastTxDate;
+      const mv = markIsFresh ? new Decimal(mark.value) : costBasis;
+      if (markIsFresh) markDate = mark.date;
+      marketValue = mv.toNumber();
+      totalPnl = mv
+        .plus(totalDividends)
+        .plus(totalSellProceeds)
+        .minus(totalInvested)
+        .toNumber();
+      realizedPnl = totalSellProceeds
+        .plus(totalDividends)
+        .minus(totalInvested.minus(costBasis))
+        .toNumber();
+      unrealizedPnl = mv.minus(costBasis).toNumber();
+    } else if (lastPrice !== null && !isClosed) {
       if (currentFxRate === null) {
         // Non-USD position with no FX rate for market value conversion
         marketValue = null;
@@ -341,6 +368,7 @@ export function computePositions(
     positions.push({
       ticker: first.ticker,
       portfolio: first.portfolio,
+      instrument: first.instrument,
       currency,
       sharesHeld: sharesHeld.toNumber(),
       totalSharesBought: totalSharesBought.toNumber(),
@@ -350,6 +378,7 @@ export function computePositions(
       costBasis: costBasis.toNumber(),
       lastPrice,
       lastPriceDate: md ? md.date : null,
+      markDate,
       marketValue,
       totalDividends: totalDividends.toNumber(),
       totalSellProceeds: totalSellProceeds.toNumber(),
@@ -380,17 +409,19 @@ export function mergePositionsByTicker(
 ): ComputedPosition[] {
   const groups = new Map<string, ComputedPosition[]>();
   for (const pos of positions) {
-    const group = groups.get(pos.ticker);
+    const key = `${pos.ticker}::${pos.instrument}`;
+    const group = groups.get(key);
     if (group) {
       group.push(pos);
     } else {
-      groups.set(pos.ticker, [pos]);
+      groups.set(key, [pos]);
     }
   }
 
   const merged: ComputedPosition[] = [];
 
-  for (const [ticker, group] of groups) {
+  for (const [, group] of groups) {
+    const ticker = group[0].ticker;
     if (group.length === 1) {
       merged.push({ ...group[0], portfolio: "All" });
       continue;
@@ -492,7 +523,9 @@ export function mergePositionsByTicker(
     }
 
     // Recompute IRR from combined cash flows
-    const tickerTxns = transactions.filter((t) => t.ticker === ticker);
+    const tickerTxns = transactions.filter(
+      (t) => t.ticker === ticker && t.instrument === group[0].instrument
+    );
     const flows = buildUsdCashFlows(tickerTxns, fxRates);
     const marketValueNum = sumMarketValue ? sumMarketValue.toNumber() : null;
     if (!allClosed && marketValueNum !== null) {
@@ -506,6 +539,7 @@ export function mergePositionsByTicker(
     merged.push({
       ticker,
       portfolio: "All",
+      instrument: first.instrument,
       currency: first.currency,
       sharesHeld: sumSharesHeld.toNumber(),
       totalSharesBought: sumSharesBought.toNumber(),
@@ -515,6 +549,7 @@ export function mergePositionsByTicker(
       costBasis: sumCostBasis ? sumCostBasis.toNumber() : null,
       lastPrice: first.lastPrice,
       lastPriceDate: first.lastPriceDate,
+      markDate: first.markDate,
       marketValue: marketValueNum,
       totalDividends: sumDividends ? sumDividends.toNumber() : null,
       totalSellProceeds: sumSellProceeds ? sumSellProceeds.toNumber() : null,
@@ -647,7 +682,10 @@ export function computeConcentration(
     if (pos.weight === null || pos.isClosed) continue;
 
     const posWeight = new Decimal(pos.weight);
-    const holdings = etfHoldingsMap[pos.ticker];
+    // Option positions always count as direct weight on the underlying,
+    // even when the underlying is an ETF — contracts hold no look-through assets
+    const holdings =
+      pos.instrument === "option" ? undefined : etfHoldingsMap[pos.ticker];
 
     if (holdings) {
       // ETF: decompose into underlying holdings

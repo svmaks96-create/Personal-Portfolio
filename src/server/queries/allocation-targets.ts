@@ -79,14 +79,19 @@ export function getAllocationModel(): AllocationModel {
   const usdPriceByTicker = new Map<string, number | null>();
   let positionsValueSum = new Decimal(0);
   for (const pos of activeMerged) {
-    marketValueByTicker.set(pos.ticker, pos.marketValue);
-    if (pos.sharesHeld > 0 && pos.marketValue !== null) {
-      usdPriceByTicker.set(
-        pos.ticker,
-        new Decimal(pos.marketValue).div(pos.sharesHeld).toNumber(),
-      );
-    } else {
-      usdPriceByTicker.set(pos.ticker, null);
+    // Option positions count toward total portfolio value (the denominator)
+    // but never represent the underlying's per-ticker stock value — an option
+    // row must not clobber the stock row's market value for the same ticker.
+    if (pos.instrument === "stock") {
+      marketValueByTicker.set(pos.ticker, pos.marketValue);
+      if (pos.sharesHeld > 0 && pos.marketValue !== null) {
+        usdPriceByTicker.set(
+          pos.ticker,
+          new Decimal(pos.marketValue).div(pos.sharesHeld).toNumber(),
+        );
+      } else {
+        usdPriceByTicker.set(pos.ticker, null);
+      }
     }
     if (pos.marketValue !== null) {
       positionsValueSum = positionsValueSum.plus(pos.marketValue);

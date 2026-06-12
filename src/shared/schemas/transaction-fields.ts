@@ -2,6 +2,7 @@ export const FIELD_COLUMNS = [
   "date",
   "ticker",
   "action",
+  "instrument",
   "quantity",
   "grossAmount",
   "fees",
@@ -15,6 +16,7 @@ export const COLUMN_LABELS: Record<FieldKey, string> = {
   date: "Date",
   ticker: "Ticker",
   action: "Action",
+  instrument: "Instrument",
   quantity: "Quantity",
   grossAmount: "Gross Amount",
   fees: "Fees",
@@ -23,3 +25,5 @@ export const COLUMN_LABELS: Record<FieldKey, string> = {
 };
 
 export const ACTION_OPTIONS = ["buy", "sell", "dividend", "fee"] as const;
+
+export const INSTRUMENT_OPTIONS = ["stock", "option"] as const;

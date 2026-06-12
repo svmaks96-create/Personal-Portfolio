@@ -4,9 +4,9 @@ import { useState, useRef } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { addTransaction } from "@/server/actions/transactions";
-import { ACTION_OPTIONS } from "@/shared/schemas/transaction-fields";
+import { ACTION_OPTIONS, INSTRUMENT_OPTIONS } from "@/shared/schemas/transaction-fields";
 
-const COLUMN_COUNT = 12;
+const COLUMN_COUNT = 13;
 
 interface AddTransactionRowProps {
   onCancel: () => void;
@@ -17,6 +17,7 @@ const INITIAL_VALUES = {
   date: "",
   ticker: "",
   action: "buy" as string,
+  instrument: "stock" as string,
   quantity: "",
   grossAmount: "",
   fees: "0",
@@ -55,6 +56,7 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
         date: values.date,
         ticker: values.ticker,
         action: values.action,
+        instrument: values.instrument,
         quantity: values.quantity === "" || Number.isNaN(qtyNum) ? -1 : qtyNum,
         grossAmount: values.grossAmount === "" || Number.isNaN(amtNum) ? -1 : amtNum,
         fees: values.fees === "" || Number.isNaN(feesNum) ? -1 : feesNum,
@@ -132,6 +134,24 @@ export function AddTransactionRow({ onCancel, onSuccess }: AddTransactionRowProp
           </select>
           {fieldErrors.action && (
             <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.action}</span>
+          )}
+        </TableCell>
+
+        {/* Instrument */}
+        <TableCell className="text-center">
+          <select
+            className={inputClasses}
+            value={values.instrument}
+            onChange={(e) => handleChange("instrument", e.target.value)}
+          >
+            {INSTRUMENT_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.instrument && (
+            <span className="block text-red-500 dark:text-red-400 text-xs">{fieldErrors.instrument}</span>
           )}
         </TableCell>
 

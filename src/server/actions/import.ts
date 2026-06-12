@@ -99,6 +99,10 @@ export async function validateImport(
           rawData[fieldName] = value != null ? Number(value) : undefined;
         } else if (fieldName === "action") {
           rawData[fieldName] = value != null ? String(value).trim().toLowerCase() : "";
+        } else if (fieldName === "instrument") {
+          // Blank cells fall back to the Zod default ("stock")
+          const text = value != null ? String(value).trim().toLowerCase() : "";
+          rawData[fieldName] = text === "" ? undefined : text;
         } else {
           rawData[fieldName] = value != null ? String(value).trim() : "";
         }
@@ -127,12 +131,13 @@ export async function validateImport(
           message: issue.message,
         }));
       } else {
-        // Apply Zod transforms (uppercase ticker/currency)
+        // Apply Zod transforms (uppercase ticker/currency, instrument default)
         row.data = {
           ...row.data,
           ticker: result.data.ticker,
           currency: result.data.currency,
           fees: result.data.fees,
+          instrument: result.data.instrument,
         };
       }
     }
@@ -180,6 +185,7 @@ export async function revalidateImportRows(
           ticker: result.data.ticker,
           currency: result.data.currency,
           fees: result.data.fees,
+          instrument: result.data.instrument,
         };
       }
     }
@@ -221,6 +227,7 @@ function checkSellMoreThanHeld(rows: ImportValidationRow[]): void {
       ticker: transactions.ticker,
       portfolio: transactions.portfolio,
       action: transactions.action,
+      instrument: transactions.instrument,
       quantity: transactions.quantity,
     })
     .from(transactions)
@@ -228,7 +235,7 @@ function checkSellMoreThanHeld(rows: ImportValidationRow[]): void {
 
   const positionMap = new Map<string, Decimal>();
   for (const tx of existingPositions) {
-    const key = `${tx.ticker}:${tx.portfolio}`;
+    const key = `${tx.ticker}:${tx.portfolio}:${tx.instrument}`;
     const current = positionMap.get(key) ?? new Decimal(0);
     if (tx.action === "buy") positionMap.set(key, current.plus(tx.quantity));
     if (tx.action === "sell") positionMap.set(key, current.minus(tx.quantity));
@@ -238,7 +245,7 @@ function checkSellMoreThanHeld(rows: ImportValidationRow[]): void {
   validRows.sort((a, b) => a.data.date.localeCompare(b.data.date));
 
   for (const row of validRows) {
-    const key = `${row.data.ticker}:${row.data.portfolio}`;
+    const key = `${row.data.ticker}:${row.data.portfolio}:${row.data.instrument}`;
     const held = positionMap.get(key) ?? new Decimal(0);
 
     if (row.data.action === "sell") {
@@ -266,6 +273,7 @@ function checkDuplicates(rows: ImportValidationRow[]): void {
       date: transactions.date,
       ticker: transactions.ticker,
       action: transactions.action,
+      instrument: transactions.instrument,
       quantity: transactions.quantity,
       grossAmount: transactions.grossAmount,
       portfolio: transactions.portfolio,
@@ -275,7 +283,7 @@ function checkDuplicates(rows: ImportValidationRow[]): void {
 
   const existingKeys = new Map<string, number>();
   for (const tx of existingTransactions) {
-    const key = `${tx.date}|${tx.ticker}|${tx.action}|${tx.quantity}|${tx.grossAmount}|${tx.portfolio}`;
+    const key = `${tx.date}|${tx.ticker}|${tx.action}|${tx.instrument}|${tx.quantity}|${tx.grossAmount}|${tx.portfolio}`;
     existingKeys.set(key, tx.id);
   }
 
@@ -283,7 +291,7 @@ function checkDuplicates(rows: ImportValidationRow[]): void {
   for (const row of rows) {
     if (row.status !== "valid") continue;
 
-    const key = `${row.data.date}|${row.data.ticker}|${row.data.action}|${row.data.quantity}|${row.data.grossAmount}|${row.data.portfolio}`;
+    const key = `${row.data.date}|${row.data.ticker}|${row.data.action}|${row.data.instrument}|${row.data.quantity}|${row.data.grossAmount}|${row.data.portfolio}`;
 
     const existingId = existingKeys.get(key);
     if (existingId !== undefined) {
@@ -317,6 +325,7 @@ export async function commitImport(
       date: string;
       ticker: string;
       action: "buy" | "sell" | "dividend" | "fee";
+      instrument: "stock" | "option";
       quantity: number;
       grossAmount: number;
       fees: number;
@@ -346,6 +355,7 @@ export async function commitImport(
             date: row.date,
             ticker: row.ticker,
             action: row.action,
+            instrument: row.instrument,
             quantity: row.quantity,
             grossAmount: row.grossAmount,
             fees: row.fees,

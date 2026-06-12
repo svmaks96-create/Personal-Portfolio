@@ -28,6 +28,8 @@ function makePosition(overrides: Partial<ComputedPosition> = {}): ComputedPositi
   return {
     ticker: "AAPL",
     portfolio: "Main",
+    instrument: "stock",
+    markDate: null,
     currency: "USD",
     sharesHeld: 10,
     totalSharesBought: 10,

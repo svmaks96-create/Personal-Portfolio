@@ -6,7 +6,7 @@ import type { TransactionRow } from "@/server/queries/transactions";
 import { EditableCell } from "@/components/domain/editable-cell";
 import { NumericCell } from "@/components/domain/numeric-cell";
 import { Private } from "@/components/domain/private";
-import { ACTION_OPTIONS } from "@/shared/schemas/transaction-fields";
+import { ACTION_OPTIONS, INSTRUMENT_OPTIONS } from "@/shared/schemas/transaction-fields";
 import { cn } from "@/lib/utils";
 
 interface EditContext {
@@ -81,6 +81,27 @@ function ActionPill({ action }: { action: string }) {
   );
 }
 
+const INSTRUMENT_LABEL: Record<string, string> = {
+  stock: "STK",
+  option: "OPT",
+};
+
+function InstrumentPill({ instrument }: { instrument: string }) {
+  const label = INSTRUMENT_LABEL[instrument] ?? instrument.toUpperCase();
+  return (
+    <span
+      className={cn(
+        "inline-block border px-2 py-[1px] font-mono text-[10px] uppercase tracking-[0.12em]",
+        instrument === "option"
+          ? "text-foreground border-foreground"
+          : "text-muted-foreground border-line",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionRow>[] {
   return [
     {
@@ -148,6 +169,22 @@ export function getTransactionsColumns(ctx: EditContext): ColumnDef<TransactionR
           ctx,
           ACTION_OPTIONS,
           <ActionPill action={row.original.action} />,
+        ),
+      meta: { align: "center" as const },
+    },
+    {
+      accessorKey: "instrument",
+      header: "Instr",
+      cell: ({ row }) =>
+        editableCellRenderer(
+          row,
+          "instrument",
+          row.original.instrument,
+          INSTRUMENT_LABEL[row.original.instrument] ?? row.original.instrument.toUpperCase(),
+          "select",
+          ctx,
+          INSTRUMENT_OPTIONS,
+          <InstrumentPill instrument={row.original.instrument} />,
         ),
       meta: { align: "center" as const },
     },

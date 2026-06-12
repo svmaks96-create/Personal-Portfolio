@@ -13,6 +13,7 @@ function tx(
     id: 1,
     date: "2025-06-15",
     ticker: "AAPL",
+    instrument: "stock",
     quantity: 0,
     grossAmount: 0,
     fees: 0,
@@ -808,6 +809,158 @@ describe("mergePositionsByTicker", () => {
     const merged = mergePositionsByTicker(positions, transactions, [], "2026-04-10");
 
     expect(merged).toHaveLength(2);
+    expect(merged.every((p) => p.portfolio === "All")).toBe(true);
+  });
+});
+
+describe("option positions", () => {
+  const ARM_PRICE = {
+    ARM: { symbol: "ARM", date: "2026-06-12", value: 203 },
+  };
+
+  function optionBuy() {
+    return tx({
+      id: 10,
+      date: "2026-05-20",
+      ticker: "ARM",
+      action: "buy",
+      instrument: "option",
+      quantity: 2,
+      grossAmount: 3292,
+      fees: 2.86,
+    });
+  }
+
+  it("separates option rows from the stock position on the same ticker", () => {
+    const transactions: TransactionInput[] = [
+      tx({ id: 1, date: "2026-01-14", ticker: "ARM", action: "buy", quantity: 6, grossAmount: 639, fees: 1 }),
+      tx({ id: 2, date: "2026-04-23", ticker: "ARM", action: "sell", quantity: 6, grossAmount: 1200, fees: 1 }),
+      optionBuy(),
+    ];
+
+    const positions = computePositions(transactions, ARM_PRICE, [], "2026-06-12");
+
+    expect(positions).toHaveLength(2);
+    const stock = positions.find((p) => p.instrument === "stock");
+    const option = positions.find((p) => p.instrument === "option");
+    expect(stock?.isClosed).toBe(true);
+    expect(stock?.sharesHeld).toBe(0);
+    expect(option?.sharesHeld).toBe(2);
+    expect(option?.isClosed).toBe(false);
+  });
+
+  it("values an open option at cost and never at the underlying stock price", () => {
+    const positions = computePositions([optionBuy()], ARM_PRICE, [], "2026-06-12");
+
+    const pos = positions[0];
+    expect(pos.lastPrice).toBeNull();
+    expect(pos.lastPriceDate).toBeNull();
+    expect(pos.costBasis).toBeCloseTo(3294.86, 2);
+    expect(pos.marketValue).toBeCloseTo(3294.86, 2);
+    expect(pos.unrealizedPnl).toBe(0);
+    expect(pos.realizedPnl).toBe(0);
+    expect(pos.markDate).toBeNull();
+  });
+
+  it("values an open option at a fresh mark", () => {
+    const positions = computePositions([optionBuy()], {}, [], "2026-06-12", {
+      ARM: { value: 3842.78, date: "2026-06-12" },
+    });
+
+    const pos = positions[0];
+    expect(pos.marketValue).toBeCloseTo(3842.78, 2);
+    expect(pos.unrealizedPnl).toBeCloseTo(3842.78 - 3294.86, 2);
+    expect(pos.markDate).toBe("2026-06-12");
+  });
+
+  it("ignores a mark older than the last option trade and falls back to cost", () => {
+    const positions = computePositions([optionBuy()], {}, [], "2026-06-12", {
+      ARM: { value: 9999, date: "2026-05-19" },
+    });
+
+    const pos = positions[0];
+    expect(pos.marketValue).toBeCloseTo(3294.86, 2);
+    expect(pos.unrealizedPnl).toBe(0);
+    expect(pos.markDate).toBeNull();
+  });
+
+  it("reduces basis proportionally on partial close", () => {
+    const sell = tx({
+      id: 11,
+      date: "2026-06-01",
+      ticker: "ARM",
+      action: "sell",
+      instrument: "option",
+      quantity: 1,
+      grossAmount: 2300,
+      fees: 1,
+    });
+
+    const positions = computePositions([optionBuy(), sell], {}, [], "2026-06-12");
+
+    const pos = positions[0];
+    expect(pos.sharesHeld).toBe(1);
+    expect(pos.costBasis).toBeCloseTo(3294.86 / 2, 2);
+    expect(pos.marketValue).toBeCloseTo(3294.86 / 2, 2);
+    expect(pos.realizedPnl).toBeCloseTo(2299 - 3294.86 / 2, 2);
+  });
+
+  it("realizes full P&L on close and ignores marks once closed", () => {
+    const sell = tx({
+      id: 11,
+      date: "2026-06-01",
+      ticker: "ARM",
+      action: "sell",
+      instrument: "option",
+      quantity: 2,
+      grossAmount: 4600,
+      fees: 1.58,
+    });
+
+    const positions = computePositions([optionBuy(), sell], {}, [], "2026-06-12", {
+      ARM: { value: 9999, date: "2026-06-10" },
+    });
+
+    const pos = positions[0];
+    expect(pos.isClosed).toBe(true);
+    expect(pos.marketValue).toBe(0);
+    expect(pos.realizedPnl).toBeCloseTo(4598.42 - 3294.86, 2);
+    expect(pos.unrealizedPnl).toBe(0);
+  });
+
+  it("keeps aggregate totals non-null for open options while unpriced stocks still null them", () => {
+    const optionOnly = computeAggregates(
+      computePositions([optionBuy()], {}, [], "2026-06-12")
+    );
+    expect(optionOnly.totalValue).not.toBeNull();
+    expect(optionOnly.totalUnrealizedPnl).not.toBeNull();
+
+    const withUnpricedStock = computeAggregates(
+      computePositions(
+        [
+          optionBuy(),
+          tx({ id: 20, ticker: "ZZZ", action: "buy", quantity: 1, grossAmount: 100 }),
+        ],
+        {},
+        [],
+        "2026-06-12"
+      )
+    );
+    expect(withUnpricedStock.totalValue).toBeNull();
+  });
+
+  it("merges option and stock positions on the same ticker as separate rows", () => {
+    const transactions: TransactionInput[] = [
+      tx({ id: 1, ticker: "ARM", action: "buy", quantity: 1, grossAmount: 100, portfolio: "A" }),
+      tx({ id: 2, ticker: "ARM", action: "buy", instrument: "option", quantity: 2, grossAmount: 3292, fees: 2.86, portfolio: "A" }),
+    ];
+
+    const positions = computePositions(transactions, ARM_PRICE, [], "2026-06-12");
+    const merged = mergePositionsByTicker(positions, transactions, [], "2026-06-12");
+
+    expect(merged).toHaveLength(2);
+    const keys = merged.map((p) => `${p.ticker}:${p.instrument}`).sort();
+    expect(keys).toEqual(["ARM:option", "ARM:stock"]);
     expect(merged.every((p) => p.portfolio === "All")).toBe(true);
   });
 });

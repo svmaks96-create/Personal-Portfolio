@@ -9,7 +9,7 @@ import { transactionSchema } from "@/shared/schemas/transaction";
 import type { ActionResult } from "@/server/types/action-result";
 
 const EDITABLE_FIELDS = [
-  "date", "ticker", "action", "quantity", "grossAmount", "fees", "portfolio", "currency",
+  "date", "ticker", "action", "instrument", "quantity", "grossAmount", "fees", "portfolio", "currency",
 ] as const;
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
@@ -73,6 +73,7 @@ export async function addTransaction(
     date: string;
     ticker: string;
     action: string;
+    instrument: string;
     quantity: number;
     grossAmount: number;
     fees: number;
@@ -107,6 +108,7 @@ export async function addTransaction(
           ticker: transactions.ticker,
           portfolio: transactions.portfolio,
           action: transactions.action,
+          instrument: transactions.instrument,
           quantity: transactions.quantity,
         })
         .from(transactions)
@@ -114,7 +116,11 @@ export async function addTransaction(
 
       let held = new Decimal(0);
       for (const tx of existingTxs) {
-        if (tx.ticker === validated.ticker && tx.portfolio === validated.portfolio) {
+        if (
+          tx.ticker === validated.ticker &&
+          tx.portfolio === validated.portfolio &&
+          tx.instrument === validated.instrument
+        ) {
           if (tx.action === "buy") held = held.plus(tx.quantity);
           if (tx.action === "sell") held = held.minus(tx.quantity);
         }
@@ -139,6 +145,7 @@ export async function addTransaction(
           date: transactions.date,
           ticker: transactions.ticker,
           action: transactions.action,
+          instrument: transactions.instrument,
           quantity: transactions.quantity,
           grossAmount: transactions.grossAmount,
           portfolio: transactions.portfolio,
@@ -146,10 +153,10 @@ export async function addTransaction(
         .from(transactions)
         .all();
 
-      const newKey = `${validated.date}|${validated.ticker}|${validated.action}|${validated.quantity}|${validated.grossAmount}|${validated.portfolio}`;
+      const newKey = `${validated.date}|${validated.ticker}|${validated.action}|${validated.instrument}|${validated.quantity}|${validated.grossAmount}|${validated.portfolio}`;
 
       for (const tx of existingTxs) {
-        const existingKey = `${tx.date}|${tx.ticker}|${tx.action}|${tx.quantity}|${tx.grossAmount}|${tx.portfolio}`;
+        const existingKey = `${tx.date}|${tx.ticker}|${tx.action}|${tx.instrument}|${tx.quantity}|${tx.grossAmount}|${tx.portfolio}`;
         if (existingKey === newKey) {
           return {
             success: false,
@@ -167,6 +174,7 @@ export async function addTransaction(
         date: validated.date,
         ticker: validated.ticker,
         action: validated.action,
+        instrument: validated.instrument,
         quantity: validated.quantity,
         grossAmount: validated.grossAmount,
         fees: validated.fees,

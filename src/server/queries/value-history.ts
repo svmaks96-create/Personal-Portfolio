@@ -3,6 +3,7 @@ import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 import {
   getPriceHistory,
   getEarliestTransactionDate,
+  getOptionMarkHistory,
 } from "@/server/queries/market-data";
 import { computeValueVsCostBasisSeries } from "@/server/services/twrr";
 import { resolvePeriodStart } from "@/lib/period";
@@ -72,6 +73,7 @@ export function getValueHistoryData(
     tradingCalendar,
     periodStart,
     endDate,
+    getOptionMarkHistory(),
   );
 
   return { series, hasTransactions: true };

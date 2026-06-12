@@ -4,6 +4,7 @@ export interface ImportValidationRow {
     date: string;
     ticker: string;
     action: string;
+    instrument: string;
     quantity: number;
     grossAmount: number;
     fees: number;

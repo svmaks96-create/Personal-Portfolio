@@ -28,12 +28,12 @@ const TODAY = "2024-12-01";
 //   MSFT  — fully closed in IBKR (realized +$2k)            ← single-portfolio closure
 //   GOOGL — active in Wio                                   ← single-portfolio active
 const TXNS: TransactionInput[] = [
-  { id: 1, date: "2024-01-01", ticker: "AAPL", action: "buy", quantity: 100, grossAmount: 10000, fees: 0, portfolio: "Wio", currency: "USD" },
-  { id: 2, date: "2024-06-01", ticker: "AAPL", action: "sell", quantity: 100, grossAmount: 15000, fees: 0, portfolio: "Wio", currency: "USD" },
-  { id: 3, date: "2024-03-01", ticker: "AAPL", action: "buy", quantity: 50, grossAmount: 6000, fees: 0, portfolio: "IBKR", currency: "USD" },
-  { id: 4, date: "2024-02-01", ticker: "MSFT", action: "buy", quantity: 100, grossAmount: 20000, fees: 0, portfolio: "IBKR", currency: "USD" },
-  { id: 5, date: "2024-08-01", ticker: "MSFT", action: "sell", quantity: 100, grossAmount: 22000, fees: 0, portfolio: "IBKR", currency: "USD" },
-  { id: 6, date: "2024-04-01", ticker: "GOOGL", action: "buy", quantity: 100, grossAmount: 14000, fees: 0, portfolio: "Wio", currency: "USD" },
+  { id: 1, date: "2024-01-01", ticker: "AAPL", action: "buy", quantity: 100, grossAmount: 10000, fees: 0, portfolio: "Wio", currency: "USD", instrument: "stock" },
+  { id: 2, date: "2024-06-01", ticker: "AAPL", action: "sell", quantity: 100, grossAmount: 15000, fees: 0, portfolio: "Wio", currency: "USD", instrument: "stock" },
+  { id: 3, date: "2024-03-01", ticker: "AAPL", action: "buy", quantity: 50, grossAmount: 6000, fees: 0, portfolio: "IBKR", currency: "USD", instrument: "stock" },
+  { id: 4, date: "2024-02-01", ticker: "MSFT", action: "buy", quantity: 100, grossAmount: 20000, fees: 0, portfolio: "IBKR", currency: "USD", instrument: "stock" },
+  { id: 5, date: "2024-08-01", ticker: "MSFT", action: "sell", quantity: 100, grossAmount: 22000, fees: 0, portfolio: "IBKR", currency: "USD", instrument: "stock" },
+  { id: 6, date: "2024-04-01", ticker: "GOOGL", action: "buy", quantity: 100, grossAmount: 14000, fees: 0, portfolio: "Wio", currency: "USD", instrument: "stock" },
 ];
 
 beforeEach(() => {

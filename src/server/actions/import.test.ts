@@ -59,6 +59,7 @@ function validRowData(overrides: Record<string, unknown> = {}) {
     date: "2025-03-15",
     ticker: "AAPL",
     action: "buy",
+    instrument: "stock",
     quantity: 10,
     grossAmount: 1500,
     fees: 4.95,
@@ -183,7 +184,7 @@ describe("validateImport", () => {
   it("allows sell when existing positions cover it", async () => {
     // Mock existing buy of 20 shares
     mocks.mockAll.mockReturnValue([
-      { id: 1, ticker: "AAPL", portfolio: "Main", action: "buy", quantity: 20, grossAmount: 3000, date: "2025-01-01" },
+      { id: 1, ticker: "AAPL", portfolio: "Main", action: "buy", instrument: "stock", quantity: 20, grossAmount: 3000, date: "2025-01-01" },
     ]);
     const file = await createExcelFile([
       validRowData({ action: "sell", quantity: 10 }),
@@ -199,7 +200,7 @@ describe("validateImport", () => {
 
   it("detects duplicates against existing DB transactions", async () => {
     mocks.mockAll.mockReturnValue([
-      { id: 42, date: "2025-03-15", ticker: "AAPL", action: "buy", quantity: 10, grossAmount: 1500, portfolio: "Main" },
+      { id: 42, date: "2025-03-15", ticker: "AAPL", action: "buy", instrument: "stock", quantity: 10, grossAmount: 1500, portfolio: "Main" },
     ]);
     const file = await createExcelFile([validRowData()]);
     const formData = new FormData();
@@ -303,6 +304,7 @@ function makeRow(
       date: "2025-03-15",
       ticker: "AAPL",
       action: "buy",
+      instrument: "stock",
       quantity: 10,
       grossAmount: 1500,
       fees: 4.95,
@@ -368,6 +370,7 @@ describe("revalidateImportRows", () => {
         date: "2025-03-15",
         ticker: "AAPL",
         action: "buy",
+        instrument: "stock",
         quantity: 10,
         grossAmount: 1500,
         portfolio: "Main",
@@ -426,6 +429,7 @@ function validRowDataForCommit(overrides: Partial<ImportValidationRow["data"]> =
     date: "2025-03-15",
     ticker: "AAPL",
     action: "buy",
+    instrument: "stock",
     quantity: 10,
     grossAmount: 1500,
     fees: 4.95,

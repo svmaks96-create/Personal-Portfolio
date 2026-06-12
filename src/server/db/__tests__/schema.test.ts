@@ -15,6 +15,7 @@ function createTestDb() {
       date TEXT NOT NULL,
       ticker TEXT NOT NULL,
       action TEXT NOT NULL,
+      instrument TEXT NOT NULL DEFAULT 'stock',
       quantity REAL NOT NULL,
       gross_amount REAL NOT NULL,
       fees REAL NOT NULL DEFAULT 0,

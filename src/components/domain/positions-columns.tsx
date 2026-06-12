@@ -9,6 +9,7 @@ import type {
   ClosedPositionsTotals,
 } from "@/server/queries/positions";
 import { NumericCell } from "@/components/domain/numeric-cell";
+import { OptionMarkCell } from "@/components/domain/option-mark-cell";
 import { Private } from "@/components/domain/private";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { pnlColorClass } from "@/lib/pnl";
@@ -18,10 +19,12 @@ const DASH = "—";
 function TickerNameCell({
   ticker,
   companyName,
+  instrument = "stock",
   hasInvalidState = false,
 }: {
   ticker: string;
   companyName: string | null;
+  instrument?: "stock" | "option";
   hasInvalidState?: boolean;
 }) {
   return (
@@ -32,6 +35,11 @@ function TickerNameCell({
       <span className="font-semibold tracking-[0.02em] text-foreground">
         {ticker}
       </span>
+      {instrument === "option" ? (
+        <span className="inline-block shrink-0 border border-foreground px-1.5 py-[1px] font-mono text-[9px] uppercase tracking-[0.12em] text-foreground">
+          OPT
+        </span>
+      ) : null}
       {companyName ? (
         <span className="truncate text-[11px] text-muted-foreground">
           {companyName}
@@ -49,6 +57,7 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
       <TickerNameCell
         ticker={row.original.ticker}
         companyName={row.original.companyName}
+        instrument={row.original.instrument}
         hasInvalidState={row.original.hasInvalidState}
       />
     ),
@@ -110,11 +119,18 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     header: "Mkt Value",
     accessorFn: (row) => row.marketValue.value ?? undefined,
     sortUndefined: "last",
-    cell: ({ row }) => (
-      <Private>
-        <NumericCell display={row.original.marketValue.display} />
-      </Private>
-    ),
+    cell: ({ row }) =>
+      row.original.instrument === "option" ? (
+        <OptionMarkCell
+          ticker={row.original.ticker}
+          marketValue={row.original.marketValue}
+          markDate={row.original.markDate}
+        />
+      ) : (
+        <Private>
+          <NumericCell display={row.original.marketValue.display} />
+        </Private>
+      ),
     meta: { align: "center" as const },
   },
   {
@@ -185,6 +201,7 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
       <TickerNameCell
         ticker={row.original.ticker}
         companyName={row.original.companyName}
+        instrument={row.original.instrument}
       />
     ),
     meta: { align: "left" as const },

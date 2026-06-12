@@ -3,6 +3,7 @@ export interface TransactionInput {
   date: string;
   ticker: string;
   action: "buy" | "sell" | "dividend" | "fee";
+  instrument: "stock" | "option";
   quantity: number;
   grossAmount: number;
   fees: number;
@@ -22,9 +23,15 @@ export interface FxRateInput {
   value: number;   // Exchange rate (multiply native currency by this to get USD)
 }
 
+export interface OptionMarkInput {
+  value: number; // total current USD value of all open option spreads for the underlying
+  date: string;  // ISO date the mark was set
+}
+
 export interface ComputedPosition {
   ticker: string;
   portfolio: string;
+  instrument: "stock" | "option";
   currency: string;
   sharesHeld: number;
   totalSharesBought: number;
@@ -34,6 +41,7 @@ export interface ComputedPosition {
   costBasis: number | null;
   lastPrice: number | null;
   lastPriceDate: string | null;
+  markDate: string | null;
   marketValue: number | null;
   totalDividends: number | null;
   totalSellProceeds: number | null;

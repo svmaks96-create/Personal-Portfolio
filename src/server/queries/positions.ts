@@ -18,6 +18,8 @@ interface MoneyCell {
 export interface ActivePositionRow {
   ticker: string;
   companyName: string | null;
+  instrument: "stock" | "option";
+  markDate: string | null;
   hasInvalidState: boolean;
   shares: { value: number; display: string };
   avgEntry: { value: number | null; display: string };
@@ -37,6 +39,7 @@ export interface ActivePositionRow {
 export interface ClosedPositionRow {
   ticker: string;
   companyName: string | null;
+  instrument: "stock" | "option";
   avgEntry: { value: number | null; display: string };
   avgExit: { value: number | null; display: string };
   lastPrice: { value: number | null; display: string };
@@ -111,10 +114,16 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
   const rows: ActivePositionRow[] = aggregates.positions.map((p) => ({
     ticker: p.ticker,
     companyName: nameMap[p.ticker] ?? null,
+    instrument: p.instrument,
+    markDate: p.markDate,
     hasInvalidState: p.hasInvalidState,
     shares: { value: p.sharesHeld, display: formatShares(p.sharesHeld) },
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
-    lastPrice: { value: p.lastPrice, display: formatCurrency(p.lastPrice) },
+    lastPrice: {
+      value: p.lastPrice,
+      // Options have no quote by design — show a dash, not "N/A"
+      display: p.instrument === "option" ? "—" : formatCurrency(p.lastPrice),
+    },
     priceDate: {
       value: p.lastPriceDate,
       display: formatPriceDate(p.lastPriceDate),
@@ -146,8 +155,14 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
   const weightTotal = sumOrNull(rows, (r) => r.weight.value);
 
   // Totals IRR is a fresh XIRR over the slice — per-row IRRs can't be summed.
-  const activeTickers = new Set(activePositions.map((p) => p.ticker));
-  const activeTxns = txInputs.filter((t) => activeTickers.has(t.ticker));
+  // Key by ticker + instrument so e.g. a closed stock position's cash flows
+  // don't bleed into an active option line on the same underlying.
+  const activeKeys = new Set(
+    activePositions.map((p) => `${p.ticker}::${p.instrument}`)
+  );
+  const activeTxns = txInputs.filter((t) =>
+    activeKeys.has(`${t.ticker}::${t.instrument}`)
+  );
   const irrTotal = computePortfolioIRR(activeTxns, activePositions, fxRates, today);
 
   const totals: ActivePositionsTotals = {
@@ -177,9 +192,13 @@ export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
   const rows: ClosedPositionRow[] = closedPositions.map((p) => ({
     ticker: p.ticker,
     companyName: nameMap[p.ticker] ?? null,
+    instrument: p.instrument,
     avgEntry: { value: p.avgEntryPrice, display: formatCurrency(p.avgEntryPrice) },
     avgExit: { value: p.avgExitPrice, display: formatCurrency(p.avgExitPrice) },
-    lastPrice: { value: p.lastPrice, display: formatCurrency(p.lastPrice) },
+    lastPrice: {
+      value: p.lastPrice,
+      display: p.instrument === "option" ? "—" : formatCurrency(p.lastPrice),
+    },
     totalInvested: { value: p.totalInvested, display: formatCurrencyRounded(p.totalInvested) },
     totalProceeds: { value: p.totalSellProceeds, display: formatCurrencyRounded(p.totalSellProceeds) },
     dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },
@@ -198,8 +217,12 @@ export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
 
   // All positions here are closed, so computePortfolioIRR skips the terminal
   // market-value step and the XIRR runs over pure realized cashflows.
-  const closedTickers = new Set(closedPositions.map((p) => p.ticker));
-  const closedTxns = txInputs.filter((t) => closedTickers.has(t.ticker));
+  const closedKeys = new Set(
+    closedPositions.map((p) => `${p.ticker}::${p.instrument}`)
+  );
+  const closedTxns = txInputs.filter((t) =>
+    closedKeys.has(`${t.ticker}::${t.instrument}`)
+  );
   const irrTotal = computePortfolioIRR(closedTxns, closedPositions, fxRates, today);
 
   const totals: ClosedPositionsTotals = {

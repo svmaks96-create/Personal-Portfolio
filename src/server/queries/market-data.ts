@@ -3,6 +3,9 @@ import { marketData, transactions } from "@/server/db/schema";
 import { and, eq, max, min, inArray, sum, gt, gte, sql, asc } from "drizzle-orm";
 import type { MarketDataInput } from "@/server/types/positions";
 
+/** market_data symbol suffix for option marks, e.g. "ARM:OPT" */
+export const OPTION_MARK_SUFFIX = ":OPT";
+
 /**
  * Get existing (symbol, date) pairs for given symbols and type.
  * Used by FR51 skip optimization — checks per-symbol trading dates,
@@ -37,6 +40,7 @@ export function getCurrentlyHeldTickers(): string[] {
   return db
     .select({ ticker: transactions.ticker })
     .from(transactions)
+    .where(eq(transactions.instrument, "stock"))
     .groupBy(transactions.ticker)
     .having(
       gt(
@@ -139,6 +143,43 @@ export function getPriceHistory(
       list.push(point);
     } else {
       out[row.symbol] = [point];
+    }
+  }
+  return out;
+}
+
+/**
+ * Full dated history of option marks, keyed by underlying ticker
+ * (symbol "<TICKER>:OPT" stripped). Used by the TWRR / value-history
+ * pipeline to value open option positions over time.
+ */
+export function getOptionMarkHistory(): Record<string, MarketDataInput[]> {
+  const rows = db
+    .select({
+      symbol: marketData.symbol,
+      date: marketData.date,
+      value: marketData.value,
+    })
+    .from(marketData)
+    .where(eq(marketData.type, "option_mark"))
+    .orderBy(asc(marketData.symbol), asc(marketData.date))
+    .all();
+
+  const out: Record<string, MarketDataInput[]> = {};
+  for (const row of rows) {
+    const ticker = row.symbol.endsWith(OPTION_MARK_SUFFIX)
+      ? row.symbol.slice(0, -OPTION_MARK_SUFFIX.length)
+      : row.symbol;
+    const point: MarketDataInput = {
+      symbol: ticker,
+      date: row.date,
+      value: row.value,
+    };
+    const list = out[ticker];
+    if (list) {
+      list.push(point);
+    } else {
+      out[ticker] = [point];
     }
   }
   return out;

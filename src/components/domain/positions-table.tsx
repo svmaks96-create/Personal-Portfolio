@@ -149,7 +149,9 @@ export function PositionsTable<TData>({
   );
 }
 
-interface DrillDownPositionsTableProps<TData extends { ticker: string }> {
+interface DrillDownPositionsTableProps<
+  TData extends { ticker: string; instrument?: string },
+> {
   data: TData[];
   columns: ColumnDef<TData, unknown>[];
   defaultSort: SortingState;
@@ -157,7 +159,9 @@ interface DrillDownPositionsTableProps<TData extends { ticker: string }> {
   totalsRow?: React.ReactNode;
 }
 
-export function DrillDownPositionsTable<TData extends { ticker: string }>({
+export function DrillDownPositionsTable<
+  TData extends { ticker: string; instrument?: string },
+>({
   data,
   columns,
   defaultSort,
@@ -175,6 +179,8 @@ export function DrillDownPositionsTable<TData extends { ticker: string }>({
       emptyMessage={emptyMessage}
       totalsRow={totalsRow}
       onRowClick={(row) => {
+        // Option rows have no detail page — the per-ticker page is stock-scoped
+        if (row.instrument === "option") return;
         const portfolio = searchParams.get("portfolio");
         const qs = portfolio
           ? `?portfolio=${encodeURIComponent(portfolio)}`

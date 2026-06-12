@@ -7,10 +7,13 @@ import type { FmpEodQuote } from "../src/server/types/market-data";
  * One-shot importer for manually-collected daily closing prices.
  *
  * CSV format (column order is what matters; header row is skipped):
- *   <symbol>, <yyyy-MM-dd>, <price in USD>
+ *   <symbol>, <yyyy-MM-dd>, <price in USD>[, <type>]
  *
- * Trailing empty columns (Excel artifact) are tolerated. Rows with empty
- * or non-numeric prices are skipped silently — the user can leave gaps.
+ * The optional 4th column is the market_data type — "stock_price" (default)
+ * or "option_mark" (total USD value of open option spreads, symbol
+ * "<TICKER>:OPT"). Trailing empty columns (Excel artifact) are tolerated.
+ * Rows with empty or non-numeric prices are skipped silently — the user can
+ * leave gaps.
  *
  * Default file path: data/manual-prices/UAE_manual_price.csv
  * Override with the first CLI argument.
@@ -18,10 +21,14 @@ import type { FmpEodQuote } from "../src/server/types/market-data";
 
 const DEFAULT_PATH = "data/manual-prices/UAE_manual_price.csv";
 
+const VALID_TYPES = ["stock_price", "option_mark"] as const;
+type RowType = (typeof VALID_TYPES)[number];
+
 interface ParsedRow {
   symbol: string;
   date: string;
   price: number;
+  type: RowType;
 }
 
 function parseCsv(text: string): { rows: ParsedRow[]; skipped: number } {
@@ -38,6 +45,7 @@ function parseCsv(text: string): { rows: ParsedRow[]; skipped: number } {
     const symbol = (cells[0] ?? "").trim();
     const date = (cells[1] ?? "").trim();
     const priceRaw = (cells[2] ?? "").trim();
+    const typeRaw = (cells[3] ?? "").trim().toLowerCase();
 
     if (!symbol || !date || !priceRaw) {
       skipped++;
@@ -52,7 +60,12 @@ function parseCsv(text: string): { rows: ParsedRow[]; skipped: number } {
       skipped++;
       continue;
     }
-    rows.push({ symbol, date, price });
+    const type: RowType = typeRaw === "" ? "stock_price" : (typeRaw as RowType);
+    if (!VALID_TYPES.includes(type)) {
+      skipped++;
+      continue;
+    }
+    rows.push({ symbol, date, price, type });
   }
 
   return { rows, skipped };
@@ -72,15 +85,14 @@ function main(): void {
     process.exit(1);
   }
 
-  const quotes: FmpEodQuote[] = rows.map((r) => ({
-    symbol: r.symbol,
-    date: r.date,
-    price: r.price,
-    volume: 0,
-  }));
-
   const fetchedAt = new Date().toISOString();
-  const symbolsTouched = upsertMarketDataRows(quotes, "stock_price", fetchedAt);
+  let symbolsTouched = 0;
+  for (const type of VALID_TYPES) {
+    const quotes: FmpEodQuote[] = rows
+      .filter((r) => r.type === type)
+      .map((r) => ({ symbol: r.symbol, date: r.date, price: r.price, volume: 0 }));
+    symbolsTouched += upsertMarketDataRows(quotes, type, fetchedAt);
+  }
 
   const perSymbol = new Map<string, number>();
   for (const r of rows) perSymbol.set(r.symbol, (perSymbol.get(r.symbol) ?? 0) + 1);

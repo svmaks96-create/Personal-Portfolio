@@ -13,7 +13,7 @@ import type { FmpEodQuote } from "@/server/types/market-data";
  */
 export function upsertMarketDataRows(
   quotes: FmpEodQuote[],
-  type: "stock_price" | "fx_rate",
+  type: "stock_price" | "fx_rate" | "option_mark",
   fetchedAt: string
 ): number {
   if (quotes.length === 0) return 0;

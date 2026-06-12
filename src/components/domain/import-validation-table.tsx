@@ -8,6 +8,7 @@ import {
   FIELD_COLUMNS,
   COLUMN_LABELS,
   ACTION_OPTIONS,
+  INSTRUMENT_OPTIONS,
   type FieldKey,
 } from "@/shared/schemas/transaction-fields";
 
@@ -15,6 +16,7 @@ const INPUT_TYPES: Record<FieldKey, "text" | "number" | "date" | "select"> = {
   date: "date",
   ticker: "text",
   action: "select",
+  instrument: "select",
   quantity: "number",
   grossAmount: "number",
   fees: "number",
@@ -23,7 +25,7 @@ const INPUT_TYPES: Record<FieldKey, "text" | "number" | "date" | "select"> = {
 };
 
 const ROW_GRID =
-  "grid-cols-[64px_56px_1fr_0.9fr_0.7fr_0.9fr_0.9fr_0.7fr_1fr_0.9fr_0.7fr]";
+  "grid-cols-[64px_56px_1fr_0.9fr_0.7fr_0.7fr_0.9fr_0.9fr_0.7fr_1fr_0.9fr]";
 
 interface ImportValidationTableProps {
   rows: ImportValidationRow[];
@@ -191,7 +193,11 @@ export function ImportValidationTable({
                         isHighlighted={false}
                         inputType={INPUT_TYPES[field]}
                         selectOptions={
-                          field === "action" ? ACTION_OPTIONS : undefined
+                          field === "action"
+                            ? ACTION_OPTIONS
+                            : field === "instrument"
+                              ? INSTRUMENT_OPTIONS
+                              : undefined
                         }
                         onStartEdit={() =>
                           handleStartEdit(row.rowIndex, field)

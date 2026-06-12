@@ -54,7 +54,8 @@ export function computePortfolioTWRR(
   fxHistory: FxRateInput[],
   tradingCalendar: string[],
   startDate: string,
-  endDate: string
+  endDate: string,
+  optionMarkHistory: Record<string, MarketDataInput[]> = {}
 ): TwrrSeries {
   if (tradingCalendar.length === 0 || transactions.length === 0) {
     return EMPTY_SERIES;
@@ -66,9 +67,13 @@ export function computePortfolioTWRR(
   const txByDate = groupTransactionsByDate(transactions);
   const fxByPair = groupFxByPair(fxHistory);
   const priceLookups = buildPriceLookups(priceHistory, transactions);
+  const markLookups = buildMarkLookups(optionMarkHistory);
 
   const sharesByTicker = new Map<string, Decimal>();
   const currencyByTicker = new Map<string, string>();
+  const optionSharesByTicker = new Map<string, Decimal>();
+  const optionBasisByTicker = new Map<string, Decimal>();
+  const lastOptionTxDateByTicker = new Map<string, string>();
 
   let growth = new Decimal(1);
   let prevMv: Decimal | null = null;
@@ -80,13 +85,38 @@ export function computePortfolioTWRR(
     const dayTxns = txByDate.get(date) ?? [];
 
     for (const t of dayTxns) {
-      currencyByTicker.set(t.ticker, t.currency);
+      if (t.instrument === "stock") currencyByTicker.set(t.ticker, t.currency);
       const fxRate = forwardFillFxRate(fxByPair, t.currency, t.date);
       if (fxRate === null) continue;
       const rate = new Decimal(fxRate);
       const gross = new Decimal(t.grossAmount);
       const fees = new Decimal(t.fees);
       const qty = new Decimal(t.quantity);
+
+      if (t.instrument === "option") {
+        // Options carry their own basis pool, never priced off the underlying.
+        // Cash-flow contributions mirror stock buys/sells.
+        const priorShares = optionSharesByTicker.get(t.ticker) ?? new Decimal(0);
+        const priorBasis = optionBasisByTicker.get(t.ticker) ?? new Decimal(0);
+        lastOptionTxDateByTicker.set(t.ticker, t.date);
+        if (t.action === "buy") {
+          optionSharesByTicker.set(t.ticker, priorShares.plus(qty));
+          optionBasisByTicker.set(
+            t.ticker,
+            priorBasis.plus(gross.plus(fees).times(rate))
+          );
+          cf = cf.plus(gross.plus(fees).times(rate));
+        } else if (t.action === "sell") {
+          if (priorShares.greaterThan(0)) {
+            const reduction = qty.div(priorShares).times(priorBasis);
+            optionBasisByTicker.set(t.ticker, priorBasis.minus(reduction));
+          }
+          optionSharesByTicker.set(t.ticker, priorShares.minus(qty));
+          cf = cf.minus(gross.minus(fees).times(rate));
+        }
+        continue;
+      }
+
       const prior = sharesByTicker.get(t.ticker) ?? new Decimal(0);
 
       switch (t.action) {
@@ -111,6 +141,14 @@ export function computePortfolioTWRR(
       priceLookups,
       fxByPair,
       date
+    ).plus(
+      computeOptionValue(
+        optionSharesByTicker,
+        optionBasisByTicker,
+        lastOptionTxDateByTicker,
+        markLookups,
+        date
+      )
     );
 
     if (prevMv !== null && prevMv.greaterThanOrEqualTo(1)) {
@@ -208,6 +246,7 @@ export function computeValueVsCostBasisSeries(
   tradingCalendar: string[],
   startDate: string,
   endDate: string,
+  optionMarkHistory: Record<string, MarketDataInput[]> = {},
 ): ValueVsBasisPoint[] {
   if (tradingCalendar.length === 0 || transactions.length === 0) return [];
 
@@ -220,10 +259,14 @@ export function computeValueVsCostBasisSeries(
   const txByDate = groupTransactionsByDate(transactions);
   const fxByPair = groupFxByPair(fxHistory);
   const priceLookups = buildPriceLookups(priceHistory, transactions);
+  const markLookups = buildMarkLookups(optionMarkHistory);
 
   const sharesByTicker = new Map<string, Decimal>();
   const costBasisByTicker = new Map<string, Decimal>();
   const currencyByTicker = new Map<string, string>();
+  const optionSharesByTicker = new Map<string, Decimal>();
+  const optionBasisByTicker = new Map<string, Decimal>();
+  const lastOptionTxDateByTicker = new Map<string, string>();
 
   const series: ValueVsBasisPoint[] = [];
 
@@ -231,9 +274,34 @@ export function computeValueVsCostBasisSeries(
     const dayTxns = txByDate.get(date) ?? [];
 
     for (const t of dayTxns) {
-      currencyByTicker.set(t.ticker, t.currency);
+      if (t.instrument === "stock") currencyByTicker.set(t.ticker, t.currency);
       const fxRate = forwardFillFxRate(fxByPair, t.currency, t.date);
       const qty = new Decimal(t.quantity);
+
+      if (t.instrument === "option") {
+        // Options carry their own basis pool, never priced off the underlying.
+        const priorOptShares =
+          optionSharesByTicker.get(t.ticker) ?? new Decimal(0);
+        const priorOptBasis =
+          optionBasisByTicker.get(t.ticker) ?? new Decimal(0);
+        lastOptionTxDateByTicker.set(t.ticker, t.date);
+        if (t.action === "buy") {
+          optionSharesByTicker.set(t.ticker, priorOptShares.plus(qty));
+          if (fxRate !== null) {
+            const rate = new Decimal(fxRate);
+            const buyCost = new Decimal(t.grossAmount).plus(t.fees).times(rate);
+            optionBasisByTicker.set(t.ticker, priorOptBasis.plus(buyCost));
+          }
+        } else if (t.action === "sell") {
+          if (priorOptShares.greaterThan(0)) {
+            const reduction = qty.div(priorOptShares).times(priorOptBasis);
+            optionBasisByTicker.set(t.ticker, priorOptBasis.minus(reduction));
+          }
+          optionSharesByTicker.set(t.ticker, priorOptShares.minus(qty));
+        }
+        continue;
+      }
+
       const priorShares = sharesByTicker.get(t.ticker) ?? new Decimal(0);
       const priorBasis = costBasisByTicker.get(t.ticker) ?? new Decimal(0);
 
@@ -274,11 +342,20 @@ export function computeValueVsCostBasisSeries(
       priceLookups,
       fxByPair,
       date,
+    ).plus(
+      computeOptionValue(
+        optionSharesByTicker,
+        optionBasisByTicker,
+        lastOptionTxDateByTicker,
+        markLookups,
+        date,
+      )
     );
 
     if (date >= startDate) {
       let totalBasis = new Decimal(0);
       for (const basis of costBasisByTicker.values()) totalBasis = totalBasis.plus(basis);
+      for (const basis of optionBasisByTicker.values()) totalBasis = totalBasis.plus(basis);
 
       series.push({
         date,
@@ -406,7 +483,8 @@ function seedSyntheticPricesFromFirstBuy(
 ): void {
   const earliestBuy = new Map<string, TransactionInput>();
   for (const t of transactions) {
-    if (t.action !== "buy" || t.quantity <= 0) continue;
+    // Option rows must never seed a synthetic price for the underlying
+    if (t.instrument !== "stock" || t.action !== "buy" || t.quantity <= 0) continue;
     const existing = earliestBuy.get(t.ticker);
     if (!existing || t.date < existing.date) earliestBuy.set(t.ticker, t);
   }
@@ -423,6 +501,47 @@ function seedSyntheticPricesFromFirstBuy(
     };
     priceLookups.set(ticker, [synthetic, ...list]);
   }
+}
+
+function buildMarkLookups(
+  optionMarkHistory: Record<string, MarketDataInput[]>
+): Map<string, MarketDataInput[]> {
+  const out = new Map<string, MarketDataInput[]>();
+  for (const [ticker, rows] of Object.entries(optionMarkHistory)) {
+    out.set(ticker, [...rows].sort((a, b) => a.date.localeCompare(b.date)));
+  }
+  return out;
+}
+
+/**
+ * Total USD value of open option positions on `date`. Each underlying is
+ * valued at its latest mark at/before `date`, but only when that mark
+ * postdates the last option trade seen so far (a trade invalidates the
+ * previous total-value mark); otherwise the position is carried at cost.
+ */
+function computeOptionValue(
+  optionShares: Map<string, Decimal>,
+  optionBasis: Map<string, Decimal>,
+  lastOptionTxDate: Map<string, string>,
+  markLookups: Map<string, MarketDataInput[]>,
+  date: string
+): Decimal {
+  let total = new Decimal(0);
+  for (const [ticker, qty] of optionShares) {
+    if (qty.lessThanOrEqualTo(0)) continue;
+    const basis = optionBasis.get(ticker) ?? new Decimal(0);
+    const marks = markLookups.get(ticker);
+    const lastTx = lastOptionTxDate.get(ticker) ?? "";
+    let value = basis;
+    if (marks) {
+      const idx = lastIndexAtOrBefore(marks, date);
+      if (idx !== -1 && marks[idx].date >= lastTx) {
+        value = new Decimal(marks[idx].value);
+      }
+    }
+    total = total.plus(value);
+  }
+  return total;
 }
 
 function computeMarketValue(
