@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   refreshTickerProfiles,
+  refreshTickerFundamentals,
   refreshPrices,
   refreshFxRates,
   refreshEtfHoldings,
@@ -26,21 +27,27 @@ export function ControlsBar({ timestamp }: ControlsBarProps) {
     try {
       // Next.js dispatches server actions sequentially — call one after the other.
       // Profiles run first so ETF detection and company names are populated
-      // before the page re-renders after price/FX/holdings updates.
+      // before fundamentals (which branches on isEtf) and the page re-renders
+      // after price/FX/holdings updates.
       const profilesResult = await refreshTickerProfiles();
+      const fundamentalsResult = await refreshTickerFundamentals();
       const pricesResult = await refreshPrices();
       const fxResult = await refreshFxRates();
       const etfResult = await refreshEtfHoldings();
 
       const profilesFailed = !profilesResult?.success;
+      const fundamentalsFailed = !fundamentalsResult?.success;
       const pricesFailed = !pricesResult?.success;
       const fxFailed = !fxResult?.success;
       const etfFailed = !etfResult?.success;
 
-      if (profilesFailed || pricesFailed || fxFailed || etfFailed) {
+      if (profilesFailed || fundamentalsFailed || pricesFailed || fxFailed || etfFailed) {
         const errors: string[] = [];
         if (profilesFailed) {
           errors.push((profilesResult as { error: string }).error ?? "Unable to refresh ticker profiles.");
+        }
+        if (fundamentalsFailed) {
+          errors.push((fundamentalsResult as { error: string }).error ?? "Unable to refresh fundamentals.");
         }
         if (pricesFailed) {
           errors.push((pricesResult as { error: string }).error ?? "Unable to refresh prices.");

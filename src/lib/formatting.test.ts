@@ -9,6 +9,9 @@ import {
   formatDate,
   formatTimestampDate,
   formatIRR,
+  formatMarketCap,
+  formatMultiple,
+  formatInteger,
 } from "./formatting";
 
 describe("formatCurrency", () => {
@@ -199,5 +202,71 @@ describe("formatTimestampDate", () => {
 
   it("formats single-digit day without leading zero", () => {
     expect(formatTimestampDate("2024-03-05")).toBe("Mar 5");
+  });
+});
+
+describe("formatMarketCap", () => {
+  it("formats trillions with 2dp", () => {
+    expect(formatMarketCap(4_395_044_409_440)).toBe("$4.40T");
+  });
+
+  it("formats billions with 2dp", () => {
+    expect(formatMarketCap(1_230_000_000)).toBe("$1.23B");
+  });
+
+  it("formats millions with 2dp", () => {
+    expect(formatMarketCap(45_600_000)).toBe("$45.60M");
+  });
+
+  it("formats thousands with 1dp", () => {
+    expect(formatMarketCap(12_300)).toBe("$12.3K");
+  });
+
+  it("formats sub-thousand without suffix", () => {
+    expect(formatMarketCap(500)).toBe("$500");
+  });
+
+  it("handles negative values", () => {
+    expect(formatMarketCap(-2_000_000_000)).toBe("-$2.00B");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatMarketCap(null)).toBe("N/A");
+  });
+});
+
+describe("formatMultiple", () => {
+  it("formats a positive multiple with x suffix and 1dp", () => {
+    expect(formatMultiple(35.913)).toBe("35.9x");
+  });
+
+  it("formats a sub-1 ratio", () => {
+    expect(formatMultiple(0.795)).toBe("0.8x");
+  });
+
+  it("formats a negative multiple", () => {
+    expect(formatMultiple(-2.14)).toBe("-2.1x");
+  });
+
+  it("formats zero", () => {
+    expect(formatMultiple(0)).toBe("0.0x");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatMultiple(null)).toBe("N/A");
+  });
+});
+
+describe("formatInteger", () => {
+  it("formats with thousands separators", () => {
+    expect(formatInteger(164000)).toBe("164,000");
+  });
+
+  it("rounds fractional input", () => {
+    expect(formatInteger(1234.6)).toBe("1,235");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatInteger(null)).toBe("N/A");
   });
 });

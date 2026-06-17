@@ -93,6 +93,72 @@ export const allocationTargets = sqliteTable(
   ]
 );
 
+export const tickerFundamentals = sqliteTable(
+  "ticker_fundamentals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticker: text("ticker").notNull(),
+    // Company profile (from FMP /profile)
+    exchange: text("exchange"),
+    exchangeFullName: text("exchange_full_name"),
+    sector: text("sector"),
+    industry: text("industry"),
+    country: text("country"),
+    ceo: text("ceo"),
+    employees: integer("employees"),
+    ipoDate: text("ipo_date"),
+    description: text("description"),
+    website: text("website"),
+    currency: text("currency"),
+    // Profile-time price snapshot — stored so derived figures (fwdPe) stay
+    // self-consistent with the multiples computed against the same price.
+    price: real("price"),
+    marketCap: real("market_cap"),
+    beta: real("beta"),
+    range52wLow: real("range_52w_low"),
+    range52wHigh: real("range_52w_high"),
+    lastDividend: real("last_dividend"),
+    // Valuation (TTM ratios / key metrics). Yields & margins are fractions
+    // (e.g. 0.0035 = 0.35%); multiples are plain numbers (e.g. 35.9).
+    peTtm: real("pe_ttm"),
+    epsTtm: real("eps_ttm"),
+    fwdPe: real("fwd_pe"),
+    divYieldTtm: real("div_yield_ttm"),
+    psTtm: real("ps_ttm"),
+    pbTtm: real("pb_ttm"),
+    pfcfTtm: real("pfcf_ttm"),
+    evEbitdaTtm: real("ev_ebitda_ttm"),
+    netMarginTtm: real("net_margin_ttm"),
+    roeTtm: real("roe_ttm"),
+    debtToEquityTtm: real("debt_to_equity_ttm"),
+    // Analyst coverage
+    priceTargetHigh: real("price_target_high"),
+    priceTargetLow: real("price_target_low"),
+    priceTargetMedian: real("price_target_median"),
+    priceTargetConsensus: real("price_target_consensus"),
+    analystRating: text("analyst_rating"),
+    analystScore: integer("analyst_score"),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [uniqueIndex("ticker_fundamentals_ticker_idx").on(table.ticker)]
+);
+
+export const tickerDividends = sqliteTable(
+  "ticker_dividends",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticker: text("ticker").notNull(),
+    exDate: text("ex_date").notNull(),
+    paymentDate: text("payment_date"),
+    dividend: real("dividend").notNull(),
+    // Annualized yield in PERCENT units at the time (e.g. 0.36 = 0.36%).
+    yield: real("yield"),
+    frequency: text("frequency"),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [index("ticker_dividends_ticker_idx").on(table.ticker)]
+);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

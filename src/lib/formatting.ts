@@ -109,6 +109,39 @@ export function formatIRRRounded(value: number | null): string {
   return `-${formatted}%`;
 }
 
+const multipleFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+const integerFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
+
+/** Compact USD for large figures: "$4.40T", "$1.23B", "$45.6M", "$12.3K". */
+export function formatMarketCap(value: number | null): string {
+  if (value === null) return "N/A";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+
+/** Valuation multiple, e.g. "35.9x", "-2.1x". */
+export function formatMultiple(value: number | null): string {
+  if (value === null) return "N/A";
+  return `${multipleFormatter.format(value)}x`;
+}
+
+/** Whole-number count with thousands separators, e.g. "164,000". */
+export function formatInteger(value: number | null): string {
+  if (value === null) return "N/A";
+  return integerFormatter.format(value);
+}
+
 export function formatTimestampDate(isoTimestamp: string): string {
   return format(parseISO(isoTimestamp), "MMM d");
 }

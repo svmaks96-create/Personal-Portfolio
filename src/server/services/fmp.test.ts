@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchStockPrices, fetchFxRates, fetchCompanyProfile } from "./fmp";
+import {
+  fetchStockPrices,
+  fetchFxRates,
+  fetchCompanyProfile,
+  fetchTickerProfileFull,
+  fetchRatiosTtm,
+  selectForwardEps,
+} from "./fmp";
 
 // Mock config to control API key
 vi.mock("@/server/config", () => ({
@@ -254,6 +261,140 @@ describe("fetchCompanyProfile", () => {
     vi.spyOn(global, "fetch").mockResolvedValue(new Response("err", { status: 500 }));
     const result = await fetchCompanyProfile("AAPL");
     expect(result).toBeNull();
+  });
+});
+
+describe("selectForwardEps", () => {
+  const items = [
+    { date: "2028-09-27", epsAvg: 10.6 },
+    { date: "2027-09-27", epsAvg: 9.6 },
+    { date: "2026-09-27", epsAvg: 8.7 },
+    { date: "2025-09-27", epsAvg: 7.3 },
+  ];
+
+  it("picks the nearest upcoming fiscal year (smallest future date)", () => {
+    expect(selectForwardEps(items, "2026-06-17")).toEqual({
+      date: "2026-09-27",
+      epsAvg: 8.7,
+    });
+  });
+
+  it("ignores past-dated entries", () => {
+    expect(selectForwardEps(items, "2027-01-01")).toEqual({
+      date: "2027-09-27",
+      epsAvg: 9.6,
+    });
+  });
+
+  it("returns null when all entries are historical", () => {
+    expect(selectForwardEps(items, "2030-01-01")).toBeNull();
+  });
+
+  it("skips entries with null date or epsAvg", () => {
+    const mixed = [
+      { date: null, epsAvg: 99 },
+      { date: "2027-09-27", epsAvg: null },
+      { date: "2026-09-27", epsAvg: 8.7 },
+    ];
+    expect(selectForwardEps(mixed, "2026-01-01")).toEqual({
+      date: "2026-09-27",
+      epsAvg: 8.7,
+    });
+  });
+
+  it("returns null for an empty list", () => {
+    expect(selectForwardEps([], "2026-06-17")).toBeNull();
+  });
+});
+
+describe("fetchTickerProfileFull", () => {
+  it("returns null for empty ticker without calling fetch", async () => {
+    const spy = vi.spyOn(global, "fetch");
+    expect(await fetchTickerProfileFull("")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("parses the rich profile, splitting the 52w range", async () => {
+    mockFetchResponse([
+      {
+        symbol: "AAPL",
+        companyName: "Apple Inc.",
+        isEtf: false,
+        price: 299.24,
+        marketCap: 4395044409440,
+        beta: 1.086,
+        lastDividend: 1.05,
+        range: "195.07-317.4",
+        exchange: "NASDAQ",
+        sector: "Technology",
+        industry: "Consumer Electronics",
+        country: "US",
+        ceo: "Timothy D. Cook",
+        fullTimeEmployees: "164000",
+        ipoDate: "1980-12-12",
+        currency: "USD",
+      },
+    ]);
+    const result = await fetchTickerProfileFull("AAPL");
+    expect(result).toMatchObject({
+      symbol: "AAPL",
+      sector: "Technology",
+      industry: "Consumer Electronics",
+      exchange: "NASDAQ",
+      range52wLow: 195.07,
+      range52wHigh: 317.4,
+      employees: 164000,
+      marketCap: 4395044409440,
+      beta: 1.086,
+    });
+  });
+
+  it("returns null when symbol/isEtf are missing", async () => {
+    mockFetchResponse([{ symbol: "AAPL" }]);
+    expect(await fetchTickerProfileFull("AAPL")).toBeNull();
+  });
+
+  it("degrades range to nulls when malformed", async () => {
+    mockFetchResponse([{ symbol: "X", isEtf: false, range: "n/a" }]);
+    const result = await fetchTickerProfileFull("X");
+    expect(result?.range52wLow).toBeNull();
+    expect(result?.range52wHigh).toBeNull();
+  });
+});
+
+describe("fetchRatiosTtm", () => {
+  it("maps TTM ratio fields", async () => {
+    mockFetchResponse([
+      {
+        symbol: "AAPL",
+        priceToEarningsRatioTTM: 35.9,
+        netIncomePerShareTTM: 8.33,
+        dividendYieldTTM: 0.0035,
+        priceToSalesRatioTTM: 9.7,
+        priceToBookRatioTTM: 41.3,
+        priceToFreeCashFlowRatioTTM: 34.0,
+        enterpriseValueMultipleTTM: 27.7,
+        netProfitMarginTTM: 0.2715,
+        debtToEquityRatioTTM: 0.795,
+      },
+    ]);
+    const result = await fetchRatiosTtm("AAPL");
+    expect(result).toEqual({
+      peTtm: 35.9,
+      epsTtm: 8.33,
+      divYieldTtm: 0.0035,
+      psTtm: 9.7,
+      pbTtm: 41.3,
+      pfcfTtm: 34.0,
+      evEbitdaTtm: 27.7,
+      netMarginTtm: 0.2715,
+      debtToEquityTtm: 0.795,
+    });
+  });
+
+  it("returns null on non-200 response", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(new Response("err", { status: 500 }));
+    expect(await fetchRatiosTtm("AAPL")).toBeNull();
   });
 });
 

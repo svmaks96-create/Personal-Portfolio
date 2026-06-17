@@ -7,6 +7,12 @@ import { getPriceHistory, getEarliestTransactionDate } from "@/server/queries/ma
 import { getTransactions, type TransactionRow } from "@/server/queries/transactions";
 import { getConcentrationData } from "@/server/queries/dashboard";
 import { getTickerProfilesMap } from "@/server/queries/ticker-profiles";
+import {
+  getTickerFundamentals,
+  getTickerDividends,
+  type TickerFundamentals,
+  type TickerDividend,
+} from "@/server/queries/ticker-fundamentals";
 import type { ComputedPosition, MarketDataInput } from "@/server/types/positions";
 
 export interface PriceHistoryPoint {
@@ -52,6 +58,12 @@ export interface PositionDetail {
   trades: PositionTradeEvent[];
 
   concentration: { direct: number; etf: number; total: number };
+
+  // Company/security research data (FMP), null until refreshed.
+  exchange: string | null;
+  sector: string | null;
+  fundamentals: TickerFundamentals | null;
+  dividendSchedule: TickerDividend[];
 
   prevTicker: string | null;
   nextTicker: string | null;
@@ -273,6 +285,11 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
     value: p.value,
   }));
 
+  // Company fundamentals + the security's dividend schedule (portfolio-
+  // independent — keyed by ticker, correct for the merged "All" view).
+  const fundamentals = getTickerFundamentals(ticker);
+  const dividendSchedule = getTickerDividends(ticker, 8);
+
   return {
     ticker,
     companyName: profile?.name ?? null,
@@ -292,6 +309,10 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
     priceHistory,
     trades,
     concentration,
+    exchange: fundamentals?.exchange ?? null,
+    sector: fundamentals?.sector ?? null,
+    fundamentals,
+    dividendSchedule,
     prevTicker,
     nextTicker,
     allTickers,

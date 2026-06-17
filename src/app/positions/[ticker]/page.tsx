@@ -6,6 +6,10 @@ import { PositionHeroStrip } from "@/components/domain/position-hero-strip";
 import { PositionStatsGrid } from "@/components/domain/position-stats-grid";
 import { PositionPriceChart } from "@/components/domain/position-price-chart";
 import { PositionFundamentalsPanel } from "@/components/domain/position-fundamentals-panel";
+import { PositionValuationPanel } from "@/components/domain/position-valuation-panel";
+import { PositionAnalystPanel } from "@/components/domain/position-analyst-panel";
+import { PositionProfilePanel } from "@/components/domain/position-profile-panel";
+import { PositionDividendSchedulePanel } from "@/components/domain/position-dividend-schedule-panel";
 import { PositionConcentrationPanel } from "@/components/domain/position-concentration-panel";
 import { PositionTradeHistoryTable } from "@/components/domain/position-trade-history-table";
 import { PositionNotesPlaceholder } from "@/components/domain/position-notes-placeholder";
@@ -69,6 +73,11 @@ export default async function PositionDetailPage({
     prices: detail.priceHistory.map((p) => p.value),
   };
 
+  const f = detail.fundamentals;
+  // Live last price for "now" markers / upside; fall back to the profile-time
+  // price captured with the fundamentals snapshot.
+  const currentPrice = detail.position.lastPrice ?? f?.price ?? null;
+
   return (
     <div className="space-y-4 font-mono text-[13px] tabular-nums">
       <PositionSwitcher
@@ -97,6 +106,8 @@ export default async function PositionDetailPage({
         companyName={detail.companyName}
         isActive={detail.isActive}
         isEtf={detail.isEtf}
+        exchange={detail.exchange}
+        sector={detail.sector}
         heldSince={detail.heldSince}
       />
 
@@ -157,13 +168,58 @@ export default async function PositionDetailPage({
           </div>
         </div>
         <div className="flex flex-col gap-4">
-          <PositionFundamentalsPanel />
+          <PositionFundamentalsPanel
+            marketCap={f?.marketCap ?? null}
+            peTtm={f?.peTtm ?? null}
+            fwdPe={f?.fwdPe ?? null}
+            epsTtm={f?.epsTtm ?? null}
+            divYieldTtm={f?.divYieldTtm ?? null}
+            beta={f?.beta ?? null}
+            isEtf={detail.isEtf}
+          />
           <PositionConcentrationPanel
             direct={detail.concentration.direct}
             etf={detail.concentration.etf}
             total={detail.concentration.total}
           />
         </div>
+      </div>
+
+      {!detail.isEtf && (
+        <div className="grid grid-cols-[1fr_1fr] gap-4">
+          <PositionValuationPanel
+            psTtm={f?.psTtm ?? null}
+            pbTtm={f?.pbTtm ?? null}
+            pfcfTtm={f?.pfcfTtm ?? null}
+            evEbitdaTtm={f?.evEbitdaTtm ?? null}
+            netMarginTtm={f?.netMarginTtm ?? null}
+            roeTtm={f?.roeTtm ?? null}
+            debtToEquityTtm={f?.debtToEquityTtm ?? null}
+          />
+          <PositionAnalystPanel
+            rating={f?.analystRating ?? null}
+            score={f?.analystScore ?? null}
+            targetHigh={f?.priceTargetHigh ?? null}
+            targetLow={f?.priceTargetLow ?? null}
+            targetMedian={f?.priceTargetMedian ?? null}
+            targetConsensus={f?.priceTargetConsensus ?? null}
+            currentPrice={currentPrice}
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-[2fr_1fr] gap-4">
+        <PositionProfilePanel
+          description={f?.description ?? null}
+          sector={f?.sector ?? null}
+          industry={f?.industry ?? null}
+          country={f?.country ?? null}
+          employees={f?.employees ?? null}
+          ipoDate={f?.ipoDate ?? null}
+          ceo={f?.ceo ?? null}
+          website={f?.website ?? null}
+        />
+        <PositionDividendSchedulePanel dividends={detail.dividendSchedule} />
       </div>
 
       <PositionTradeHistoryTable

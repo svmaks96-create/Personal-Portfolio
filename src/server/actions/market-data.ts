@@ -8,6 +8,8 @@ import {
   etfHoldings,
   tickerVariants,
   tickerProfiles,
+  tickerFundamentals,
+  tickerDividends,
 } from "@/server/db/schema";
 import { upsertMarketDataRows } from "@/server/db/market-data-writer";
 import {
@@ -16,6 +18,13 @@ import {
   fetchCompanyProfile,
   fetchEtfHoldings,
   fetchExchangeVariants,
+  fetchTickerProfileFull,
+  fetchRatiosTtm,
+  fetchRoeTtm,
+  fetchForwardEps,
+  fetchPriceTargetConsensus,
+  fetchRatingSnapshot,
+  fetchDividendHistory,
   BENCHMARK_TICKERS,
 } from "@/server/services/fmp";
 import {
@@ -32,6 +41,7 @@ import {
   getTickerProfilesMap,
   getTickerProfileFetchedAtMap,
 } from "@/server/queries/ticker-profiles";
+import { getTickerFundamentalsFetchedAtMap } from "@/server/queries/ticker-fundamentals";
 import { eq, notInArray } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type {
@@ -497,6 +507,200 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
     return {
       success: false,
       error: "Unable to fetch ETF holdings. Please try again.",
+    };
+  }
+}
+
+const TICKER_FUNDAMENTALS_STALENESS_DAYS = 7;
+// Each ticker fans out to ~6 FMP calls, so keep the across-ticker concurrency
+// low to stay polite to the FMP rate limit (~6 * 4 = 24 in-flight max).
+const FUNDAMENTALS_CONCURRENCY = 4;
+
+/**
+ * Run an async mapper across `items` with bounded concurrency. Generic over the
+ * result type (unlike `fetchInChunks`, which is hard-typed to FmpEodQuote[]).
+ * Returns settled results so one failure doesn't drop the rest of a chunk.
+ */
+async function mapInChunks<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  concurrency: number
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(chunk.map((item) => fn(item)));
+    results.push(...settled);
+  }
+  return results;
+}
+
+/**
+ * Refresh company fundamentals (profile, TTM ratios, forward EPS, analyst
+ * targets/ratings, dividend schedule) for currently-held STOCK tickers, used by
+ * the position detail page's research panels. Staleness-gated on
+ * `ticker_fundamentals.fetchedAt` (7 days). Must run AFTER refreshTickerProfiles
+ * so the ETF flag is known — ETFs skip EPS/PE/analyst (non-applicable).
+ */
+export async function refreshTickerFundamentals(): Promise<ActionResult<RefreshResult>> {
+  try {
+    // All stock tickers ever transacted — including CLOSED positions, whose
+    // detail pages still surface fundamentals (unlike ETF holdings, which are
+    // only read for currently-held names). Mirrors refreshTickerProfiles.
+    const rows = db
+      .select({ ticker: transactions.ticker })
+      .from(transactions)
+      .where(eq(transactions.instrument, "stock"))
+      .all();
+    const allTickers = [...new Set(rows.map((r) => r.ticker))];
+    if (allTickers.length === 0) {
+      return { success: true, data: { updated: 0, skipped: 0 } };
+    }
+
+    const profilesMap = getTickerProfilesMap();
+    const now = new Date();
+    const fetchedAtMap = getTickerFundamentalsFetchedAtMap(allTickers);
+
+    const staleTickers = allTickers.filter((ticker) => {
+      const fetchedAt = fetchedAtMap[ticker];
+      if (!fetchedAt) return true;
+      return (
+        differenceInDays(now, parseISO(fetchedAt)) >=
+        TICKER_FUNDAMENTALS_STALENESS_DAYS
+      );
+    });
+
+    if (staleTickers.length === 0) {
+      return { success: true, data: { updated: 0, skipped: allTickers.length } };
+    }
+
+    const todayIso = format(now, "yyyy-MM-dd");
+    const fetchedAtStr = now.toISOString();
+
+    const settled = await mapInChunks(
+      staleTickers,
+      async (ticker) => {
+        const isEtf = profilesMap[ticker]?.isEtf === true;
+        // ETFs have no meaningful EPS/PE/analyst coverage — skip those calls.
+        const [profile, ratios, roeTtm, fwdEps, target, rating, dividends] =
+          await Promise.all([
+            fetchTickerProfileFull(ticker),
+            isEtf ? Promise.resolve(null) : fetchRatiosTtm(ticker),
+            isEtf ? Promise.resolve(null) : fetchRoeTtm(ticker),
+            isEtf ? Promise.resolve(null) : fetchForwardEps(ticker, todayIso),
+            isEtf ? Promise.resolve(null) : fetchPriceTargetConsensus(ticker),
+            isEtf ? Promise.resolve(null) : fetchRatingSnapshot(ticker),
+            fetchDividendHistory(ticker),
+          ]);
+
+        // Nothing usable → signal failure so the existing row isn't wiped.
+        if (profile === null && ratios === null && dividends.length === 0) {
+          return { ticker, ok: false as const };
+        }
+
+        const price = profile?.price ?? null;
+        const fwdPe =
+          price !== null && price > 0 && fwdEps !== null && fwdEps.epsAvg > 0
+            ? price / fwdEps.epsAvg
+            : null;
+        // ETFs skip ratios-ttm; derive their yield from the trailing dividend
+        // and profile price (fraction, matching divYieldTtm semantics).
+        const divYieldTtm =
+          ratios?.divYieldTtm ??
+          (price !== null && price > 0 && profile?.lastDividend != null
+            ? profile.lastDividend / price
+            : null);
+
+        const fundamentalsRow = {
+          ticker,
+          exchange: profile?.exchange ?? null,
+          exchangeFullName: profile?.exchangeFullName ?? null,
+          sector: profile?.sector ?? null,
+          industry: profile?.industry ?? null,
+          country: profile?.country ?? null,
+          ceo: profile?.ceo ?? null,
+          employees: profile?.employees ?? null,
+          ipoDate: profile?.ipoDate ?? null,
+          description: profile?.description ?? null,
+          website: profile?.website ?? null,
+          currency: profile?.currency ?? null,
+          price,
+          marketCap: profile?.marketCap ?? null,
+          beta: profile?.beta ?? null,
+          range52wLow: profile?.range52wLow ?? null,
+          range52wHigh: profile?.range52wHigh ?? null,
+          lastDividend: profile?.lastDividend ?? null,
+          peTtm: ratios?.peTtm ?? null,
+          epsTtm: ratios?.epsTtm ?? null,
+          fwdPe,
+          divYieldTtm,
+          psTtm: ratios?.psTtm ?? null,
+          pbTtm: ratios?.pbTtm ?? null,
+          pfcfTtm: ratios?.pfcfTtm ?? null,
+          evEbitdaTtm: ratios?.evEbitdaTtm ?? null,
+          netMarginTtm: ratios?.netMarginTtm ?? null,
+          roeTtm,
+          debtToEquityTtm: ratios?.debtToEquityTtm ?? null,
+          priceTargetHigh: target?.targetHigh ?? null,
+          priceTargetLow: target?.targetLow ?? null,
+          priceTargetMedian: target?.targetMedian ?? null,
+          priceTargetConsensus: target?.targetConsensus ?? null,
+          analystRating: rating?.rating ?? null,
+          analystScore: rating?.overallScore ?? null,
+          fetchedAt: fetchedAtStr,
+        };
+
+        const dividendRows = dividends.map((d) => ({
+          ticker,
+          exDate: d.exDate,
+          paymentDate: d.paymentDate,
+          dividend: d.dividend,
+          yield: d.yield,
+          frequency: d.frequency,
+          fetchedAt: fetchedAtStr,
+        }));
+
+        return { ticker, ok: true as const, fundamentalsRow, dividendRows };
+      },
+      FUNDAMENTALS_CONCURRENCY
+    );
+
+    const writes = settled.flatMap((s) =>
+      s.status === "fulfilled" && s.value.ok ? [s.value] : [],
+    );
+
+    if (writes.length > 0) {
+      db.transaction((tx) => {
+        for (const w of writes) {
+          tx.delete(tickerFundamentals)
+            .where(eq(tickerFundamentals.ticker, w.ticker))
+            .run();
+          tx.insert(tickerFundamentals).values(w.fundamentalsRow).run();
+
+          tx.delete(tickerDividends)
+            .where(eq(tickerDividends.ticker, w.ticker))
+            .run();
+          for (const row of w.dividendRows) {
+            tx.insert(tickerDividends).values(row).run();
+          }
+        }
+      });
+    }
+
+    revalidatePath("/", "layout");
+
+    return {
+      success: true,
+      data: {
+        updated: writes.length,
+        skipped: allTickers.length - writes.length,
+      },
+    };
+  } catch (error) {
+    console.error("refreshTickerFundamentals failed:", error);
+    return {
+      success: false,
+      error: "Unable to fetch ticker fundamentals. Please try again.",
     };
   }
 }
