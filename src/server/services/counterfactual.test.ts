@@ -480,6 +480,26 @@ describe("computeSyntheticPortfolio — flow schedules", () => {
     expect(rebalanced.deposits).toHaveLength(1);
   });
 
+  it("seeds opening capital when the window starts after inception", () => {
+    // A window opening mid-history must not compare a from-zero alternative
+    // against a portfolio that already holds a book.
+    const seeded = computeSyntheticPortfolio(holdings(txs(), priceHistory), {
+      label: "SPY seeded",
+      legs: [{ symbol: "SPY", weight: 1 }],
+      schedule: "deposits-only",
+      priceHistory: { SPY: series("SPY", [["2025-01-02", 100], ["2025-01-07", 150]]) },
+      tradingCalendar: CAL,
+      startDate: "2025-01-02",
+      endDate: "2025-01-07",
+      seedValueUsd: 50_000,
+    });
+
+    // $50,000 seed plus the $1,000 committed, all at 100, then +50%.
+    expect(seeded.totalDepositedUsd).toBeCloseTo(51_000, 6);
+    expect(seeded.endValueUsd).toBeCloseTo(76_500, 6);
+    expect(seeded.cumulativeReturnPct).toBeCloseTo(50, 6);
+  });
+
   it("returns an empty result when no leg has prices", () => {
     const r = computeSyntheticPortfolio(holdings(txs(), priceHistory), {
       label: "missing",

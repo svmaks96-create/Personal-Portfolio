@@ -1,4 +1,5 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 import { AnalyticsMetricTable } from "@/components/domain/analytics-metric-table";
 import {
@@ -8,12 +9,14 @@ import {
 
 interface AnalyticsBehaviourPanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
 export async function AnalyticsBehaviourPanel({
   portfolio,
+  analysisWindow,
 }: AnalyticsBehaviourPanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
 
   const cells: TerminalKpiCell[] = data.winLoss.map((kpi) => ({
     label: kpi.label,

@@ -1,8 +1,10 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 
 interface AnalyticsContributionPanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
 /**
@@ -14,8 +16,9 @@ interface AnalyticsContributionPanelProps {
  */
 export async function AnalyticsContributionPanel({
   portfolio,
+  analysisWindow,
 }: AnalyticsContributionPanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
   const { bars, totalDisplay, conflictNote } = data.contribution;
 
   const magnitude = Math.max(...bars.map((b) => Math.abs(b.contributionPct)), 1);

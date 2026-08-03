@@ -19,7 +19,12 @@ import {
   AnalyticsBehaviourSkeleton,
 } from "@/components/domain/analytics-skeleton";
 import { MetricCardsSkeleton } from "@/components/domain/metric-card-skeleton";
+import { AnalyticsWindowBar } from "@/components/domain/analytics-window-bar";
 import { getTransactionCount } from "@/server/queries/transactions";
+import {
+  analyticsWindowSchema,
+  DEFAULT_ANALYTICS_WINDOW,
+} from "@/shared/schemas/analytics-window";
 
 export default async function AnalyticsPage({
   searchParams,
@@ -38,58 +43,68 @@ export default async function AnalyticsPage({
     );
   }
 
-  const { portfolio } = await searchParams;
+  const { portfolio, window: windowRaw } = await searchParams;
   const portfolioFilter = typeof portfolio === "string" ? portfolio : undefined;
+  const analysisWindow = analyticsWindowSchema
+    .catch(DEFAULT_ANALYTICS_WINDOW)
+    .parse(windowRaw);
 
   return (
     <div className="space-y-4 font-mono text-[13px] tabular-nums">
       <TerminalHeading portfolio={portfolioFilter} />
 
+      <Suspense fallback={<div className="h-9 border border-line bg-panel" />}>
+        <AnalyticsWindowBar portfolio={portfolioFilter} window={analysisWindow} />
+      </Suspense>
+
       <Suspense fallback={<MetricCardsSkeleton />}>
-        <AnalyticsKpis portfolio={portfolioFilter} />
+        <AnalyticsKpis portfolio={portfolioFilter} analysisWindow={analysisWindow} />
       </Suspense>
 
       <Suspense fallback={<AnalyticsCaveatsSkeleton />}>
-        <AnalyticsCaveatsPanel portfolio={portfolioFilter} />
+        <AnalyticsCaveatsPanel
+          portfolio={portfolioFilter}
+          analysisWindow={analysisWindow}
+        />
       </Suspense>
 
       <TerminalSectionHeading label="Risk" hint="Daily, chain-linked" />
       <div className="grid grid-cols-[1.6fr_1fr] gap-4">
         <Suspense fallback={<AnalyticsPanelSkeleton rows={12} />}>
-          <AnalyticsRiskPanel portfolio={portfolioFilter} />
+          <AnalyticsRiskPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
         </Suspense>
         <Suspense fallback={<AnalyticsPanelSkeleton rows={10} />}>
-          <AnalyticsDrawdownPanel portfolio={portfolioFilter} />
+          <AnalyticsDrawdownPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
         </Suspense>
       </div>
 
       <TerminalSectionHeading label="Attribution" hint="Where the return came from" />
       <div className="grid grid-cols-[1.6fr_1fr] gap-4">
         <Suspense fallback={<AnalyticsPanelSkeleton rows={9} />}>
-          <AnalyticsContributionPanel portfolio={portfolioFilter} />
+          <AnalyticsContributionPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
         </Suspense>
         <Suspense fallback={<AnalyticsPanelSkeleton rows={7} />}>
-          <AnalyticsConcentrationPanel portfolio={portfolioFilter} />
+          <AnalyticsConcentrationPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
         </Suspense>
       </div>
 
       <Suspense fallback={<AnalyticsPanelSkeleton rows={4} />}>
-        <AnalyticsRegimePanel portfolio={portfolioFilter} />
+        <AnalyticsRegimePanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
       </Suspense>
 
       <TerminalSectionHeading label="Behaviour" hint="Closed round-trips" />
       <Suspense fallback={<AnalyticsBehaviourSkeleton />}>
-        <AnalyticsBehaviourPanel portfolio={portfolioFilter} />
+        <AnalyticsBehaviourPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
       </Suspense>
 
       <TerminalSectionHeading label="Timing" hint="Entry and exit quality" />
       <Suspense fallback={<AnalyticsPairSkeleton rows={6} />}>
-        <AnalyticsTimingPanel portfolio={portfolioFilter} />
+        <AnalyticsTimingPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
       </Suspense>
 
       <TerminalSectionHeading label="Counterfactuals" hint="Versus doing nothing" />
       <Suspense fallback={<AnalyticsPanelSkeleton rows={8} />}>
-        <AnalyticsCounterfactualPanel portfolio={portfolioFilter} />
+        <AnalyticsCounterfactualPanel portfolio={portfolioFilter} analysisWindow={analysisWindow} />
       </Suspense>
     </div>
   );

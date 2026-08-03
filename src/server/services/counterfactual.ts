@@ -277,6 +277,15 @@ export interface SyntheticPortfolioOptions {
   startDate: string;
   endDate: string;
   rebalance?: "none" | "annual";
+  /**
+   * Opening capital placed on the first day of the window.
+   *
+   * Required whenever the window starts after inception: the real portfolio
+   * begins that window already holding a book, so an alternative starting from
+   * zero would be comparing against a portfolio that does not exist. Seeding it
+   * with the same opening value makes the two answer the same question.
+   */
+  seedValueUsd?: number;
 }
 
 const TRADING_DAYS = 252;
@@ -302,6 +311,7 @@ export function computeSyntheticPortfolio(
     startDate,
     endDate,
     rebalance = "none",
+    seedValueUsd = 0,
   } = options;
 
   const calendar = tradingCalendar.filter((d) => d >= startDate && d <= endDate);
@@ -342,6 +352,10 @@ export function computeSyntheticPortfolio(
   if (legs.every((l) => (lookups.get(l.symbol) ?? []).length === 0)) return empty;
 
   const flowByDate = buildFlowSchedule(points, calendar, endDate, schedule);
+  if (seedValueUsd > 0) {
+    const first = calendar[0];
+    flowByDate.set(first, (flowByDate.get(first) ?? 0) + seedValueUsd);
+  }
 
   const units = new Map<string, Decimal>();
   for (const leg of legs) units.set(leg.symbol, new Decimal(0));
@@ -503,6 +517,7 @@ export interface DepositsOnlyOptions {
   tradingCalendar: string[];
   startDate: string;
   endDate: string;
+  seedValueUsd?: number;
 }
 
 /**
@@ -513,7 +528,8 @@ export function computeDepositsOnlyBenchmark(
   points: DailyHoldingsPoint[],
   options: DepositsOnlyOptions
 ): SyntheticResult {
-  const { symbol, priceSeries, tradingCalendar, startDate, endDate } = options;
+  const { symbol, priceSeries, tradingCalendar, startDate, endDate, seedValueUsd } =
+    options;
   return computeSyntheticPortfolio(points, {
     label: `All-in ${symbol}`,
     legs: [{ symbol, weight: 1 }],
@@ -522,6 +538,7 @@ export function computeDepositsOnlyBenchmark(
     tradingCalendar,
     startDate,
     endDate,
+    seedValueUsd,
   });
 }
 

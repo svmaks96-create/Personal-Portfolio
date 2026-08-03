@@ -9,6 +9,12 @@ import {
   formatIRRRounded,
 } from "@/lib/formatting";
 import { pnlDirection } from "@/lib/pnl";
+import {
+  DEFAULT_ANALYTICS_WINDOW,
+  windowLabel,
+  windowStartDate,
+  type AnalyticsWindow,
+} from "@/shared/schemas/analytics-window";
 
 /**
  * Display-ready view models for the /analytics page.
@@ -117,6 +123,9 @@ export interface AnalyticsPageData {
   meta: {
     scope: string;
     inception: string;
+    analysisFrom: string;
+    isWindowed: boolean;
+    windowLabel: string;
     ledgerAsOf: string;
     valuationAsOf: string;
     episodeSummary: string;
@@ -154,17 +163,20 @@ export interface AnalyticsPageData {
 }
 
 export const getAnalyticsPageData = cache(
-  (portfolio?: string): AnalyticsPageData => {
-    const r = getAnalyticsForPage(portfolio);
+  (
+    portfolio?: string,
+    window: AnalyticsWindow = DEFAULT_ANALYTICS_WINDOW
+  ): AnalyticsPageData => {
+    const r = getAnalyticsForPage(portfolio, windowStartDate(window));
 
-    const itd = r.performance[0].rows.find((x) => x.label === "Inception to date");
+    const itd = r.performance[0].rows.find((x) => x.isFullWindow);
     const risk = r.risk;
     const spyRelation = risk.benchmarkRelations.find((b) => b.symbol === "SPY");
 
     // ---- KPI strip ----
     const kpis: AnalyticsKpi[] = [
       {
-        label: "TWRR ITD",
+        label: r.meta.isWindowed ? `TWRR ${window}` : "TWRR ITD",
         value: formatPercent(itd?.portfolioReturnPct ?? null),
         tone: tone(itd?.portfolioReturnPct ?? null),
         sub: `SPY ${formatPercent(itd?.benchmarkReturnPct["SPY"] ?? null)}`,
@@ -591,6 +603,9 @@ export const getAnalyticsPageData = cache(
       meta: {
         scope: r.meta.scope,
         inception: r.meta.inception,
+        analysisFrom: r.meta.analysisFrom,
+        isWindowed: r.meta.isWindowed,
+        windowLabel: windowLabel(window),
         ledgerAsOf: r.meta.ledgerAsOf,
         valuationAsOf: r.meta.valuationAsOf,
         episodeSummary: `${r.meta.counts.consolidatedEpisodes} episodes · ${r.meta.counts.closedEpisodes} closed · ${r.meta.counts.openEpisodes} open`,

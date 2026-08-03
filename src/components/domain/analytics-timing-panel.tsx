@@ -1,13 +1,15 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 import { AnalyticsMetricTable } from "@/components/domain/analytics-metric-table";
 
 interface AnalyticsTimingPanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
-export async function AnalyticsTimingPanel({ portfolio }: AnalyticsTimingPanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+export async function AnalyticsTimingPanel({ portfolio, analysisWindow }: AnalyticsTimingPanelProps) {
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
 
   return (
     <div className="grid grid-cols-2 gap-4">

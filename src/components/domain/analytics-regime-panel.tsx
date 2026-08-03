@@ -1,13 +1,15 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 import { AnalyticsMetricTable } from "@/components/domain/analytics-metric-table";
 
 interface AnalyticsRegimePanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
-export async function AnalyticsRegimePanel({ portfolio }: AnalyticsRegimePanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+export async function AnalyticsRegimePanel({ portfolio, analysisWindow }: AnalyticsRegimePanelProps) {
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
 
   return (
     <TerminalPanel label="REGIMES" tag="BEFORE / AFTER THE PIVOT">

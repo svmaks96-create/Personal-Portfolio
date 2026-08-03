@@ -1,14 +1,17 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 
 interface AnalyticsDrawdownPanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
 export async function AnalyticsDrawdownPanel({
   portfolio,
+  analysisWindow,
 }: AnalyticsDrawdownPanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
   const { rows, summary, current } = data.drawdowns;
 
   return (

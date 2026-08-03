@@ -17,10 +17,18 @@ export function renderMarkdown(r: BehaviorAnalyticsReport): string {
   w(`# Portfolio Behaviour & Counterfactual Analysis`);
   w();
   w(
-    `**Scope** ${r.meta.scope} · **Ledger** ${r.meta.inception} → ${r.meta.ledgerAsOf} · ` +
-      `**Valued at** ${r.meta.valuationAsOf} · **Generated** ${r.meta.generatedAt.slice(0, 10)}`
+    `**Scope** ${r.meta.scope} · **Window** ${r.meta.analysisFrom} → ${r.meta.valuationAsOf} · ` +
+      `**Generated** ${r.meta.generatedAt.slice(0, 10)}`
   );
   w();
+  if (r.meta.isWindowed) {
+    w(
+      `> Measurement starts **${r.meta.analysisFrom}**, not at inception ` +
+        `(${r.meta.inception}). Positions are still walked from the first transaction so ` +
+        `opening balances are correct, but every figure below describes the window only.`
+    );
+    w();
+  }
   w(
     `${formatInteger(r.meta.counts.transactions)} transactions · ` +
       `${r.meta.counts.tickers} tickers · ` +
@@ -64,7 +72,7 @@ function renderCaveats(r: BehaviorAnalyticsReport, w: Writer): void {
 
 function renderSummary(r: BehaviorAnalyticsReport, w: Writer): void {
   const combined = r.performance[0];
-  const itd = combined.rows.find((x) => x.label === "Inception to date");
+  const itd = combined.rows.find((x) => x.isFullWindow);
   const pre = combined.rows.find((x) => x.label === "Pre-pivot (to 2024)");
   const post = combined.rows.find((x) => x.label === "Post-pivot (2025+)");
   const primary = r.counterfactual.frozenBooks.find(
@@ -76,11 +84,12 @@ function renderSummary(r: BehaviorAnalyticsReport, w: Writer): void {
   w();
   w(`| Measure | Value |`);
   w(`| --- | --- |`);
+  const span = r.meta.isWindowed ? `since ${r.meta.analysisFrom}` : "ITD";
   w(`| Portfolio value today | ${formatCurrencyRounded(itd?.endNavUsd ?? null)} |`);
-  w(`| Net capital committed | ${formatCurrencyRounded(itdAttr.total.netInvestedUsd)} |`);
-  w(`| Lifetime P&L | ${formatPnLRounded(itdAttr.total.pnlUsd)} |`);
+  w(`| Net capital committed (${span}) | ${formatCurrencyRounded(itdAttr.total.netInvestedUsd)} |`);
+  w(`| P&L (${span}) | ${formatPnLRounded(itdAttr.total.pnlUsd)} |`);
   w(`| Money-weighted return (XIRR) | ${formatPercent(combined.xirrPct)} |`);
-  w(`| Time-weighted return, ITD | ${formatPercent(itd?.portfolioReturnPct ?? null)} |`);
+  w(`| Time-weighted return, ${span} | ${formatPercent(itd?.portfolioReturnPct ?? null)} |`);
   w(`| SPY over the same window | ${formatPercent(itd?.benchmarkReturnPct["SPY"] ?? null)} |`);
   w(`| Pre-pivot TWRR (to 2024-12-31) | ${formatPercent(pre?.portfolioReturnPct ?? null)} (SPY ${formatPercent(pre?.benchmarkReturnPct["SPY"] ?? null)}) |`);
   w(`| Post-pivot TWRR (2025+) | ${formatPercent(post?.portfolioReturnPct ?? null)} (SPY ${formatPercent(post?.benchmarkReturnPct["SPY"] ?? null)}) |`);
@@ -92,10 +101,10 @@ function renderSummary(r: BehaviorAnalyticsReport, w: Writer): void {
   w(`| Profit factor | ${fmtRatio(r.behavior.winLoss.profitFactor)} |`);
   w();
   w(
-    `The ITD time-weighted figure and the money-weighted figure disagree sharply, and ` +
-      `both are correct. TWRR weights every year equally; the bad early years ran on a ` +
-      `few thousand dollars while the good recent ones ran on a six-figure book. The ` +
-      `average-NAV column in the performance table is what reconciles them.`
+    `Where the time-weighted and money-weighted figures disagree, both are correct. ` +
+      `TWRR weights every period equally regardless of how much capital was at work; ` +
+      `XIRR weights by the dollars actually exposed. The average-NAV column in the ` +
+      `performance table is what reconciles them.`
   );
   w();
 }
@@ -457,7 +466,7 @@ function renderCounterfactual(r: BehaviorAnalyticsReport, w: Writer): void {
         `${formatPercent(d.annualizedReturnPct)} | ${formatPercent(d.xirrPct)} |`
     );
   }
-  const itd = r.performance[0].rows.find((x) => x.label === "Inception to date");
+  const itd = r.performance[0].rows.find((x) => x.isFullWindow);
   w(
     `| **Actual portfolio** | ${formatCurrencyRounded(r.attribution.itdBySleeve.total.netInvestedUsd)} | ` +
       `${formatCurrencyRounded(itd?.endNavUsd ?? null)} | ${formatPercent(itd?.portfolioReturnPct ?? null)} | ` +

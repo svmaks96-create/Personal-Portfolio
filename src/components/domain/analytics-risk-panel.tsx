@@ -1,13 +1,15 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 import { AnalyticsMetricTable } from "@/components/domain/analytics-metric-table";
 
 interface AnalyticsRiskPanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
-export async function AnalyticsRiskPanel({ portfolio }: AnalyticsRiskPanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+export async function AnalyticsRiskPanel({ portfolio, analysisWindow }: AnalyticsRiskPanelProps) {
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
 
   return (
     <TerminalPanel label="RISK" tag="VS BENCHMARKS">

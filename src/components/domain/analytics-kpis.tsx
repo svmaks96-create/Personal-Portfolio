@@ -1,4 +1,5 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import {
   TerminalKpiStrip,
   type TerminalKpiCell,
@@ -6,10 +7,11 @@ import {
 
 interface AnalyticsKpisProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
-export async function AnalyticsKpis({ portfolio }: AnalyticsKpisProps) {
-  const data = getAnalyticsPageData(portfolio);
+export async function AnalyticsKpis({ portfolio, analysisWindow }: AnalyticsKpisProps) {
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
 
   const cells: TerminalKpiCell[] = data.kpis.map((kpi) => ({
     label: kpi.label,

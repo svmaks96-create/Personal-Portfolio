@@ -1,8 +1,10 @@
 import { getAnalyticsPageData } from "@/server/queries/analytics-page";
+import type { AnalyticsWindow } from "@/shared/schemas/analytics-window";
 import { TerminalPanel } from "@/components/domain/terminal-panel";
 
 interface AnalyticsCaveatsPanelProps {
   portfolio?: string;
+  analysisWindow: AnalyticsWindow;
 }
 
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2 } as const;
@@ -20,8 +22,8 @@ function severityClass(severity: "critical" | "high" | "medium"): string {
  * untracked cash and the price-return convention — so putting them after the
  * charts would be a way of not really disclosing them.
  */
-export async function AnalyticsCaveatsPanel({ portfolio }: AnalyticsCaveatsPanelProps) {
-  const data = getAnalyticsPageData(portfolio);
+export async function AnalyticsCaveatsPanel({ portfolio, analysisWindow }: AnalyticsCaveatsPanelProps) {
+  const data = getAnalyticsPageData(portfolio, analysisWindow);
   const caveats = [...data.caveats].sort(
     (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
   );

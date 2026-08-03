@@ -13,6 +13,9 @@
  *   npm run report:analysis -- [flags]
  *
  *   --portfolio=<name>   scope to one portfolio (default: combined + per-portfolio)
+ *   --from=<yyyy-MM-dd>  start measurement here instead of at inception. State is
+ *                        still walked from the first transaction, so opening
+ *                        positions stay correct; only measurement moves.
  *   --freeze=<date>      freeze date for the counterfactual; repeatable
  *   --out=<dir>          output directory (default: data/analytics)
  *   --slim               drop per-trade detail and daily series
@@ -30,6 +33,7 @@ import { renderMarkdown } from "./portfolio-analysis-markdown";
 
 interface Flags {
   portfolio?: string;
+  from?: string;
   freeze: string[];
   out: string;
   slim: boolean;
@@ -64,6 +68,14 @@ function parseFlags(argv: string[]): Flags {
       case "portfolio":
         flags.portfolio = requireValue(name, value);
         break;
+      case "from": {
+        const parsed = requireValue(name, value);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
+          throw new Error(`--from must be yyyy-MM-dd, e.g. --from=2024-01-01`);
+        }
+        flags.from = parsed;
+        break;
+      }
       case "freeze":
         flags.freeze.push(requireValue(name, value));
         break;
@@ -120,6 +132,7 @@ function main(): void {
 
   const report = getBehaviorAnalytics({
     portfolio: flags.portfolio,
+    from: flags.from,
     freezeDates: flags.freeze.length > 0 ? flags.freeze : undefined,
     includeDailyHoldings: flags.daily,
     includeTradeDetail: !flags.slim,
@@ -174,6 +187,8 @@ function main(): void {
   process.stderr.write(
     [
       `Scope           ${report.meta.scope}`,
+      `Window          ${report.meta.analysisFrom} -> ${report.meta.valuationAsOf}` +
+        (report.meta.isWindowed ? `  (inception ${report.meta.inception})` : ""),
       `Ledger          ${report.meta.inception} -> ${report.meta.ledgerAsOf}`,
       `Valued at       ${report.meta.valuationAsOf}`,
       `Transactions    ${c.transactions}`,

@@ -92,6 +92,9 @@ const PIVOT_DATE = "2025-01-01";
 
 export interface PeriodPerformanceRow {
   label: string;
+  /** True for the row spanning the whole analysis window. Matched on rather
+   * than the label, which changes when a window is applied. */
+  isFullWindow: boolean;
   from: string;
   to: string;
   portfolioReturnPct: number | null;
@@ -121,7 +124,11 @@ export interface BehaviorAnalyticsReport {
   meta: {
     generatedAt: string;
     scope: string;
+    /** First transaction in scope — always the start of the state walk. */
     inception: string;
+    /** Start of the measurement window; equals inception when not windowed. */
+    analysisFrom: string;
+    isWindowed: boolean;
     ledgerAsOf: string;
     priceAsOf: string;
     valuationAsOf: string;
@@ -205,6 +212,11 @@ export interface BehaviorAnalyticsReport {
 
 export interface BehaviorAnalyticsOptions {
   portfolio?: string;
+  /**
+   * Start of the measurement window. State is always walked from the first
+   * transaction; this moves only where measurement begins.
+   */
+  from?: string;
   freezeDates?: string[];
   includeDailyHoldings?: boolean;
   includeTradeDetail?: boolean;
@@ -285,8 +297,37 @@ export function getBehaviorAnalytics(
     sleeveOf,
   });
 
-  const closedEpisodes = consolidated.episodes.filter((e) => !e.isOpen);
-  const openEpisodes = consolidated.episodes.filter((e) => e.isOpen);
+  // The daily walk above always runs from the first transaction — opening share
+  // counts and cost bases depend on it. `analysisFrom` moves only where
+  // *measurement* starts.
+  const analysisFrom =
+    options.from !== undefined && options.from > inception ? options.from : inception;
+  const isWindowed = analysisFrom > inception;
+
+  // Trades before the window are not decisions of the era under study.
+  const windowTxs = isWindowed
+    ? txInputs.filter((t) => t.date >= analysisFrom)
+    : txInputs;
+  const windowPoints = isWindowed
+    ? points.filter((p) => p.date >= analysisFrom)
+    : points;
+
+  // Behaviour statistics use episodes *opened* inside the window: an episode
+  // begun in 2022 and closed in 2025 is largely a pre-window decision, and its
+  // holding period would be attributed to an era being deliberately excluded.
+  // Episodes that straddle the boundary are counted and reported rather than
+  // silently dropped.
+  const allClosed = consolidated.episodes.filter((e) => !e.isOpen);
+  const allOpen = consolidated.episodes.filter((e) => e.isOpen);
+  const closedEpisodes = allClosed.filter((e) => e.openDate >= analysisFrom);
+  const openEpisodes = allOpen.filter((e) => e.openDate >= analysisFrom);
+  const straddlingClosed = allClosed.filter(
+    (e) => e.openDate < analysisFrom && (e.closeDate ?? "") >= analysisFrom
+  );
+  const straddlingOpen = allOpen.filter((e) => e.openDate < analysisFrom);
+  const windowEpisodes = [...closedEpisodes, ...openEpisodes];
+  /** Undefined for ITD, so windowed helpers fall back to inception. */
+  const windowFrom = isWindowed ? analysisFrom : undefined;
 
   // ---- Performance, per scope ----
   const portfolios = getUniquePortfolios();
@@ -306,22 +347,29 @@ export function getBehaviorAnalytics(
       priceHistory,
       optionMarkHistory,
       extendedCalendar,
-      valuationAsOf
+      valuationAsOf,
+      analysisFrom
     )
   );
 
-  const portfolioTwrr = computeTwrrFromHoldings(points);
+  // Re-anchored so the window opens at 1.0 rather than carrying pre-window
+  // compounding into every downstream statistic.
+  const portfolioTwrr = reanchorGrowth(computeTwrrFromHoldings(points), analysisFrom);
 
   const benchmarkGrowth: Record<string, { date: string; growthOfDollar: number }[]> = {};
   for (const symbol of BENCHMARKS) {
-    benchmarkGrowth[symbol] = growthSeries(priceHistory[symbol] ?? [], extendedCalendar, inception);
+    benchmarkGrowth[symbol] = growthSeries(
+      priceHistory[symbol] ?? [],
+      extendedCalendar,
+      analysisFrom
+    );
   }
 
   // ---- Counterfactuals ----
   const freezeDates =
     options.freezeDates ??
     ["2021-12-31", "2022-12-31", "2023-12-31", "2024-12-31", "2025-12-31"].filter(
-      (d) => d > inception && d < valuationAsOf
+      (d) => d > analysisFrom && d < valuationAsOf
     );
 
   const frozenBooks = freezeDates.map((freezeDate) =>
@@ -334,32 +382,40 @@ export function getBehaviorAnalytics(
     })
   );
 
+  // When the window opens after inception the real book already holds
+  // positions, so the alternative starts with the same opening value.
+  const openingNav = isWindowed
+    ? (points.find((p) => p.date >= analysisFrom)?.totalMarketValueUsd ?? 0)
+    : 0;
+
   const depositsOnly = BENCHMARKS.map((symbol) =>
-    computeDepositsOnlyBenchmark(points, {
+    computeDepositsOnlyBenchmark(windowPoints, {
       symbol,
       priceSeries: priceHistory[symbol] ?? [],
       tradingCalendar: extendedCalendar,
-      startDate: inception,
+      startDate: analysisFrom,
       endDate: valuationAsOf,
+      seedValueUsd: openingNav,
     })
   );
 
   const alternativeSchedules: SyntheticPortfolioResult[] = [
     ...(["raw-daily", "monthly-netted"] as const).map((schedule) =>
-      computeSyntheticPortfolio(points, {
+      computeSyntheticPortfolio(windowPoints, {
         label: `SPY (${schedule})`,
         legs: [{ symbol: "SPY", weight: 1 }],
         schedule,
         priceHistory,
         tradingCalendar: extendedCalendar,
-        startDate: inception,
+        startDate: analysisFrom,
         endDate: valuationAsOf,
+        seedValueUsd: openingNav,
       })
     ),
     // A price-only 60/40 would be wrong by double digits — BND's price return
     // is roughly -16% ITD against a flat total return — so the bond leg carries
     // an explicit assumed yield and every figure is flagged MODELLED.
-    computeSyntheticPortfolio(points, {
+    computeSyntheticPortfolio(windowPoints, {
       label: "60/40 VTI/BND (MODELLED)",
       legs: [
         { symbol: "VTI", weight: 0.6 },
@@ -368,9 +424,10 @@ export function getBehaviorAnalytics(
       schedule: "deposits-only",
       priceHistory,
       tradingCalendar: extendedCalendar,
-      startDate: inception,
+      startDate: analysisFrom,
       endDate: valuationAsOf,
       rebalance: "annual",
+      seedValueUsd: openingNav,
     }),
   ];
 
@@ -408,13 +465,15 @@ export function getBehaviorAnalytics(
     })),
     rollingVol90: rollingVolatility(portfolioGrowth, 90),
     anomalousDays: findAnomalousDays(portfolioGrowth),
+    // Regimes are clamped to the window; one that falls entirely outside it is
+    // dropped rather than silently reported over a different span.
     regimes: computeRegimeSlices(
       [
-        { label: "Pre-2025", from: inception, to: "2024-12-31" },
+        { label: "Pre-2025", from: analysisFrom, to: "2024-12-31" },
         { label: "2025 onward", from: PIVOT_DATE, to: valuationAsOf },
         // The book only became concentrated single-stock after the relocation.
         { label: "Post-relocation", from: "2025-12-10", to: valuationAsOf },
-      ],
+      ].filter((w) => w.to >= analysisFrom),
       portfolioGrowth,
       benchmarkGrowthPoints,
       riskFreeAnnualPct
@@ -464,19 +523,19 @@ export function getBehaviorAnalytics(
   }
 
   const timing: BehaviorAnalyticsReport["timing"] = {
-    entry: computeEntryTiming(txInputs, {
+    entry: computeEntryTiming(windowTxs, {
       priceHistory,
       benchmarkSeries: spyHistory,
       episodes: consolidated.episodes,
       excludeTxIds: transfers.legTxIds,
     }),
-    exit: computeExitTiming(txInputs, {
+    exit: computeExitTiming(windowTxs, {
       priceHistory,
       benchmarkSeries: spyHistory,
       excludeTxIds: transfers.legTxIds,
       closingTxIds,
     }),
-    clustering: computeTradeClustering(txInputs, {
+    clustering: computeTradeClustering(windowTxs, {
       portfolioSeries: portfolioGrowth,
       benchmarkSeries: spyHistory,
       excludeTxIds: transfers.legTxIds,
@@ -510,7 +569,7 @@ export function getBehaviorAnalytics(
       episodes: computeOutOfMarketEpisodes(scopePoints, {
         minCapitalUsd: 5000,
         benchmarkSeries: spyHistory,
-      }),
+      }).filter((e) => e.endDate >= analysisFrom),
     };
   });
 
@@ -519,21 +578,32 @@ export function getBehaviorAnalytics(
       generatedAt: new Date().toISOString(),
       scope: portfolio ?? "Combined",
       inception,
+      analysisFrom,
+      isWindowed,
       ledgerAsOf,
       priceAsOf,
       valuationAsOf,
       portfolios,
       counts: {
-        transactions: txInputs.length,
-        tickers: new Set(txInputs.map((t) => t.ticker)).size,
-        consolidatedEpisodes: consolidated.episodes.length,
+        transactions: windowTxs.length,
+        tickers: new Set(windowTxs.map((t) => t.ticker)).size,
+        consolidatedEpisodes: windowEpisodes.length,
         closedEpisodes: closedEpisodes.length,
         openEpisodes: openEpisodes.length,
+        straddlingClosed: straddlingClosed.length,
+        straddlingOpen: straddlingOpen.length,
         accountEpisodes: accountGrain.episodes.length,
         transferPairs: transfers.pairs.length,
       },
     },
-    caveats: buildCaveats(riskFreeAnnualPct),
+    caveats: buildCaveats(riskFreeAnnualPct, {
+      isWindowed,
+      analysisFrom,
+      inception,
+      straddlingClosed: straddlingClosed.length,
+      straddlingOpen: straddlingOpen.map((e) => e.ticker),
+      closedInWindow: closedEpisodes.length,
+    }),
     dataQuality: buildDataQuality(
       allTxInputs,
       calendar,
@@ -559,24 +629,38 @@ export function getBehaviorAnalytics(
       accountGrainCount: accountGrain.episodes.length,
     },
     behavior: {
-      holdingPeriod: computeHoldingPeriodStats(consolidated.episodes),
+      holdingPeriod: computeHoldingPeriodStats(windowEpisodes),
       winLoss: computeWinLossStats(closedEpisodes),
       winLossBySleeve,
       averaging: computeAveragingBehavior(closedEpisodes),
-      turnover: computeTurnover(txInputs, points, {
+      turnover: computeTurnover(windowTxs, windowPoints, {
         transferMatchedQtyByTxId: transfers.matchedQtyByTxId,
         asOf: valuationAsOf,
       }),
       outOfMarket,
     },
     attribution: {
-      itdBySleeve: computeAttribution(points, { groupBy: "sleeve" }),
-      itdByTicker: computeAttribution(points, { groupBy: "ticker" }),
-      pre2025BySleeve: computeAttribution(points, { groupBy: "sleeve", to: "2024-12-31" }),
+      itdBySleeve: computeAttribution(points, { groupBy: "sleeve", from: windowFrom }),
+      itdByTicker: computeAttribution(points, { groupBy: "ticker", from: windowFrom }),
+      pre2025BySleeve: computeAttribution(points, {
+        groupBy: "sleeve",
+        from: windowFrom,
+        to: "2024-12-31",
+      }),
       post2025BySleeve: computeAttribution(points, { groupBy: "sleeve", from: PIVOT_DATE }),
-      itdBySector: computeAttribution(points, { groupBy: "sector", sectorByTicker }),
-      contributionBySleeve: computeDailyContribution(points, { groupBy: "sleeve" }),
-      contributionByTicker: computeDailyContribution(points, { groupBy: "ticker" }),
+      itdBySector: computeAttribution(points, {
+        groupBy: "sector",
+        sectorByTicker,
+        from: windowFrom,
+      }),
+      contributionBySleeve: computeDailyContribution(points, {
+        groupBy: "sleeve",
+        from: windowFrom,
+      }),
+      contributionByTicker: computeDailyContribution(points, {
+        groupBy: "ticker",
+        from: windowFrom,
+      }),
     },
     risk,
     concentration: {
@@ -608,9 +692,13 @@ function buildScopePerformance(
   priceHistory: Record<string, MarketDataInput[]>,
   optionMarkHistory: Record<string, MarketDataInput[]>,
   calendar: string[],
-  asOf: string
+  asOf: string,
+  windowFrom?: string
 ): ScopePerformance {
-  const inception = txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date);
+  const firstTx = txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date);
+  // Each scope anchors at its own first trade unless the window starts later.
+  const inception =
+    windowFrom !== undefined && windowFrom > firstTx ? windowFrom : firstTx;
 
   // Only totals are read here, so the per-holding arrays are skipped.
   const points = computeDailyHoldings({
@@ -634,8 +722,13 @@ function buildScopePerformance(
 
   const startYear = Number(inception.slice(0, 4));
   const endYear = Number(asOf.slice(0, 4));
+  const isWindowed = windowFrom !== undefined && windowFrom > firstTx;
   const windows: { label: string; from: string; to: string }[] = [
-    { label: "Inception to date", from: inception, to: asOf },
+    {
+      label: isWindowed ? `Window to date (from ${inception})` : "Inception to date",
+      from: inception,
+      to: asOf,
+    },
   ];
   for (let y = startYear; y <= endYear; y += 1) {
     windows.push({
@@ -648,7 +741,7 @@ function buildScopePerformance(
   windows.push({ label: "Post-pivot (2025+)", from: PIVOT_DATE, to: asOf });
 
   const rows: PeriodPerformanceRow[] = [];
-  for (const w of windows) {
+  for (const [windowIndex, w] of windows.entries()) {
     if (w.to < inception) continue;
     const from = w.from < inception ? inception : w.from;
     const to = w.to > asOf ? asOf : w.to;
@@ -673,6 +766,7 @@ function buildScopePerformance(
     const spy = benchmarkReturnPct["SPY"];
     rows.push({
       label: w.label,
+      isFullWindow: windowIndex === 0,
       from,
       to: inWindow[inWindow.length - 1]?.date ?? to,
       portfolioReturnPct,
@@ -745,6 +839,26 @@ function latestMarkMap(
     out[ticker] = { value: last.value, date: last.date };
   }
   return out;
+}
+
+/**
+ * Slices a chain-linked growth series to `[from, …]` and rebases it to 1.0 at
+ * the anchor — the last observation strictly before the window, so the window's
+ * first day keeps its own return instead of being flattened to zero.
+ */
+function reanchorGrowth(
+  series: HoldingsTwrrPoint[],
+  from: string
+): HoldingsTwrrPoint[] {
+  const inWindow = series.filter((p) => p.date >= from);
+  if (inWindow.length === 0) return [];
+  const before = series.filter((p) => p.date < from);
+  const base =
+    before.length > 0
+      ? before[before.length - 1].growthOfDollar
+      : inWindow[0].growthOfDollar;
+  if (base === 0) return inWindow;
+  return inWindow.map((p) => ({ ...p, growthOfDollar: p.growthOfDollar / base }));
 }
 
 function growthSeries(
@@ -865,8 +979,54 @@ function buildDataQuality(
   };
 }
 
-function buildCaveats(riskFreeAnnualPct: number): AnalyticsCaveat[] {
+interface WindowContext {
+  isWindowed: boolean;
+  analysisFrom: string;
+  inception: string;
+  straddlingClosed: number;
+  straddlingOpen: string[];
+  closedInWindow: number;
+}
+
+function buildCaveats(
+  riskFreeAnnualPct: number,
+  windowContext: WindowContext
+): AnalyticsCaveat[] {
+  const windowCaveats: AnalyticsCaveat[] = [];
+
+  if (windowContext.isWindowed) {
+    windowCaveats.push({
+      id: "analysis-window",
+      severity: "high",
+      affects: ["all"],
+      text:
+        `Measurement starts ${windowContext.analysisFrom}, not at inception ` +
+        `(${windowContext.inception}). Share counts and cost bases are still walked from the ` +
+        `first transaction, so opening positions are correct — but every return, ratio and ` +
+        `count on this page describes the window only, and will not match an ` +
+        `inception-to-date view.`,
+    });
+    windowCaveats.push({
+      id: "window-episode-selection",
+      severity: "medium",
+      affects: ["behavior", "episodes"],
+      text:
+        `Behaviour statistics use the ${windowContext.closedInWindow} closed round-trips ` +
+        `*opened* inside the window. ${windowContext.straddlingClosed} closed episode(s) began ` +
+        `earlier and are excluded, since their holding periods belong largely to the excluded ` +
+        `era` +
+        (windowContext.straddlingOpen.length > 0
+          ? `, as are ${windowContext.straddlingOpen.length} still-open position(s) opened ` +
+            `before the window (${windowContext.straddlingOpen.join(", ")}). Those remain in ` +
+            `attribution, which measures value change inside the window regardless of when a ` +
+            `position was opened.`
+          : `. They remain in attribution, which measures value change inside the window ` +
+            `regardless of when a position was opened.`),
+    });
+  }
+
   return [
+    ...windowCaveats,
     {
       id: "risk-free-assumption",
       severity: "medium",
@@ -1001,9 +1161,14 @@ export function getEarliestLedgerDate(): string | null {
  * reference. Hence the flat parameter list rather than an options object.
  */
 export const getAnalyticsForPage = cache(
-  (portfolio?: string, riskFreeAnnualPct = 0): BehaviorAnalyticsReport =>
+  (
+    portfolio?: string,
+    from?: string,
+    riskFreeAnnualPct = 0
+  ): BehaviorAnalyticsReport =>
     getBehaviorAnalytics({
       portfolio,
+      from,
       riskFreeAnnualPct,
       // The page never renders per-trade detail; skipping it avoids serialising
       // several thousand nested objects into the RSC payload.
