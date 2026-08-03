@@ -32,6 +32,30 @@ export const getTickerDividends = cache(
 );
 
 /**
+ * Map of ticker -> sector for every ticker that has one recorded.
+ *
+ * Callers must decide what to do with funds: FMP reports every ETF as
+ * "Financial Services", so a sector roll-up that trusts this blindly files
+ * VTI, BND and VNQ in one bucket. `computeAttribution` routes funds to their
+ * own bucket instead.
+ */
+export const getSectorByTickerMap = cache((): Record<string, string> => {
+  const rows = db
+    .select({
+      ticker: tickerFundamentals.ticker,
+      sector: tickerFundamentals.sector,
+    })
+    .from(tickerFundamentals)
+    .all();
+
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    if (row.sector) map[row.ticker] = row.sector;
+  }
+  return map;
+});
+
+/**
  * Map of ticker -> fetchedAt for the given tickers' fundamentals snapshots.
  * Tickers with no cached row are absent from the map. Drives the staleness gate
  * in refreshTickerFundamentals (mirrors getTickerProfileFetchedAtMap).

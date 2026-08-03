@@ -45,6 +45,9 @@ data/*.db
 # personal manual price files (README is tracked)
 data/manual-prices/*.csv
 
+# generated analysis output (position-level history)
+data/analytics/
+
 # vercel
 .vercel
 

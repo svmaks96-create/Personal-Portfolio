@@ -5,6 +5,16 @@ import type {
   MarketDataInput,
   FxRateInput,
 } from "@/server/types/positions";
+import {
+  buildMarkLookups,
+  buildPriceLookups,
+  computeMarketValue,
+  computeOptionValue,
+  forwardFillFxRate,
+  forwardFillPrice,
+  groupFxByPair,
+} from "@/server/services/price-lookup";
+import { computeDailyHoldings } from "@/server/services/daily-holdings";
 
 /**
  * One trading-day point on a TWRR series.
@@ -64,10 +74,21 @@ export function computePortfolioTWRR(
   const calendar = tradingCalendar.filter((d) => d >= startDate && d <= endDate);
   if (calendar.length === 0) return EMPTY_SERIES;
 
-  const txByDate = groupTransactionsByDate(transactions);
   const fxByPair = groupFxByPair(fxHistory);
   const priceLookups = buildPriceLookups(priceHistory, transactions);
   const markLookups = buildMarkLookups(optionMarkHistory);
+
+  // Pointer-consumed rather than looked up by date. The calendar is SPY's quote
+  // dates, but the ledger holds trades made when the US market was shut (UAE
+  // listings, the ARM option assignment, some broker-side rows). A date-keyed
+  // lookup drops those rows: the position never closes and its exit proceeds
+  // never register as an outflow, quietly inflating the return.
+  // Scoped to the window, preserving the existing contract that state accrues
+  // from the calendar start rather than from inception.
+  const ordered = transactions
+    .filter((t) => t.date >= startDate)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  let cursor = 0;
 
   const sharesByTicker = new Map<string, Decimal>();
   const currencyByTicker = new Map<string, string>();
@@ -82,7 +103,12 @@ export function computePortfolioTWRR(
 
   for (const date of calendar) {
     let cf = new Decimal(0);
-    const dayTxns = txByDate.get(date) ?? [];
+
+    const dayTxns: TransactionInput[] = [];
+    while (cursor < ordered.length && ordered[cursor].date <= date) {
+      dayTxns.push(ordered[cursor]);
+      cursor += 1;
+    }
 
     for (const t of dayTxns) {
       if (t.instrument === "stock") currencyByTicker.set(t.ticker, t.currency);
@@ -224,20 +250,20 @@ export interface ValueVsBasisPoint {
 }
 
 /**
- * Walks the trading calendar forward day by day, maintaining per-ticker
- * `shares` and `costBasis` state, and emits {portfolioValue, costBasis} in
- * USD for each date in [startDate, endDate]. Cost-basis semantics match
- * `computePositions` exactly so the terminal value matches the Cost Basis KPI.
+ * Daily portfolio value and cost basis in USD across [startDate, endDate].
  *
- * Rules per transaction (mirroring computation.ts):
- *   buy:      shares += qty; costBasis += (gross + fees) * fx
- *   sell:     costBasis -= (qty / sharesPrior) * costBasis; shares -= qty
- *   fee:      costBasis += fees * fx
- *   dividend: no effect on cost basis
+ * Delegates to `computeDailyHoldings`, which keeps per-name state keyed by
+ * `(portfolio, ticker, instrument)` — the same grouping `computePositions`
+ * uses — so the terminal cost basis ties to the Cost Basis KPI exactly.
  *
- * Missing FX for a transaction is treated the same way as computation.ts:
- * shares are still updated, but the cost-basis leg for that transaction is
- * skipped. Rare and surfaced elsewhere as a data-quality issue.
+ * This function previously ran its own walk pooled **by ticker**, which
+ * produced a materially different basis once a name was held at two brokers: a
+ * sell in one account released basis at the blended cross-broker average
+ * instead of that account's own. It also consumed transactions by
+ * trading-calendar date, silently dropping rows dated on days the US market
+ * was shut, so those positions never closed and their basis lingered forever.
+ * On the live ledger those two defects overstated the charted basis by roughly
+ * $10.4k. Both are fixed by delegating; the duplicate walk is gone.
  */
 export function computeValueVsCostBasisSeries(
   transactions: TransactionInput[],
@@ -248,124 +274,20 @@ export function computeValueVsCostBasisSeries(
   endDate: string,
   optionMarkHistory: Record<string, MarketDataInput[]> = {},
 ): ValueVsBasisPoint[] {
-  if (tradingCalendar.length === 0 || transactions.length === 0) return [];
-
-  // Walk the whole calendar so per-ticker state accumulates from inception,
-  // but only emit points within [startDate, endDate]. This mirrors how
-  // sliceAndReanchor handles TWRR period slicing.
-  const calendar = tradingCalendar.filter((d) => d <= endDate);
-  if (calendar.length === 0) return [];
-
-  const txByDate = groupTransactionsByDate(transactions);
-  const fxByPair = groupFxByPair(fxHistory);
-  const priceLookups = buildPriceLookups(priceHistory, transactions);
-  const markLookups = buildMarkLookups(optionMarkHistory);
-
-  const sharesByTicker = new Map<string, Decimal>();
-  const costBasisByTicker = new Map<string, Decimal>();
-  const currencyByTicker = new Map<string, string>();
-  const optionSharesByTicker = new Map<string, Decimal>();
-  const optionBasisByTicker = new Map<string, Decimal>();
-  const lastOptionTxDateByTicker = new Map<string, string>();
-
-  const series: ValueVsBasisPoint[] = [];
-
-  for (const date of calendar) {
-    const dayTxns = txByDate.get(date) ?? [];
-
-    for (const t of dayTxns) {
-      if (t.instrument === "stock") currencyByTicker.set(t.ticker, t.currency);
-      const fxRate = forwardFillFxRate(fxByPair, t.currency, t.date);
-      const qty = new Decimal(t.quantity);
-
-      if (t.instrument === "option") {
-        // Options carry their own basis pool, never priced off the underlying.
-        const priorOptShares =
-          optionSharesByTicker.get(t.ticker) ?? new Decimal(0);
-        const priorOptBasis =
-          optionBasisByTicker.get(t.ticker) ?? new Decimal(0);
-        lastOptionTxDateByTicker.set(t.ticker, t.date);
-        if (t.action === "buy") {
-          optionSharesByTicker.set(t.ticker, priorOptShares.plus(qty));
-          if (fxRate !== null) {
-            const rate = new Decimal(fxRate);
-            const buyCost = new Decimal(t.grossAmount).plus(t.fees).times(rate);
-            optionBasisByTicker.set(t.ticker, priorOptBasis.plus(buyCost));
-          }
-        } else if (t.action === "sell") {
-          if (priorOptShares.greaterThan(0)) {
-            const reduction = qty.div(priorOptShares).times(priorOptBasis);
-            optionBasisByTicker.set(t.ticker, priorOptBasis.minus(reduction));
-          }
-          optionSharesByTicker.set(t.ticker, priorOptShares.minus(qty));
-        }
-        continue;
-      }
-
-      const priorShares = sharesByTicker.get(t.ticker) ?? new Decimal(0);
-      const priorBasis = costBasisByTicker.get(t.ticker) ?? new Decimal(0);
-
-      switch (t.action) {
-        case "buy": {
-          sharesByTicker.set(t.ticker, priorShares.plus(qty));
-          if (fxRate !== null) {
-            const rate = new Decimal(fxRate);
-            const buyCost = new Decimal(t.grossAmount).plus(t.fees).times(rate);
-            costBasisByTicker.set(t.ticker, priorBasis.plus(buyCost));
-          }
-          break;
-        }
-        case "sell": {
-          if (priorShares.greaterThan(0)) {
-            const reduction = qty.div(priorShares).times(priorBasis);
-            costBasisByTicker.set(t.ticker, priorBasis.minus(reduction));
-          }
-          sharesByTicker.set(t.ticker, priorShares.minus(qty));
-          break;
-        }
-        case "fee": {
-          if (fxRate !== null) {
-            const rate = new Decimal(fxRate);
-            const feeUsd = new Decimal(t.fees).times(rate);
-            costBasisByTicker.set(t.ticker, priorBasis.plus(feeUsd));
-          }
-          break;
-        }
-        case "dividend":
-          break;
-      }
-    }
-
-    const mv = computeMarketValue(
-      sharesByTicker,
-      currencyByTicker,
-      priceLookups,
-      fxByPair,
-      date,
-    ).plus(
-      computeOptionValue(
-        optionSharesByTicker,
-        optionBasisByTicker,
-        lastOptionTxDateByTicker,
-        markLookups,
-        date,
-      )
-    );
-
-    if (date >= startDate) {
-      let totalBasis = new Decimal(0);
-      for (const basis of costBasisByTicker.values()) totalBasis = totalBasis.plus(basis);
-      for (const basis of optionBasisByTicker.values()) totalBasis = totalBasis.plus(basis);
-
-      series.push({
-        date,
-        portfolioValue: mv.toNumber(),
-        costBasis: totalBasis.toNumber(),
-      });
-    }
-  }
-
-  return series;
+  return computeDailyHoldings({
+    transactions,
+    priceHistory,
+    fxHistory,
+    optionMarkHistory,
+    tradingCalendar,
+    endDate,
+    emitFrom: startDate,
+    includeHoldings: false,
+  }).map((p) => ({
+    date: p.date,
+    portfolioValue: p.totalMarketValueUsd,
+    costBasis: p.totalCostBasisUsd,
+  }));
 }
 
 /**
@@ -417,200 +339,6 @@ function finalizeSeries(series: TwrrPoint[]): TwrrSeries {
   };
 }
 
-function groupTransactionsByDate(
-  txns: TransactionInput[]
-): Map<string, TransactionInput[]> {
-  const out = new Map<string, TransactionInput[]>();
-  const sorted = [...txns].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.id - b.id
-  );
-  for (const t of sorted) {
-    const existing = out.get(t.date);
-    if (existing) {
-      existing.push(t);
-    } else {
-      out.set(t.date, [t]);
-    }
-  }
-  return out;
-}
-
-function groupFxByPair(
-  fxHistory: FxRateInput[]
-): Map<string, MarketDataInput[]> {
-  const out = new Map<string, MarketDataInput[]>();
-  for (const r of fxHistory) {
-    const list = out.get(r.symbol);
-    const point = { symbol: r.symbol, date: r.date, value: r.value };
-    if (list) {
-      list.push(point);
-    } else {
-      out.set(r.symbol, [point]);
-    }
-  }
-  for (const list of out.values()) {
-    list.sort((a, b) => a.date.localeCompare(b.date));
-  }
-  return out;
-}
-
-function buildPriceLookups(
-  priceHistory: Record<string, MarketDataInput[]>,
-  transactions: TransactionInput[]
-): Map<string, MarketDataInput[]> {
-  const out = new Map<string, MarketDataInput[]>();
-  for (const [symbol, rows] of Object.entries(priceHistory)) {
-    const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-    out.set(symbol, sorted);
-  }
-  seedSyntheticPricesFromFirstBuy(out, transactions);
-  return out;
-}
-
-/**
- * For each ticker, if no quoted price exists at/before its first buy date,
- * insert a synthetic price at that date using the transaction's effective
- * cost per share (grossAmount / quantity, in the ticker's currency).
- *
- * This handles IPO subscription gaps: shares exist from subscription day
- * but quotes only begin on listing day. Valuing at cost until quotes start
- * keeps day-1 TWRR flat and makes the listing-day price move land on the
- * correct date, instead of collapsing the listing premium into day 1.
- */
-function seedSyntheticPricesFromFirstBuy(
-  priceLookups: Map<string, MarketDataInput[]>,
-  transactions: TransactionInput[]
-): void {
-  const earliestBuy = new Map<string, TransactionInput>();
-  for (const t of transactions) {
-    // Option rows must never seed a synthetic price for the underlying
-    if (t.instrument !== "stock" || t.action !== "buy" || t.quantity <= 0) continue;
-    const existing = earliestBuy.get(t.ticker);
-    if (!existing || t.date < existing.date) earliestBuy.set(t.ticker, t);
-  }
-
-  for (const [ticker, t] of earliestBuy) {
-    const list = priceLookups.get(ticker) ?? [];
-    const firstKnownDate = list[0]?.date;
-    if (firstKnownDate !== undefined && firstKnownDate <= t.date) continue;
-    const impliedPrice = t.grossAmount / t.quantity;
-    const synthetic: MarketDataInput = {
-      symbol: ticker,
-      date: t.date,
-      value: impliedPrice,
-    };
-    priceLookups.set(ticker, [synthetic, ...list]);
-  }
-}
-
-function buildMarkLookups(
-  optionMarkHistory: Record<string, MarketDataInput[]>
-): Map<string, MarketDataInput[]> {
-  const out = new Map<string, MarketDataInput[]>();
-  for (const [ticker, rows] of Object.entries(optionMarkHistory)) {
-    out.set(ticker, [...rows].sort((a, b) => a.date.localeCompare(b.date)));
-  }
-  return out;
-}
-
-/**
- * Total USD value of open option positions on `date`. Each underlying is
- * valued at its latest mark at/before `date`, but only when that mark
- * postdates the last option trade seen so far (a trade invalidates the
- * previous total-value mark); otherwise the position is carried at cost.
- */
-function computeOptionValue(
-  optionShares: Map<string, Decimal>,
-  optionBasis: Map<string, Decimal>,
-  lastOptionTxDate: Map<string, string>,
-  markLookups: Map<string, MarketDataInput[]>,
-  date: string
-): Decimal {
-  let total = new Decimal(0);
-  for (const [ticker, qty] of optionShares) {
-    if (qty.lessThanOrEqualTo(0)) continue;
-    const basis = optionBasis.get(ticker) ?? new Decimal(0);
-    const marks = markLookups.get(ticker);
-    const lastTx = lastOptionTxDate.get(ticker) ?? "";
-    let value = basis;
-    if (marks) {
-      const idx = lastIndexAtOrBefore(marks, date);
-      if (idx !== -1 && marks[idx].date >= lastTx) {
-        value = new Decimal(marks[idx].value);
-      }
-    }
-    total = total.plus(value);
-  }
-  return total;
-}
-
-function computeMarketValue(
-  shares: Map<string, Decimal>,
-  currencyByTicker: Map<string, string>,
-  priceLookups: Map<string, MarketDataInput[]>,
-  fxByPair: Map<string, MarketDataInput[]>,
-  date: string
-): Decimal {
-  let mv = new Decimal(0);
-  for (const [ticker, qty] of shares) {
-    if (qty.isZero()) continue;
-    const prices = priceLookups.get(ticker);
-    if (!prices) continue;
-    const price = forwardFillPrice(prices, date);
-    if (price === null) continue;
-    const currency = currencyByTicker.get(ticker) ?? "USD";
-    const fxRate =
-      currency === "USD" ? 1 : forwardFillFxRate(fxByPair, currency, date);
-    if (fxRate === null) continue;
-    mv = mv.plus(qty.times(price).times(fxRate));
-  }
-  return mv;
-}
-
-function forwardFillPrice(
-  sorted: MarketDataInput[],
-  targetDate: string
-): number | null {
-  const idx = lastIndexAtOrBefore(sorted, targetDate);
-  return idx === -1 ? null : sorted[idx].value;
-}
-
-function forwardFillFxRate(
-  fxByPair: Map<string, MarketDataInput[]>,
-  currency: string,
-  targetDate: string
-): number | null {
-  if (currency === "USD") return 1;
-  const list = fxByPair.get(`${currency}USD`);
-  if (!list || list.length === 0) return null;
-  const idx = lastIndexAtOrBefore(list, targetDate);
-  // If the target date predates our FX history, fall back to the earliest
-  // known rate — FX rates don't have a "listing day" and the nearest
-  // available quote is the best available approximation.
-  return idx === -1 ? list[0].value : list[idx].value;
-}
-
-/**
- * Binary search: index of last entry whose `date <= targetDate`.
- * Returns -1 when no such entry exists (empty array or target predates all
- * entries). Callers decide how to handle the pre-history case.
- */
-function lastIndexAtOrBefore(
-  sorted: MarketDataInput[],
-  targetDate: string
-): number {
-  if (sorted.length === 0) return -1;
-  let lo = 0;
-  let hi = sorted.length - 1;
-  let best = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (sorted[mid].date <= targetDate) {
-      best = mid;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return best;
-}
+// Price / FX / option-mark lookup primitives now live in
+// `@/server/services/price-lookup` so the analytics engines can value
+// positions with identical semantics. Imported at the top of this file.
