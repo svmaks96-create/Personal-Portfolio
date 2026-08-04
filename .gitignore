@@ -14,8 +14,9 @@
 /coverage
 .playwright-mcp
 
-# claude
-.claude
+# claude (local settings stay ignored; skills are project deliverables)
+.claude/*
+!.claude/skills/
 
 # next.js
 /.next/
