@@ -10,6 +10,7 @@ import {
 } from "@/lib/formatting";
 import Decimal from "decimal.js";
 import type { AllocationKind } from "@/shared/schemas/allocation-target";
+import type { PolicyBucket } from "@/shared/policy";
 import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 import { mergePositionsByTicker } from "@/server/services/computation";
 import { getCashTargetWeight } from "@/server/queries/app-settings";
@@ -20,6 +21,7 @@ export interface AllocationTargetRow {
   id: number;
   kind: AllocationKind;
   name: { value: string; display: string };
+  bucket: { value: PolicyBucket | null; display: string };
   targetWeight: { value: number | null; display: string };
   positionValue: { value: number | null; display: string };
   cashAmountUsd: { value: number | null; display: string };
@@ -43,6 +45,10 @@ export interface AllocationModel {
   totalTargetWeight: number;
   totalCashUsd: number;
   cashAggregate: CashAggregate;
+  /** Σ active position MV (incl. options) + Σ cash — the weight denominator. */
+  totalPortfolioValueUsd: number;
+  /** Open option premium at cost (policy: options are carried at cost). */
+  openOptionPremiumAtCostUsd: number;
 }
 
 export function getAllocationModel(): AllocationModel {
@@ -78,7 +84,11 @@ export function getAllocationModel(): AllocationModel {
   const marketValueByTicker = new Map<string, number | null>();
   const usdPriceByTicker = new Map<string, number | null>();
   let positionsValueSum = new Decimal(0);
+  let optionPremiumSum = new Decimal(0);
   for (const pos of activeMerged) {
+    if (pos.instrument === "option" && pos.costBasis !== null) {
+      optionPremiumSum = optionPremiumSum.plus(pos.costBasis);
+    }
     // Option positions count toward total portfolio value (the denominator)
     // but never represent the underlying's per-ticker stock value — an option
     // row must not clobber the stock row's market value for the same ticker.
@@ -126,6 +136,8 @@ export function getAllocationModel(): AllocationModel {
     totalTargetWeight,
     totalCashUsd,
     cashAggregate,
+    totalPortfolioValueUsd: totalPortfolioValue.toNumber(),
+    openOptionPremiumAtCostUsd: optionPremiumSum.toNumber(),
   };
 }
 
@@ -171,6 +183,7 @@ function mapTickerRow(
     id: row.id,
     kind: row.kind,
     name: { value: row.name, display: row.name },
+    bucket: { value: row.bucket, display: row.bucket ?? DASH },
     targetWeight: {
       value: row.targetWeight,
       display: formatPercent(row.targetWeight),
@@ -219,6 +232,7 @@ function mapCashRow(
     id: row.id,
     kind: row.kind,
     name: { value: row.name, display: row.name },
+    bucket: { value: null, display: DASH },
     targetWeight: { value: null, display: DASH },
     positionValue: { value: null, display: DASH },
     cashAmountUsd: {

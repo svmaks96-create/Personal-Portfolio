@@ -6,6 +6,9 @@ import { Private } from "@/components/domain/private";
 import { pnlColorClass } from "@/lib/pnl";
 import { cn } from "@/lib/utils";
 import type { AllocationTargetRow } from "@/server/queries/allocation-targets";
+import { POLICY_BUCKETS } from "@/shared/policy";
+
+const BUCKET_SELECT_OPTIONS = ["none", ...POLICY_BUCKETS] as const;
 
 interface AllocationEditContext {
   editingCell: { rowId: number; field: string } | null;
@@ -72,6 +75,50 @@ function nameColumn(
         </span>,
       ),
     meta: { align: "left" as const },
+  };
+}
+
+function bucketColumn(ctx: AllocationEditContext): ColumnDef<AllocationTargetRow> {
+  return {
+    accessorKey: "bucket",
+    header: "Bucket",
+    accessorFn: (row) => row.bucket.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => {
+      const id = row.original.id;
+      const field = "bucket";
+      return (
+        <EditableCell
+          rawValue={row.original.bucket.value ?? "none"}
+          displayValue={row.original.bucket.display}
+          displayNode={
+            row.original.bucket.value === null ? (
+              <span className="text-muted-foreground">—</span>
+            ) : (
+              <span className="text-muted-foreground">
+                {row.original.bucket.display}
+              </span>
+            )
+          }
+          isEditing={
+            ctx.editingCell?.rowId === id && ctx.editingCell?.field === field
+          }
+          error={
+            ctx.cellError?.rowId === id && ctx.cellError?.field === field
+              ? ctx.cellError.message
+              : null
+          }
+          isHighlighted={ctx.highlightedCells.has(`${id}-${field}`)}
+          inputType="select"
+          selectOptions={BUCKET_SELECT_OPTIONS}
+          onStartEdit={() => ctx.onStartEdit(id, field)}
+          onSave={(v) => ctx.onSave(id, field, v)}
+          onCancel={ctx.onCancel}
+          onTabToNext={() => ctx.onTabToNext(id, field)}
+        />
+      );
+    },
+    meta: { align: "center" as const },
   };
 }
 
@@ -237,6 +284,7 @@ export function getTickerAllocationColumns(
   const renderEditable = makeRenderEditable(ctx);
   return [
     nameColumn(renderEditable),
+    bucketColumn(ctx),
     targetWeightColumn(renderEditable),
     positionValueColumn(),
     realWeightColumn(),

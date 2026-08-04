@@ -51,6 +51,7 @@ import type { UpdatableField } from "@/shared/schemas/allocation-target";
 
 const EDITABLE_FIELD_ORDER: UpdatableField[] = [
   "name",
+  "bucket",
   "targetWeight",
   "cashAmountUsd",
 ];
@@ -714,6 +715,7 @@ function TickerAddRow({
             </span>
           )}
         </TableCell>
+        <TableCell className="text-center text-muted-foreground">—</TableCell>
         <TableCell className="text-center">
           <input
             type="number"

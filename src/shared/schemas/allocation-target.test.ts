@@ -139,6 +139,58 @@ describe("cashTargetWeightSchema", () => {
   });
 });
 
+describe("allocationTargetSchema — bucket", () => {
+  it("defaults missing bucket to null on ticker rows", () => {
+    const result = allocationTargetSchema.safeParse(validTicker());
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bucket).toBeNull();
+    }
+  });
+
+  it("accepts each policy bucket on ticker rows", () => {
+    for (const bucket of ["core", "active"]) {
+      const result = allocationTargetSchema.safeParse(validTicker({ bucket }));
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.bucket).toBe(bucket);
+      }
+    }
+  });
+
+  it('normalizes the select sentinel "none" to null', () => {
+    const result = allocationTargetSchema.safeParse(
+      validTicker({ bucket: "none" }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bucket).toBeNull();
+    }
+  });
+
+  it("rejects an unknown bucket value", () => {
+    const result = allocationTargetSchema.safeParse(
+      validTicker({ bucket: "bonds" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-null bucket on cash rows", () => {
+    const result = allocationTargetSchema.safeParse(
+      validCash({ bucket: "core" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a cash row without a bucket", () => {
+    const result = allocationTargetSchema.safeParse(validCash());
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bucket).toBeNull();
+    }
+  });
+});
+
 describe("allocationTargetSchema — discriminator", () => {
   it("rejects invalid kind", () => {
     const result = allocationTargetSchema.safeParse({

@@ -82,6 +82,8 @@ export const allocationTargets = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     kind: text("kind").$type<"ticker" | "cash">().notNull(),
     name: text("name").notNull(),
+    // NULL on cash rows and on ticker rows not yet assigned to a policy bucket.
+    bucket: text("bucket").$type<"core" | "active">(),
     targetWeight: real("target_weight").notNull(),
     cashAmountUsd: real("cash_amount_usd"),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -157,6 +159,78 @@ export const tickerDividends = sqliteTable(
     fetchedAt: text("fetched_at").notNull(),
   },
   (table) => [index("ticker_dividends_ticker_idx").on(table.ticker)]
+);
+
+/**
+ * Append-only thesis ledger — every underwriting produces a new version row.
+ * Invariants live in the actions layer (SQLite partial unique indexes are
+ * unreliable via db:push): per ticker at most one `draft` and one
+ * `is_current=1` final. Core ETF rows carry no levels, break conditions, or
+ * horizon (policy: no opinions in the Engine).
+ */
+export const positionTheses = sqliteTable(
+  "position_theses",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticker: text("ticker").notNull(),
+    bucket: text("bucket").$type<"core" | "active">().notNull(),
+    // FMP sector, overridable at underwriting to a risk group when theses are
+    // correlated (IPS: correlated theses count as one sector).
+    sector: text("sector"),
+    conviction: integer("conviction"),
+    promiseRank: integer("promise_rank"),
+    keepDecision: text("keep_decision").$type<"keep" | "cut">(),
+    // Ladder value; the post-reconcileActiveTargets value lives in allocation_targets.
+    targetWeightPct: real("target_weight_pct"),
+    thesis: text("thesis"),
+    keyRisk: text("key_risk"),
+    catalyst: text("catalyst"),
+    // JSON array of 2–4 falsifiable statements; any one verified true ⇒ full exit.
+    breakConditions: text("break_conditions"),
+    horizonMonths: integer("horizon_months"),
+    // Set by the finalize action = reviewed_at + horizon_months.
+    expiresAt: text("expires_at"),
+    entryZoneLow: real("entry_zone_low"),
+    entryZoneHigh: real("entry_zone_high"),
+    entryNote: text("entry_note"),
+    addLevel: real("add_level"),
+    addMaxSizePct: real("add_max_size_pct"),
+    addNote: text("add_note"),
+    // Stateful fact, not a derivation — written only by the UI action.
+    addDownState: text("add_down_state")
+      .$type<"available" | "used" | "void">()
+      .notNull()
+      .default("available"),
+    // Forces a re-underwrite within 7 days — never a sale by itself.
+    technicalBackstop: real("technical_backstop"),
+    backstopNote: text("backstop_note"),
+    technicalContext: text("technical_context"),
+    status: text("status")
+      .$type<"draft" | "final" | "superseded" | "rejected">()
+      .notNull(),
+    version: integer("version").notNull(),
+    isCurrent: integer("is_current", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    source: text("source")
+      .$type<"portfolio_review" | "underwrite_name" | "manual">()
+      .notNull(),
+    // Required on every version > 1; a displacement admission's reason must
+    // name the displaced incumbent.
+    changeReason: text("change_reason"),
+    critiqueVerdict: text("critique_verdict").$type<"survives" | "overturned">(),
+    critiqueCounter: text("critique_counter"),
+    createdAt: text("created_at").notNull(),
+    // Set only by the UI finalize action.
+    reviewedAt: text("reviewed_at"),
+  },
+  (table) => [
+    index("position_theses_ticker_idx").on(table.ticker),
+    uniqueIndex("position_theses_ticker_version_idx").on(
+      table.ticker,
+      table.version,
+    ),
+  ]
 );
 
 export const appSettings = sqliteTable("app_settings", {

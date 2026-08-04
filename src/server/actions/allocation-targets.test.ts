@@ -67,6 +67,7 @@ function existingTickerRow() {
     id: 1,
     kind: "ticker" as const,
     name: "AAPL",
+    bucket: null,
     targetWeight: 40,
     cashAmountUsd: null,
     sortOrder: 1,
@@ -80,6 +81,7 @@ function existingCashRow() {
     id: 2,
     kind: "cash" as const,
     name: "Schwab Cash",
+    bucket: null,
     targetWeight: 5,
     cashAmountUsd: 5000,
     sortOrder: 2,
@@ -229,6 +231,36 @@ describe("updateAllocationTarget", () => {
   it("rejects negative target weight", async () => {
     mocks.mockGet.mockReturnValue(existingTickerRow());
     const result = await updateAllocationTarget(1, "targetWeight", -5);
+    expect(result.success).toBe(false);
+  });
+
+  it("sets bucket on a ticker row", async () => {
+    mocks.mockGet.mockReturnValue(existingTickerRow());
+    const result = await updateAllocationTarget(1, "bucket", "active");
+    expect(result.success).toBe(true);
+    expect(mocks.mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: "active" }),
+    );
+  });
+
+  it('clears bucket when the select sends "none"', async () => {
+    mocks.mockGet.mockReturnValue({ ...existingTickerRow(), bucket: "active" });
+    const result = await updateAllocationTarget(1, "bucket", "none");
+    expect(result.success).toBe(true);
+    expect(mocks.mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: null }),
+    );
+  });
+
+  it("rejects an unknown bucket value", async () => {
+    mocks.mockGet.mockReturnValue(existingTickerRow());
+    const result = await updateAllocationTarget(1, "bucket", "bonds");
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects setting a bucket on a cash row", async () => {
+    mocks.mockGet.mockReturnValue(existingCashRow());
+    const result = await updateAllocationTarget(2, "bucket", "core");
     expect(result.success).toBe(false);
   });
 });

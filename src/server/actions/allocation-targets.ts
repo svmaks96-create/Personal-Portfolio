@@ -13,10 +13,12 @@ import {
 } from "@/shared/schemas/allocation-target";
 import type { ActionResult } from "@/server/types/action-result";
 import { setCashTargetWeight } from "@/server/queries/app-settings";
+import type { PolicyBucket } from "@/shared/policy";
 
 interface CreateInput {
   kind: AllocationKind;
   name: string;
+  bucket?: PolicyBucket | null;
   targetWeight: number;
   cashAmountUsd: number | null;
 }
@@ -40,6 +42,7 @@ export async function createAllocationTarget(
   try {
     const normalised = {
       ...data,
+      bucket: data.kind === "ticker" ? (data.bucket ?? null) : null,
       cashAmountUsd: data.kind === "cash" ? data.cashAmountUsd : null,
     };
 
@@ -70,6 +73,7 @@ export async function createAllocationTarget(
         .values({
           kind: validated.kind,
           name: validated.name,
+          bucket: validated.kind === "ticker" ? validated.bucket : null,
           targetWeight: validated.targetWeight,
           cashAmountUsd:
             validated.kind === "cash" ? validated.cashAmountUsd : null,
@@ -124,6 +128,7 @@ export async function updateAllocationTarget(
     const merged = {
       kind: existing.kind,
       name: existing.name,
+      bucket: existing.bucket,
       targetWeight: existing.targetWeight,
       cashAmountUsd: existing.cashAmountUsd,
       [field]: value,
@@ -147,6 +152,7 @@ export async function updateAllocationTarget(
       db.update(allocationTargets)
         .set({
           name: validated.name,
+          bucket: validated.kind === "ticker" ? validated.bucket : null,
           targetWeight: validated.targetWeight,
           cashAmountUsd:
             validated.kind === "cash" ? validated.cashAmountUsd : null,

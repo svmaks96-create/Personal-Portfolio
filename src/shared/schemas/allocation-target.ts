@@ -1,7 +1,12 @@
 import { z } from "zod";
+import { POLICY_BUCKETS } from "@/shared/policy";
 
 export const ALLOCATION_KINDS = ["ticker", "cash"] as const;
 export type AllocationKind = (typeof ALLOCATION_KINDS)[number];
+
+// The select cell sends "none" for unassigned; missing means untouched.
+const normalizeBucket = (v: unknown) =>
+  v === undefined || v === "" || v === "none" ? null : v;
 
 const tickerAllocationSchema = z.object({
   kind: z.literal("ticker"),
@@ -9,6 +14,7 @@ const tickerAllocationSchema = z.object({
     .string()
     .min(1, "Ticker is required")
     .transform((v) => v.toUpperCase()),
+  bucket: z.preprocess(normalizeBucket, z.enum(POLICY_BUCKETS).nullable()),
   targetWeight: z
     .number()
     .min(0, "Target weight cannot be negative")
@@ -21,6 +27,10 @@ const tickerAllocationSchema = z.object({
 const cashAllocationSchema = z.object({
   kind: z.literal("cash"),
   name: z.string().min(1, "Label is required"),
+  bucket: z.preprocess(
+    normalizeBucket,
+    z.null().refine((v) => v === null, "Bucket is only valid for ticker rows"),
+  ),
   targetWeight: z
     .number()
     .min(0, "Target weight cannot be negative")
@@ -37,7 +47,12 @@ export const allocationTargetSchema = z.discriminatedUnion("kind", [
 
 export type AllocationTargetInput = z.infer<typeof allocationTargetSchema>;
 
-export const UPDATABLE_FIELDS = ["name", "targetWeight", "cashAmountUsd"] as const;
+export const UPDATABLE_FIELDS = [
+  "name",
+  "bucket",
+  "targetWeight",
+  "cashAmountUsd",
+] as const;
 export type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
 
 export const cashTargetWeightSchema = z
