@@ -95,13 +95,16 @@ sequential. Each agent gets the framework, the name's economics + prior record, 
 > whether it is up or down. Core ETFs carry **no** scores, levels, break conditions, or
 > horizon (no opinions in the Engine). For active names: set **conviction (1–5)** and
 > **promiseRank (1–5)** per the rubrics; **keepDecision** (`keep` | `cut`); a
-> **horizonMonths** (12–36) the thesis is actually underwritten for; a one-paragraph
-> **thesis** (why this name holds a slot on forward merit), its **keyRisk**, and the
-> **catalyst** expected inside the horizon — these three narrative fields are the core
-> of the /research draft card, never leave them empty; **2–4 falsifiable
+> **horizonMonths** (12–36) the thesis is actually underwritten for; a structured
+> **thesis** per the Narrative-structure rules (Claim / numbered Evidence / What must
+> be true / Conviction worksheet / Exit paths), its **keyRisk** (one mechanism), and
+> the **catalyst** expected inside the horizon — these three narrative fields are the
+> core of the /research draft card, never leave them empty; **2–4 falsifiable
 > break conditions** (statements a reasonable person could verify true/false — "loses
-> the EUV monopoly", not "fundamentals deteriorate"); an **entry zone** (band + one-line
-> rationale anchored to 50/200-DMA + valuation); ONE **add-down** (next major support,
+> the EUV monopoly", not "fundamentals deteriorate"; metrics management cannot dodge
+> via M&A or buybacks — specify organic/ex-acquisition where relevant); an **entry
+> zone** (derived per the entry-zone rules: named anchors + ≥2:1 R/R check, subscores
+> in entry_note); ONE **add-down** (next major support,
 > max size % of book, thesis-intact condition); a **technical backstop** (structure-break
 > price that forces re-underwrite within 7 days — not a sale); the **FMP sector** (plus
 > a risk-group override if this thesis is correlated with another holding's);
@@ -109,9 +112,14 @@ sequential. Each agent gets the framework, the name's economics + prior record, 
 > MCP. ANALYSIS ONLY — never place or stage a trade.
 
 ### Conviction rubric (1–5) — quality of the business/thesis
-Score four pillars — moat/quality, financial strength, growth durability, valuation
-support — then **cap for structural risk** (geopolitical, regulatory/delisting,
-balance-sheet fragility, single-catalyst dependence, unproven durability).
+**Derived, never asserted.** Score four pillars 1–5 — moat/quality, financial
+strength, growth durability, valuation support — each anchored to ONE named fact
+with a number in it. Then `conviction = min(round(mean of pillars), structural cap)`,
+where the **structural cap** (geopolitical, regulatory/delisting, balance-sheet
+fragility, single-catalyst dependence, unproven durability) states its reason AND
+names the pillar in dispute. The full worksheet (pillar | score | anchoring fact,
+plus the cap line) is rendered inside the `thesis` field — a reviewer must be able
+to see which single pillar a score disagreement lives in. Calibration anchors:
 - **5** — wide moat + fortress balance sheet + durable growth + non-extreme price + no
   structural tail (rare; a 4 is the realistic ceiling for a richly-valued mega-cap).
 - **4** — high-quality franchise, thesis intact, **one** significant offset.
@@ -121,11 +129,41 @@ balance-sheet fragility, single-catalyst dependence, unproven durability).
 - **1** — no forward thesis → cut.
 
 ### promiseRank rubric (1–5) — quality of the entry, right now
-Combine (a) valuation vs the name's own history/targets, (b) technical setup vs the
-50/200-DMA and distance to support, (c) risk/reward to the entry zone. Independent of
-conviction; drives which underweights to fill first, never weight.
+**Derived the same way:** subscore three components 1–5, each with its data point —
+(a) valuation vs the name's own history/targets, (b) technical setup vs the
+50/200-DMA and distance to support, (c) risk/reward to the entry zone (from the
+entry derivation below). `promiseRank = round(mean)`; the three subscores appear in
+`entry_note`. Independent of conviction; drives which underweights to fill first,
+never weight.
 - **5** washed out + near strong support + large upside · **4** good entry · **3**
   neutral / wait · **2** extended or falling-knife · **1** avoid adding.
+
+### Entry-zone derivation (show the work)
+Name the anchors with their values — 50-DMA, 200-DMA, prior support/breakout shelf,
+and one valuation bound (e.g. "10x FY26 EPS ≈ $244"). The band is the overlap or
+cluster of anchors; say which. Then the R/R check at band midpoint: risk = mid →
+technical backstop, reward = mid → a stated re-rate target (name the multiple).
+Require **≥ 2:1** at the mid; if it fails, shrink the band to where it passes or cap
+component (c) at 2. All four numbers (anchors, mid, risk %, reward %) go in
+`entry_note`.
+
+### Exit paths (mandatory record section — price exits do NOT exist)
+Every keep's `thesis` block ends with an **Exit paths** list restating the only four
+ways out of the position, with this record's concrete values: (1) any break condition
+verified true → full exit; (2) conviction scored < 3 at any re-underwrite → cut;
+(3) horizon expiry (state the date math) without re-underwrite → exit; (4) the 8%
+hard-cap trim back to target. State explicitly that the technical backstop $X forces
+a 7-day re-underwrite and is never a sale. This section exists so the absence of a
+stop-loss reads as policy, not omission.
+
+### Narrative structure (no walls of text)
+`thesis` is structured markdown with exactly these labeled parts: **Claim** (≤2
+sentences) · **Evidence** (3–5 numbered facts, each carrying a number or date;
+inorganic/M&A contributions separated out explicitly) · **What must be true** (2–3
+bullets) · **Conviction worksheet** (the pillar table + cap line) · **Exit paths**
+(per above). `key_risk` = ONE causal mechanism in ≤2 sentences, not a list.
+`catalyst` = dated events inside the horizon. A field that can't cite a number says
+"no data" instead of prose-padding.
 
 ### Thesis record schema (v3 — mirrors `position_theses`)
 `ticker · bucket(core|active) · sector(+ risk-group override) · conviction(1–5) ·
@@ -141,11 +179,20 @@ A skeptic argues the opposite of the implied action with its own FMP research fo
 every **CUT**, every **ADD/new admission**, and — because the zero-incumbency rule
 means complacent keeps are where confirmation bias hides — every **KEEP at
 conviction 3** and every keep whose conviction **rose** vs the prior version.
-Judge whether the call survives. Record `critique_verdict` (`survives` |
-`overturned` — if overturned, fix the record before drafting) and
-`critique_counter` (the strongest counter-argument, verbatim). Uncritiqued keeps
-carry NULL critique fields — that's expected, not an omission. These fields render
-prominently on /research — Maksim reads the counter before scoring.
+
+**Critique format — no essays.** The skeptic returns at most 3 counterpoints, each:
+claim (1 line) + evidence (1 line, sourced) + score impact (`pillar X: a→b` or
+`no score impact`). `verdict = overturned` **iff** the surviving pillar changes move
+conviction across a decision boundary (≥3 → <3, or a ladder-rung change), or
+invalidate a break condition or level. `critique_counter` stores the structured
+counterpoints verbatim.
+
+**On overturn the record is REWRITTEN coherently** — pillar table, scores, prose,
+break conditions and levels all consistent with the corrected facts — never
+annotated, appended to, or left arguing for its old score. Record
+`critique_verdict` (`survives` | `overturned`). Uncritiqued keeps carry NULL
+critique fields — that's expected, not an omission. These fields render prominently
+on /research — Maksim reads the counter before scoring.
 
 ## Step 5 — Synthesize
 

@@ -2,6 +2,13 @@
 
 import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { hasStructure } from "@/lib/thesis-format";
+import {
+  CritiqueCounterView,
+  NoteView,
+  TechnicalContextChips,
+  ThesisStructuredView,
+} from "@/components/domain/thesis-structured-view";
 import { finalizeThesis, rejectDraft } from "@/server/actions/theses";
 import type { DraftQueueEntry, ThesisRecord } from "@/server/queries/theses";
 import type { FinalizeThesisInput } from "@/shared/schemas/position-thesis";
@@ -172,6 +179,8 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [editThesisSource, setEditThesisSource] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const busyRef = useRef(false);
 
@@ -198,6 +207,9 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
       if (!result.success) {
         setFieldErrors(result.fieldErrors ?? {});
         setFormError(result.error);
+        if (result.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+          setEditMode(true);
+        }
       }
     } finally {
       busyRef.current = false;
@@ -253,8 +265,8 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
       {/* Critique counter-argument — read before scoring */}
       {draft.critiqueCounter && (
         <div className="mt-2 border border-line bg-panel-strong px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-foreground">
-          <span className={labelClasses}>Strongest counter · </span>
-          {draft.critiqueCounter}
+          <div className={cn(labelClasses, "mb-1")}>Strongest counter</div>
+          <CritiqueCounterView text={draft.critiqueCounter} />
         </div>
       )}
 
@@ -275,6 +287,13 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
         </div>
       )}
 
+      {!editMode ? (
+        <ReviewBody
+          form={form}
+          technicalContext={draft.technicalContext}
+        />
+      ) : (
+        <>
       {/* Scores + posture */}
       <div className="mt-3 grid grid-cols-6 gap-3">
         <Field label="Bucket" error={fieldErrors.bucket}>
@@ -339,16 +358,43 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
         </Field>
       </div>
 
+      {/* Thesis — structured read view with raw-source editing on demand */}
+      <div className="mt-3">
+        <div className="flex items-center justify-between">
+          <span className={labelClasses}>Thesis</span>
+          {hasStructure(form.thesis) && (
+            <button
+              type="button"
+              onClick={() => setEditThesisSource((v) => !v)}
+              className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground underline decoration-line underline-offset-2 hover:text-foreground"
+            >
+              {editThesisSource ? "View structured" : "Edit source"}
+            </button>
+          )}
+        </div>
+        <div className="mt-1">
+          {hasStructure(form.thesis) && !editThesisSource ? (
+            <div className="border border-line bg-card px-3 py-2.5">
+              <ThesisStructuredView text={form.thesis} />
+            </div>
+          ) : (
+            <textarea
+              rows={hasStructure(form.thesis) ? 14 : 3}
+              className={textareaClasses}
+              value={form.thesis}
+              onChange={(e) => set("thesis", e.target.value)}
+            />
+          )}
+          {fieldErrors.thesis && (
+            <span className="mt-0.5 block font-mono text-[10px] text-neg">
+              {fieldErrors.thesis}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Narrative */}
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <Field label="Thesis" error={fieldErrors.thesis}>
-          <textarea
-            rows={3}
-            className={textareaClasses}
-            value={form.thesis}
-            onChange={(e) => set("thesis", e.target.value)}
-          />
-        </Field>
         <Field
           label="Break conditions (one per line, 2–4)"
           error={fieldErrors.breakConditions}
@@ -362,7 +408,7 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
         </Field>
         <Field label="Key risk" error={fieldErrors.keyRisk}>
           <textarea
-            rows={2}
+            rows={3}
             className={textareaClasses}
             value={form.keyRisk}
             onChange={(e) => set("keyRisk", e.target.value)}
@@ -435,10 +481,44 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
         </Field>
       </div>
 
+      {/* Level notes */}
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <Field
+          label="Entry note (anchors + R/R + subscores)"
+          error={fieldErrors.entryNote}
+        >
+          <textarea
+            rows={3}
+            className={textareaClasses}
+            value={form.entryNote}
+            onChange={(e) => set("entryNote", e.target.value)}
+          />
+        </Field>
+        <Field label="Add note (thesis-intact condition)" error={fieldErrors.addNote}>
+          <textarea
+            rows={3}
+            className={textareaClasses}
+            value={form.addNote}
+            onChange={(e) => set("addNote", e.target.value)}
+          />
+        </Field>
+        <Field label="Backstop note" error={fieldErrors.backstopNote}>
+          <textarea
+            rows={3}
+            className={textareaClasses}
+            value={form.backstopNote}
+            onChange={(e) => set("backstopNote", e.target.value)}
+          />
+        </Field>
+      </div>
+
       {draft.technicalContext && (
-        <div className="mt-2 font-mono text-[10px] text-muted-foreground">
-          Technical context: {draft.technicalContext}
+        <div className="mt-2">
+          <span className={labelClasses}>Technical context</span>
+          <TechnicalContextChips text={draft.technicalContext} className="mt-1" />
         </div>
+      )}
+        </>
       )}
 
       {/* Change reason + actions */}
@@ -467,6 +547,14 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
           className="border border-foreground bg-foreground px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-background hover:opacity-90 disabled:opacity-35"
         >
           {isBusy ? "Working…" : "Finalize"}
+        </button>
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => setEditMode((v) => !v)}
+          className="border border-line bg-panel px-3 py-[5px] font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground disabled:opacity-35"
+        >
+          {editMode ? "Review" : "Edit"}
         </button>
         <button
           type="button"
@@ -502,6 +590,151 @@ function DraftCard({ entry }: { entry: DraftQueueEntry }) {
         <div className="mt-2 font-mono text-[11px] text-neg">{formError}</div>
       )}
     </div>
+  );
+}
+
+const DASH = "—";
+
+function ReviewBody({
+  form,
+  technicalContext,
+}: {
+  form: FormState;
+  technicalContext: string | null;
+}) {
+  const breakConditions = form.breakConditions
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "");
+  const range =
+    form.entryZoneLow === "" && form.entryZoneHigh === ""
+      ? DASH
+      : `${form.entryZoneLow || "?"} – ${form.entryZoneHigh || "?"}`;
+  const addValue =
+    form.addLevel === ""
+      ? DASH
+      : `${form.addLevel}${form.addMaxSizePct !== "" ? ` · max ${form.addMaxSizePct}% of book` : ""}`;
+  return (
+    <>
+      {/* Score strip */}
+      <div className="mt-3 flex flex-wrap gap-5 font-mono text-[11px]">
+        <Stat label="Bucket" value={form.bucket} />
+        <Stat label="Conviction" value={form.conviction || DASH} />
+        <Stat label="Promise" value={form.promiseRank || DASH} />
+        <Stat
+          label="Decision"
+          value={form.keepDecision || DASH}
+          tone={form.keepDecision === "cut" ? "neg" : undefined}
+        />
+        <Stat
+          label="Horizon"
+          value={form.horizonMonths === "" ? DASH : `${form.horizonMonths}mo`}
+        />
+        <Stat
+          label="Target"
+          value={form.targetWeightPct === "" ? DASH : `${form.targetWeightPct}%`}
+        />
+        <Stat label="Sector" value={form.sector || DASH} />
+      </div>
+
+      {form.thesis !== "" && (
+        <div className="mt-3 border border-line bg-card px-3 py-2.5">
+          <ThesisStructuredView text={form.thesis} />
+        </div>
+      )}
+
+      {breakConditions.length > 0 && (
+        <div className="mt-3">
+          <div className={labelClasses}>
+            Break conditions — any one verified true ⇒ full exit
+          </div>
+          <ol className="mt-1 space-y-0.5 font-mono text-[12px] leading-relaxed text-foreground">
+            {breakConditions.map((bc, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {i + 1}.
+                </span>
+                <span>{bc}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        {form.keyRisk !== "" && (
+          <div>
+            <div className={labelClasses}>Key risk</div>
+            <NoteView text={form.keyRisk} className="mt-1" />
+          </div>
+        )}
+        {form.catalyst !== "" && (
+          <div>
+            <div className={labelClasses}>Catalyst</div>
+            <NoteView text={form.catalyst} className="mt-1" />
+          </div>
+        )}
+      </div>
+
+      {/* Levels */}
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <LevelBlock title="Entry zone" value={range} note={form.entryNote} />
+        <LevelBlock title="Add-down (one, ever)" value={addValue} note={form.addNote} />
+        <LevelBlock
+          title="Backstop — review, never a sale"
+          value={form.technicalBackstop === "" ? DASH : form.technicalBackstop}
+          note={form.backstopNote}
+        />
+      </div>
+
+      {technicalContext && (
+        <div className="mt-3">
+          <span className={labelClasses}>Technical context</span>
+          <TechnicalContextChips text={technicalContext} className="mt-1" />
+        </div>
+      )}
+    </>
+  );
+}
+
+function LevelBlock({
+  title,
+  value,
+  note,
+}: {
+  title: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <div className="border border-line bg-card px-2.5 py-2">
+      <div className={labelClasses}>{title}</div>
+      <div className="mt-0.5 font-mono text-[13px] font-semibold tabular-nums text-foreground">
+        {value}
+      </div>
+      {note !== "" && <NoteView text={note} className="mt-1.5" />}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "neg";
+}) {
+  return (
+    <span>
+      <span className="mr-1.5 text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </span>
+      <span className={cn("text-foreground", tone === "neg" && "text-neg")}>
+        {value}
+      </span>
+    </span>
   );
 }
 

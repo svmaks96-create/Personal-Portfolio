@@ -2,6 +2,11 @@ import Link from "next/link";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/formatting";
+import {
+  CritiqueCounterView,
+  NoteView,
+  ThesisStructuredView,
+} from "@/components/domain/thesis-structured-view";
 import type { ThesisRecord } from "@/server/queries/theses";
 
 const DASH = "—";
@@ -81,9 +86,7 @@ export function PositionThesisPanel({
           </div>
 
           {current.thesis && (
-            <p className="mt-3 font-mono text-[12px] leading-relaxed text-foreground">
-              {current.thesis}
-            </p>
+            <ThesisStructuredView text={current.thesis} className="mt-3" />
           )}
 
           {current.breakConditionsList.length > 0 && (
@@ -105,9 +108,7 @@ export function PositionThesisPanel({
                 <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
                   Key risk
                 </div>
-                <p className="mt-0.5 font-mono text-[11px] leading-relaxed text-foreground">
-                  {current.keyRisk}
-                </p>
+                <NoteView text={current.keyRisk} className="mt-0.5" />
               </div>
             )}
             {current.catalyst && (
@@ -115,9 +116,7 @@ export function PositionThesisPanel({
                 <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
                   Catalyst
                 </div>
-                <p className="mt-0.5 font-mono text-[11px] leading-relaxed text-foreground">
-                  {current.catalyst}
-                </p>
+                <NoteView text={current.catalyst} className="mt-0.5" />
               </div>
             )}
           </div>
@@ -126,7 +125,7 @@ export function PositionThesisPanel({
             <div className="mt-3 border border-line bg-panel-strong px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-foreground">
               <span
                 className={cn(
-                  "mr-2 border px-1.5 text-[9px] uppercase tracking-[0.14em]",
+                  "mb-1 inline-block border px-1.5 text-[9px] uppercase tracking-[0.14em]",
                   current.critiqueVerdict === "overturned"
                     ? "border-neg text-neg"
                     : "border-line text-muted-foreground",
@@ -134,7 +133,7 @@ export function PositionThesisPanel({
               >
                 Critique {current.critiqueVerdict ?? "counter"}
               </span>
-              {current.critiqueCounter}
+              <CritiqueCounterView text={current.critiqueCounter} />
             </div>
           )}
 
