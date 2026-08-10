@@ -32,10 +32,15 @@ vi.mock("@/server/db", () => {
   const mockValues = vi.fn().mockReturnValue({ run: mockInsertRun });
   const mockInsert = vi.fn().mockReturnValue({ values: mockValues });
 
+  const mockDeleteRun = vi.fn().mockReturnValue({ changes: 1 });
+  const mockDeleteWhere = vi.fn().mockReturnValue({ run: mockDeleteRun });
+  const mockDelete = vi.fn().mockReturnValue({ where: mockDeleteWhere });
+
   const dbMock = {
     select: mockSelect,
     update: mockUpdate,
     insert: mockInsert,
+    delete: mockDelete,
     transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(dbMock)),
     _mocks: {
       mockGet,
@@ -44,6 +49,7 @@ vi.mock("@/server/db", () => {
       mockSet,
       mockInsertRun,
       mockValues,
+      mockDelete,
     },
   };
   return { db: dbMock };
@@ -154,8 +160,9 @@ describe("finalizeThesis", () => {
     const result = await finalizeThesis(10, finalizeEdits());
     expect(result.success).toBe(true);
 
-    // Only one update: the draft promotion (no prior to supersede).
-    expect(mocks.mockSet).toHaveBeenCalledTimes(1);
+    // Two updates: the draft promotion (no prior to supersede) + the no-op
+    // watchlist researched→watchlisted transition.
+    expect(mocks.mockSet).toHaveBeenCalledTimes(2);
     const set = mocks.mockSet.mock.calls[0][0];
     expect(set.status).toBe("final");
     expect(set.isCurrent).toBe(true);
@@ -182,12 +189,14 @@ describe("finalizeThesis", () => {
       finalizeEdits({ changeReason: "Conviction downgrade after Q2" }),
     );
     expect(result.success).toBe(true);
-    expect(mocks.mockSet).toHaveBeenCalledTimes(2);
+    expect(mocks.mockSet).toHaveBeenCalledTimes(3);
     expect(mocks.mockSet.mock.calls[0][0]).toEqual({
       status: "superseded",
       isCurrent: false,
     });
     expect(mocks.mockSet.mock.calls[1][0].status).toBe("final");
+    // Third: watchlist transition (no-op unless the row is `researched`).
+    expect(mocks.mockSet.mock.calls[2][0].status).toBe("watchlisted");
   });
 
   it("requires a change reason on version > 1", async () => {
@@ -228,6 +237,8 @@ describe("finalizeThesis", () => {
     const set = mocks.mockSet.mock.calls[0][0];
     expect(set.targetWeightPct).toBe(0);
     expect(set.expiresAt).toBeNull();
+    // A cut verdict on a researched watchlist candidate means "don't buy".
+    expect(mocks.mockSet.mock.calls[1][0].status).toBe("rejected");
   });
 
   it("rejects finalizing a non-draft row", async () => {
@@ -427,6 +438,8 @@ describe("applyTargetToAllocation", () => {
     );
     // Cash absorbs the +1.5 move: 5 − 1.5 = 3.5.
     expect(setCashTargetWeight).toHaveBeenCalledWith(3.5);
+    // Graduation: the watchlist row (if any) retires.
+    expect(mocks.mockDelete).toHaveBeenCalledTimes(1);
   });
 
   it("scales pro-rata when the ladder sum exceeds the bucket", async () => {

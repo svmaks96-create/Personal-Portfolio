@@ -10,6 +10,7 @@ import {
   tickerProfiles,
   tickerFundamentals,
   tickerDividends,
+  watchlist,
 } from "@/server/db/schema";
 import { upsertMarketDataRows } from "@/server/db/market-data-writer";
 import {
@@ -20,7 +21,7 @@ import {
   fetchExchangeVariants,
   fetchTickerProfileFull,
   fetchRatiosTtm,
-  fetchRoeTtm,
+  fetchKeyMetricsTtm,
   fetchForwardEps,
   fetchPriceTargetConsensus,
   fetchRatingSnapshot,
@@ -42,7 +43,7 @@ import {
   getTickerProfileFetchedAtMap,
 } from "@/server/queries/ticker-profiles";
 import { getTickerFundamentalsFetchedAtMap } from "@/server/queries/ticker-fundamentals";
-import { eq, notInArray } from "drizzle-orm";
+import { eq, inArray, notInArray } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type {
   RefreshResult,
@@ -512,9 +513,10 @@ export async function refreshEtfHoldings(): Promise<ActionResult<RefreshResult>>
 }
 
 const TICKER_FUNDAMENTALS_STALENESS_DAYS = 7;
-// Each ticker fans out to ~6 FMP calls, so keep the across-ticker concurrency
-// low to stay polite to the FMP rate limit (~6 * 4 = 24 in-flight max).
-const FUNDAMENTALS_CONCURRENCY = 4;
+// Each ticker fans out to ~6 FMP calls. The Ultimate plan allows 3,000
+// calls/min and this refresh covers ~60–80 names worst case (~500 calls
+// total) — nowhere near the per-minute cap, so run wide.
+const FUNDAMENTALS_CONCURRENCY = 16;
 
 /**
  * Run an async mapper across `items` with bounded concurrency. Generic over the
@@ -547,12 +549,26 @@ export async function refreshTickerFundamentals(): Promise<ActionResult<RefreshR
     // All stock tickers ever transacted — including CLOSED positions, whose
     // detail pages still surface fundamentals (unlike ETF holdings, which are
     // only read for currently-held names). Mirrors refreshTickerProfiles.
+    // Plus live watchlist names, whose theses/triggers need a price + sector.
     const rows = db
       .select({ ticker: transactions.ticker })
       .from(transactions)
       .where(eq(transactions.instrument, "stock"))
       .all();
-    const allTickers = [...new Set(rows.map((r) => r.ticker))];
+    const watchRows = db
+      .select({ ticker: watchlist.ticker })
+      .from(watchlist)
+      .where(
+        inArray(watchlist.status, [
+          "flagged_for_research",
+          "researched",
+          "watchlisted",
+        ]),
+      )
+      .all();
+    const allTickers = [
+      ...new Set([...rows.map((r) => r.ticker), ...watchRows.map((r) => r.ticker)]),
+    ];
     if (allTickers.length === 0) {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }
@@ -581,17 +597,23 @@ export async function refreshTickerFundamentals(): Promise<ActionResult<RefreshR
       staleTickers,
       async (ticker) => {
         const isEtf = profilesMap[ticker]?.isEtf === true;
+        const skipped = { ok: true as const, data: null };
         // ETFs have no meaningful EPS/PE/analyst coverage — skip those calls.
-        const [profile, ratios, roeTtm, fwdEps, target, rating, dividends] =
+        // Fundamentals refresh treats transport failure like absent data (the
+        // ok:false → null collapse below) — staleness retry covers it later.
+        const [profile, ratiosR, keyMetricsR, fwdEpsR, target, rating, dividends] =
           await Promise.all([
             fetchTickerProfileFull(ticker),
-            isEtf ? Promise.resolve(null) : fetchRatiosTtm(ticker),
-            isEtf ? Promise.resolve(null) : fetchRoeTtm(ticker),
-            isEtf ? Promise.resolve(null) : fetchForwardEps(ticker, todayIso),
+            isEtf ? skipped : fetchRatiosTtm(ticker),
+            isEtf ? skipped : fetchKeyMetricsTtm(ticker),
+            isEtf ? skipped : fetchForwardEps(ticker, todayIso),
             isEtf ? Promise.resolve(null) : fetchPriceTargetConsensus(ticker),
             isEtf ? Promise.resolve(null) : fetchRatingSnapshot(ticker),
             fetchDividendHistory(ticker),
           ]);
+        const ratios = ratiosR.ok ? ratiosR.data : null;
+        const roeTtm = keyMetricsR.ok ? (keyMetricsR.data?.roeTtm ?? null) : null;
+        const fwdEps = fwdEpsR.ok ? fwdEpsR.data : null;
 
         // Nothing usable → signal failure so the existing row isn't wiped.
         if (profile === null && ratios === null && dividends.length === 0) {
@@ -600,8 +622,8 @@ export async function refreshTickerFundamentals(): Promise<ActionResult<RefreshR
 
         const price = profile?.price ?? null;
         const fwdPe =
-          price !== null && price > 0 && fwdEps !== null && fwdEps.epsAvg > 0
-            ? price / fwdEps.epsAvg
+          price !== null && price > 0 && fwdEps !== null && fwdEps.ntmEpsAvg > 0
+            ? price / fwdEps.ntmEpsAvg
             : null;
         // ETFs skip ratios-ttm; derive their yield from the trailing dividend
         // and profile price (fraction, matching divYieldTtm semantics).

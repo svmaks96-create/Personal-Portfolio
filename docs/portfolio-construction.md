@@ -1,7 +1,7 @@
 # Portfolio Construction Module — Development Document
 
-Status: **Phases 0–2 built · Phases 3–5 spec, aligned to IPS v3** · Owner: Maksim ·
-Last updated: 2026-08-04
+Status: **Phases 0–3 built · Rebuild pending · Phases 4–5 spec, aligned to IPS v3** ·
+Owner: Maksim · Last updated: 2026-08-04
 
 Working spec for the portfolio construction module. Development happens in
 independently shippable phases; the phase log at the bottom is the history —
@@ -19,11 +19,10 @@ defines what *should* happen — buckets, sizing ladder, admission rules, break
 conditions, thesis horizons, crash protocol, kill switch. This module makes the
 policy **operational**: persisted theses, a screening → watchlist → underwriting
 funnel, and advisory engines that surface every violation, triggered level, and
-review demand the IPS defines. Still missing today (post-Phase 2):
+review demand the IPS defines. Still missing today (post-Phase 3):
 
-- no watchlist storage, no screener, no quant scoring (Phase 3),
 - no tracking of admission throughput, options budget, or kill-switch alpha
-  (Phase 5) — add-down state and thesis expiry ARE tracked since Phase 2.
+  (Phase 5) — add-down state, thesis expiry, and the watchlist funnel ARE live.
 
 ## 2. Agreed design decisions
 
@@ -120,15 +119,15 @@ trims — the only trims are the 8% cap and conviction downgrades), `exit_level`
 `draft` and at most one `is_current=1`. Core ETFs carry no levels, no break
 conditions, no horizon (policy: no opinions in the Engine).
 
-### 5.3 `screening_runs` (new)
+### 5.3 `screening_runs` — DONE (Phase 3)
 
 `id, run_date, criteria_json (Zod-validated floors, serialized), universe_count, scored_count, fetched_at`
 
-### 5.4 `screening_results` (new — point-in-time snapshot per run)
+### 5.4 `screening_results` — DONE (Phase 3; point-in-time snapshot per run)
 
-`run_id FK, ticker, company_name, sector, industry, exchange, market_cap, price, avg_volume` + raw metric snapshot (`pe_ttm, fwd_pe, pfcf_ttm, ev_ebitda_ttm, ps_ttm, roe_ttm, net_margin_ttm, debt_to_equity_ttm, eps_growth_fwd, price_change_3m, price_change_6m, analyst_upside`) + factor percentiles 0–100 (`value_score, growth_score, quality_score, momentum_score, composite_score`). Unique `(run_id, ticker)`, index `(run_id, composite_score)`.
+`run_id FK, ticker, company_name, sector, industry, exchange, market_cap, price, avg_volume` + raw metric snapshot (`pe_ttm, fwd_pe, pfcf_ttm, ev_ebitda_ttm, ps_ttm, pb_ttm, roe_ttm, roic_ttm, net_margin_ttm, debt_to_equity_ttm, income_quality_ttm, eps_growth_fwd, fwd_eps_avg, fwd_eps_date, eps_change_yield_fwd, eps_revision, price_change_3m, price_change_6m, price_change_12m1m, analyst_upside [legacy — not fetched since 2026-08-04]`) + factor percentiles 0–100 (`value_score, growth_score, quality_score, momentum_score, composite_score`). Unique `(run_id, ticker)`, index `(run_id, composite_score)`. Runs older than 730 days are pruned with each new run; `fwd_eps_avg`/`fwd_eps_date` are the basis for cross-run estimate revisions.
 
-### 5.5 `watchlist` (new — persists across runs)
+### 5.5 `watchlist` — DONE (Phase 3; persists across runs)
 
 `ticker unique, status, source_run_id, note, created_at, updated_at`
 
@@ -161,20 +160,21 @@ dates on non-held names.
   triggered-levels/review-demands table (Phase 2 — quiet levels are counted,
   not listed).
 
-### Engine 2 — Screening
+### Engine 2 — Screening — BUILT (Phase 3; hardened 2026-08-04)
 
 - **`fmp.ts` additions** (only file calling FMP):
-  - `fetchScreenerCompanies(criteria)` → `/company-screener?marketCapMoreThan&volumeMoreThan&exchange&country=US&isActivelyTrading=true&isEtf=false&limit` — verified live.
-  - `fetchPriceChange(ticker)` → `/stock-price-change` (1M/3M/6M/1Y % in one call). **Verify response shape via FMP MCP before wrapping.**
-- **`src/server/services/quant-score.ts`** (pure; plain `number` is acceptable — percentile statistics, not money math; document this exception inline):
-  - **Valuation**: mean percentile of earnings yield (1/fwdPe, fallback 1/peTtm), FCF yield (1/pfcfTtm), 1/evEbitda, 1/psTtm
-  - **Growth**: fwd EPS growth = `fwdEpsAvg/epsTtm − 1` (reuses `fetchForwardEps`), winsorized
-  - **Quality**: mean percentile of ROE, net margin, −D/E
-  - **Momentum**: mean percentile of 6M and 3M price change; for held/flagged names with history, 50/200-DMA distance via new pure `src/server/services/moving-averages.ts` over `market_data` rows
-  - **Composite** = equal-weight mean of *available* factors (renormalize on nulls); winsorize at 1st/99th percentile before ranking.
+  - `fetchScreenerCompanies(criteria)` → `/company-screener?marketCapMoreThan[&marketCapLowerThan][&sector]&volumeMoreThan&exchange&country=US&isActivelyTrading=true&isEtf=false&limit` — verified live. The mcap BAND is the primary universe control; `limit` (≤1000) is a safety cap and a run where it binds is flagged truncated.
+  - `fetchPriceChange(ticker)` → `/stock-price-change` (1M/3M/6M/1Y % in one call).
+  - The four screening fetchers return discriminated `FmpResult<T>` (`ok:false` = transport failure, retryable) so rate-limit errors never masquerade as missing data. ALL FMP traffic is throttled through a shared sliding-window `fmpFetch` (2,500 calls/min).
+- **`src/server/services/quant-score.ts`** (pure; plain `number` is acceptable — percentile statistics, not money math; documented inline). Percentile ranks are outlier-immune, so no winsorization. VALUE and QUALITY rank within-sector (≥10-name groups; universe fallback); GROWTH and MOMENTUM rank universe-wide:
+  - **Valuation**: mean sector-relative percentile of earnings yield (1/fwdPe on NTM EPS, fallback 1/peTtm), FCF yield, 1/evEbitda, 1/psTtm; Financial Services & Real Estate swap EV/EBITDA + FCF yield for book yield (1/pbTtm, positive only)
+  - **Growth**: EPS change yield `(NTM EPS − TTM EPS)/price` (constant horizon via FY1/FY2 time-weighting; defined for loss-makers) + cross-run estimate revision (FY1 estimate vs latest 21–120-day-old run, same fiscal year)
+  - **Quality**: mean sector-relative percentile of ROIC, net margin, −D/E, income quality (CFO/NI, nulled on negative TTM EPS); negative book equity (D/E<0 or P/B<0) nulls leverage instead of ranking it best
+  - **Momentum**: single 12-minus-1 return `(1+r₁ᵧ)/(1+r₁ₘ)−1` — identical input for every name; no local-history DMA extras (own-book bias)
+  - **Composite** = equal-weight mean of *available* factors (renormalize on nulls) — but requires ≥3 of 4 factors, else null.
 - **`src/server/actions/screening.ts`**:
-  - `runScreen(criteria)` — Zod floors (defaults: mcap ≥ $2B, avg vol ≥ 500k, cap 300 by mcap) → screener → `mapInChunks` fan-out (ratios-ttm, key-metrics-ttm, forward EPS, price-change, price-target) → score → insert run + results in one tx → `revalidatePath('/', 'layout')`. Return `{scored, failed}` in `ActionResult`. Never auto-run on page load.
-  - `flagForResearch(ticker)` — upsert watchlist `flagged_for_research` **and** backfill 1y EOD history into `market_data` (existing `fetchStockPrices(ticker, fromDate)`) so DMA/range context exists before underwriting.
+  - `runScreen(criteria)` — Zod criteria (band + sector + floors; defaults: mcap ≥ $2B, no ceiling, vol ≥ 500k, cap 1000) → screener (deduped) → `mapInChunks` fan-out (ratios-ttm, key-metrics-ttm, forward EPS, price-change; failed calls retried once; a ticker still failing is DEGRADED: stored all-null, never ranked) → abort writing nothing when >15% degraded → score → insert run + results + prune >730-day runs in one tx → `revalidatePath('/', 'layout')`. Returns `{runId, scored, failed, truncated}`. Never auto-run on page load.
+  - `flagForResearch(ticker)` — upsert watchlist `flagged_for_research` (conflict-safe) **and** backfill 1y EOD history into `market_data` so DMA/range context exists before underwriting (research-stage context only — not a scoring input).
   - `setWatchlistStatus(ticker, status)`.
 - **Widen `refreshTickerFundamentals`** (`src/server/actions/market-data.ts`): ticker set = transactions stock tickers ∪ watchlist tickers with status ∈ {flagged_for_research, researched, watchlisted}.
 - **`/screening` page**: criteria form + Run button, TanStack results table sortable by factor/composite scores, flag toggle per row, watchlist tab (`?tab=` search param).
@@ -280,13 +280,13 @@ pipeline and the screener):
 - [x] Skill edits per §7 (v3 rubrics + persistence)
 - Verified: 677 Vitest green (+54: schema shape/refinements, action transitions + invariants + displacement gate, add-down state machine, trigger kinds + suppression + nulls + cooling); browser flow via Playwright MCP (seeded draft → /research edit conviction → finalize → `/positions/ASML` panels → Apply dialog exact before/after → /allocation + cash updated, Σ=100 → /construction trigger table) — then reverted; no standing `e2e/` harness exists yet (backlog for Phase 4's full pass). The real portfolio decision waits for the Rebuild (§8, after Phase 3).
 
-### Phase 3 — Screening engine (2–3 days)
-- [ ] `screening_runs`, `screening_results`, `watchlist` → `db:push`
-- [ ] fmp.ts: `fetchScreenerCompanies`, `fetchPriceChange` (+ types) — verify `/stock-price-change` shape via FMP MCP first
-- [ ] `quant-score.ts` + `moving-averages.ts` services
-- [ ] `screening.ts` action + queries; widen `refreshTickerFundamentals` to watchlist tickers
-- [ ] `/screening` page (criteria form, results table, flag control, watchlist tab with buy-eligible dates); flag → 1y price backfill
-- Verify: Vitest (percentile ranking, winsorization, null-factor renormalization, deterministic composite on fixture universe; DMA on synthetic series; fmp wrappers with mocked fetch per existing `fmp.test.ts` pattern; action orchestration with mocked fmp module); Playwright (seeded run: sort by composite, flag a name, watchlist tab — no live FMP in E2E); manual once: real `runScreen` with cap=50.
+### Phase 3 — Screening engine — DONE 2026-08-04
+- [x] `screening_runs`, `screening_results`, `watchlist` → `db:push`
+- [x] fmp.ts: `fetchScreenerCompanies`, `fetchPriceChange` (+ types) — both endpoint shapes verified live via FMP MCP first
+- [x] `quant-score.ts` + `moving-averages.ts` services
+- [x] `screening.ts` action + queries; widened `refreshTickerFundamentals` to watchlist tickers; watchlist wired into theses actions (finalize keep→`watchlisted`, cut/reject→`rejected`, applyTarget→row retires)
+- [x] `/screening` page (criteria form, results table, flag control, watchlist tab with buy-eligible dates); flag → 1y price backfill
+- Verified: 705 Vitest green (+28: winsorized percentile ranks incl. ties/nulls, factor renormalization, deterministic fixture composite, DMA on synthetic series incl. short-history nulls, fmp wrappers with mocked fetch, runScreen/flag/status orchestration with mocked fmp); browser flow on a seeded run (composite order, column sort both directions, flag → watchlist tab with actions) — seed reverted; manual real `runScreen` cap=50 succeeded (Run #2, 50/50 scored, kept in the DB as the first genuine snapshot).
 
 ### Milestone — The Rebuild (after Phase 3; §8)
 Screen the universe → shortlist candidates ∪ defensible incumbents → underwrite
@@ -306,8 +306,8 @@ apply targets → exit the rest. One-time transition provision (IPS v3.2) applie
 
 ## 10. Watch items
 
-- `/stock-price-change` still needs shape verification via FMP MCP before coding the wrapper.
-- `runScreen` is a long server action — cap the universe, return `{scored, failed}`, never auto-run.
+- `runScreen` is a long server action — cap the universe, return `{scored, failed}`, never auto-run. ~5 FMP calls/name; concurrency 16 when the run's total call budget fits under the Ultimate plan's 3,000/min cap, auto-paced to 6 on bigger universes (cap ≳ 500) so the first minute stays under the limit.
+- FMP's screener reports latest daily volume (stored as `avg_volume`), includes multiple share classes (GOOG + GOOGL), and can return non-operating listings (SPCX) with no metrics — they sink to the bottom with null scores.
 - One-draft/one-current invariant enforced in the actions layer (SQLite partial unique indexes via `db:push` are unreliable); append-only versioning makes concurrent skill + UI writes safe — worst case two drafts, finalize supersedes by version order.
 - Do **not** conflate `sleeve-map.ts` (backward-looking analytics taxonomy, 8 sleeves) with the policy buckets.
 - `add_down_state` is manual by design (advisory app, trades happen in IBKR) — the ibkr-sync skill may *suggest* flipping it to `used` when it imports a buy below the prior version's add level, but the UI action is the only writer.
@@ -325,3 +325,4 @@ apply targets → exit the rest. One-time transition provision (IPS v3.2) applie
 | 2026-08-04 | Policy v3 | Ground-up IPS rewrite after outsider review: 57/35/3/5, 6–8 names, sector cap, admission rules (cooling period, 2/quarter, displacement), **no valuation trims**, break-condition exits with backstop-as-review, 1–3y thesis horizons with expiry (v3.1), options spec, mechanical crash protocol, kill switch vs VT, change control. `policy.ts` + tests mirrored; 623 tests green. |
 | 2026-08-04 | Doc rewrite | This document rebuilt against v3: stale v1/v2 layers removed, `position_theses` respec'd (break_conditions, horizon/expiry, add_down_state, sector; trim/exit levels dropped), Engine 4 redefined as triggers + review demands with suppression precedence, Engine 5 (governance) and Phase 5 added, reconciliation rewritten for the 18→6–8 prune. |
 | 2026-08-04 | Phase 2 | `position_theses` pushed; Zod `position-thesis.ts` (core-no-opinions + keep-requires-horizon/breaks refinements); `queries/theses.ts` + `actions/theses.ts` (finalize/reject/levels/add-down/apply — apply moves the residual into `cash_target_weight`, errors if it would go negative); `level-triggers.ts` + /construction table; `/research` (draft form with diff-vs-prior + critique, roster with Apply confirm); `PositionThesisPanel`/`PositionLevelsPanel` replace the placeholder (placeholder deleted); skills rewritten to v3 + draft-only persistence contract. 677 tests green. Level edits clone a version WITHOUT resetting `reviewed_at`/`expires_at` (cooling + horizon clocks survive level tweaks). |
+| 2026-08-04 | Phase 3 | Screening tables pushed; `fetchScreenerCompanies` + `fetchPriceChange` (shapes MCP-verified); `quant-score.ts` (winsorized percentile ranks, null renormalization, fwdPe→peTtm fallback, DMA momentum input) + `moving-averages.ts`; `runScreen`/`flagForResearch`(+1y backfill)/`setWatchlistStatus` with transition map in `shared/schemas/screening.ts`; `/screening` page (criteria + TanStack results + watchlist tab); `refreshTickerFundamentals` widened to live watchlist names; watchlist machine wired into finalize/reject/apply. 705 tests green. First real run stored (Run #2, top-50 by mcap). Next: the Rebuild (§8). |

@@ -41,10 +41,28 @@ export interface FmpRatiosTtm {
   debtToEquityTtm: number | null;
 }
 
-/** Single future-year EPS estimate (FMP /analyst-estimates). */
+/**
+ * Quality metrics from FMP /key-metrics-ttm. ROIC is capital-structure-
+ * neutral (defined even with negative book equity); income quality is
+ * CFO ÷ net income — the accruals signal.
+ */
+export interface FmpKeyMetricsTtm {
+  roeTtm: number | null;
+  roicTtm: number | null;
+  incomeQualityTtm: number | null;
+}
+
+/** Forward EPS estimates (FMP /analyst-estimates). */
 export interface FmpForwardEps {
+  /** FY1 fiscal-year end (nearest upcoming), yyyy-MM-dd. */
   date: string;
+  /** Raw FY1 estimate — the cross-run revision comparison basis. */
   epsAvg: number;
+  /**
+   * Time-weighted 12-month-forward EPS (FY1/FY2 interpolated so every name
+   * is measured over the same horizon; FY1 alone when no FY2 estimate).
+   */
+  ntmEpsAvg: number;
 }
 
 /** FMP /price-target-consensus. */

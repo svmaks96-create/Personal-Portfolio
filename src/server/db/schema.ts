@@ -233,6 +233,107 @@ export const positionTheses = sqliteTable(
   ]
 );
 
+export const screeningRuns = sqliteTable("screening_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runDate: text("run_date").notNull(),
+  // Zod-validated ScreeningCriteria, serialized — the exact floors used.
+  criteriaJson: text("criteria_json").notNull(),
+  universeCount: integer("universe_count").notNull(),
+  scoredCount: integer("scored_count").notNull(),
+  fetchedAt: text("fetched_at").notNull(),
+});
+
+/**
+ * Point-in-time snapshot per run — a dated external snapshot like market_data,
+ * not derived app state. Raw metrics + factor percentiles (0–100) frozen at
+ * fetch time so past runs stay comparable.
+ */
+export const screeningResults = sqliteTable(
+  "screening_results",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => screeningRuns.id),
+    ticker: text("ticker").notNull(),
+    companyName: text("company_name"),
+    sector: text("sector"),
+    industry: text("industry"),
+    exchange: text("exchange"),
+    marketCap: real("market_cap"),
+    price: real("price"),
+    avgVolume: real("avg_volume"),
+    // Raw metric snapshot. Yields/margins are fractions; multiples plain numbers.
+    peTtm: real("pe_ttm"),
+    fwdPe: real("fwd_pe"),
+    pfcfTtm: real("pfcf_ttm"),
+    evEbitdaTtm: real("ev_ebitda_ttm"),
+    psTtm: real("ps_ttm"),
+    pbTtm: real("pb_ttm"),
+    roeTtm: real("roe_ttm"),
+    roicTtm: real("roic_ttm"),
+    netMarginTtm: real("net_margin_ttm"),
+    debtToEquityTtm: real("debt_to_equity_ttm"),
+    incomeQualityTtm: real("income_quality_ttm"),
+    // ntmEpsAvg / epsTtm − 1, as a fraction (display only; undefined for losses).
+    epsGrowthFwd: real("eps_growth_fwd"),
+    // Raw FY1 estimate + its fiscal-year end — the revision comparison basis.
+    fwdEpsAvg: real("fwd_eps_avg"),
+    fwdEpsDate: text("fwd_eps_date"),
+    // (NTM EPS − TTM EPS) / price — the ranked growth input.
+    epsChangeYieldFwd: real("eps_change_yield_fwd"),
+    // FY1 estimate vs the latest 21–120-day-old run, same fiscal year.
+    epsRevision: real("eps_revision"),
+    // Percent moves from FMP /stock-price-change.
+    priceChange3m: real("price_change_3m"),
+    priceChange6m: real("price_change_6m"),
+    // 12-minus-1 return — the ranked momentum input.
+    priceChange12m1m: real("price_change_12m1m"),
+    // Consensus target vs screener price, percent.
+    analystUpside: real("analyst_upside"),
+    // Factor percentiles 0–100 (higher = better); null when no metric available.
+    valueScore: real("value_score"),
+    growthScore: real("growth_score"),
+    qualityScore: real("quality_score"),
+    momentumScore: real("momentum_score"),
+    compositeScore: real("composite_score"),
+  },
+  (table) => [
+    uniqueIndex("screening_results_run_ticker_idx").on(table.runId, table.ticker),
+    index("screening_results_run_composite_idx").on(
+      table.runId,
+      table.compositeScore,
+    ),
+  ]
+);
+
+/**
+ * Persists across screening runs. Status machine:
+ * candidate → flagged_for_research → researched → watchlisted | rejected.
+ * Cooling-period eligibility is DERIVED from the thesis reviewed_at — never stored.
+ */
+export const watchlist = sqliteTable(
+  "watchlist",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticker: text("ticker").notNull(),
+    status: text("status")
+      .$type<
+        | "candidate"
+        | "flagged_for_research"
+        | "researched"
+        | "watchlisted"
+        | "rejected"
+      >()
+      .notNull(),
+    sourceRunId: integer("source_run_id"),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [uniqueIndex("watchlist_ticker_idx").on(table.ticker)]
+);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { addMonths } from "date-fns";
 import Decimal from "decimal.js";
 import { db } from "@/server/db";
-import { positionTheses, allocationTargets } from "@/server/db/schema";
+import { positionTheses, allocationTargets, watchlist } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
 import {
   finalizeThesisSchema,
@@ -192,6 +192,22 @@ export async function finalizeThesis(
         })
         .where(eq(positionTheses.id, draft.id))
         .run();
+
+      // Watchlist machine: finalize-with-keep → watchlisted; a cut verdict on
+      // a researched candidate means "don't buy" → rejected. No-op when the
+      // name never came through the watchlist.
+      tx.update(watchlist)
+        .set({
+          status: v.keepDecision === "cut" ? "rejected" : "watchlisted",
+          updatedAt: reviewedAt,
+        })
+        .where(
+          and(
+            eq(watchlist.ticker, draft.ticker),
+            eq(watchlist.status, "researched"),
+          ),
+        )
+        .run();
     });
 
     revalidatePath("/", "layout");
@@ -224,10 +240,22 @@ export async function rejectDraft(
       };
     }
 
-    db.update(positionTheses)
-      .set({ status: "rejected", isCurrent: false, changeReason: reason.trim() })
-      .where(eq(positionTheses.id, draftId))
-      .run();
+    const rejectedAt = new Date().toISOString();
+    db.transaction((tx) => {
+      tx.update(positionTheses)
+        .set({ status: "rejected", isCurrent: false, changeReason: reason.trim() })
+        .where(eq(positionTheses.id, draftId))
+        .run();
+      tx.update(watchlist)
+        .set({ status: "rejected", updatedAt: rejectedAt })
+        .where(
+          and(
+            eq(watchlist.ticker, draft.ticker),
+            eq(watchlist.status, "researched"),
+          ),
+        )
+        .run();
+    });
 
     revalidatePath("/", "layout");
     return { success: true, data: undefined };
@@ -471,6 +499,10 @@ export async function applyTargetToAllocation(
         .run();
     }
     setCashTargetWeight(cashAfter);
+
+    // Graduation: once a name carries an allocation target it has left the
+    // funnel — the watchlist row retires (§5.5).
+    db.delete(watchlist).where(eq(watchlist.ticker, upper)).run();
 
     revalidatePath("/", "layout");
     return { success: true, data: undefined };

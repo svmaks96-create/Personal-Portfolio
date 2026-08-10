@@ -1,18 +1,52 @@
 import { config } from "@/server/config";
-import { subDays, format } from "date-fns";
+import { subDays, format, parseISO, differenceInCalendarDays } from "date-fns";
 import type { FmpEodQuote } from "@/server/types/market-data";
 import type { FmpCompanyProfile, FmpEtfHolding, FmpExchangeVariant } from "@/server/types/concentration";
 import type {
   FmpProfileFull,
   FmpRatiosTtm,
+  FmpKeyMetricsTtm,
   FmpForwardEps,
   FmpPriceTargetConsensus,
   FmpRatingSnapshot,
   FmpDividendEvent,
 } from "@/server/types/fundamentals";
+import type {
+  FmpScreenerCompany,
+  FmpPriceChange,
+} from "@/server/types/screening";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 const EOD_LOOKBACK_DAYS = 7;
+
+// ---------------------------------------------------------------------------
+// Rate limiting — ALL FMP traffic flows through fmpFetch, so overlapping
+// operations (a screening run + a fundamentals refresh) share one budget and
+// cannot jointly breach the plan cap. Concurrency elsewhere only bounds
+// connections; THIS is what bounds calls per minute.
+// ---------------------------------------------------------------------------
+
+/** Sliding-window cap, ~17% headroom under the Ultimate plan's 3,000/min. */
+const FMP_CALLS_PER_MINUTE = 2_500;
+const RATE_WINDOW_MS = 60_000;
+const recentCallTimes: number[] = [];
+
+async function fmpFetch(url: string): Promise<Response> {
+  for (;;) {
+    const now = Date.now();
+    while (recentCallTimes.length > 0 && now - recentCallTimes[0] >= RATE_WINDOW_MS) {
+      recentCallTimes.shift();
+    }
+    if (recentCallTimes.length < FMP_CALLS_PER_MINUTE) {
+      recentCallTimes.push(now);
+      break;
+    }
+    // Window full — sleep until the oldest call ages out, then re-check.
+    const waitMs = RATE_WINDOW_MS - (now - recentCallTimes[0]) + 5;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+  return fetch(url);
+}
 
 /** Benchmark ETF tickers fetched alongside user holdings for performance comparison. */
 export const BENCHMARK_TICKERS = ["SPY", "QQQ"] as const;
@@ -76,7 +110,7 @@ function isValidEodQuote(item: unknown): item is FmpEodQuote {
 async function fetchEodLight(symbol: string, from: string): Promise<FmpEodQuote[]> {
   try {
     const url = `${FMP_BASE_URL}/historical-price-eod/light?symbol=${encodeURIComponent(symbol)}&from=${from}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
+    const response = await fmpFetch(url);
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
@@ -111,7 +145,7 @@ export async function fetchEtfHoldings(
 
   try {
     const url = `${FMP_BASE_URL}/etf/holdings?symbol=${encodeURIComponent(etfSymbol)}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
+    const response = await fmpFetch(url);
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
@@ -139,7 +173,7 @@ function isValidProfile(item: unknown): item is RawProfile {
 async function fetchProfile(symbol: string): Promise<FmpCompanyProfile | null> {
   try {
     const url = `${FMP_BASE_URL}/profile?symbol=${encodeURIComponent(symbol)}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
+    const response = await fmpFetch(url);
     if (!response.ok) return null;
     const data = await response.json();
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -168,7 +202,7 @@ export async function fetchExchangeVariants(
 
   try {
     const url = `${FMP_BASE_URL}/search-exchange-variants?symbol=${encodeURIComponent(ticker)}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
+    const response = await fmpFetch(url);
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
@@ -239,18 +273,42 @@ function parseEmployees(value: unknown): number | null {
 async function fetchFirstObject(
   path: string
 ): Promise<Record<string, unknown> | null> {
+  const result = await fetchFirstObjectResult(path);
+  return result.ok ? result.item : null;
+}
+
+/**
+ * Discriminated fetch outcome: `ok: true` means the endpoint answered (data
+ * may still be legitimately absent); `ok: false` means transport/HTTP failure
+ * — the caller CANNOT tell what the data would have been. Screening uses this
+ * to keep rate-limit errors from masquerading as missing metrics.
+ */
+export type FmpResult<T> = { ok: true; data: T | null } | { ok: false };
+
+/**
+ * Like fetchFirstObject but distinguishes "endpoint answered with no rows"
+ * (ok, item null) from HTTP/network failure (not ok).
+ */
+async function fetchFirstObjectResult(
+  path: string
+): Promise<{ ok: true; item: Record<string, unknown> | null } | { ok: false }> {
   try {
     const url = `${FMP_BASE_URL}/${path}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
-    if (!response.ok) return null;
+    const response = await fmpFetch(url);
+    if (!response.ok) return { ok: false };
     const data = await response.json();
-    if (!Array.isArray(data) || data.length === 0) return null;
+    // Non-array payloads are FMP error envelopes, not empty results.
+    if (!Array.isArray(data)) return { ok: false };
     const item = data[0];
-    return typeof item === "object" && item !== null
-      ? (item as Record<string, unknown>)
-      : null;
+    return {
+      ok: true,
+      item:
+        typeof item === "object" && item !== null
+          ? (item as Record<string, unknown>)
+          : null,
+    };
   } catch {
-    return null;
+    return { ok: false };
   }
 }
 
@@ -289,36 +347,60 @@ export async function fetchTickerProfileFull(
   };
 }
 
-/** Fetch TTM ratios (FMP /ratios-ttm). */
+/** Fetch TTM ratios (FMP /ratios-ttm). Not-ok = transport failure, retryable. */
 export async function fetchRatiosTtm(
   ticker: string
-): Promise<FmpRatiosTtm | null> {
-  if (!ticker || !config.fmpApiKey) return null;
-  const r = await fetchFirstObject(`ratios-ttm?symbol=${encodeURIComponent(ticker)}`);
-  if (!r) return null;
+): Promise<FmpResult<FmpRatiosTtm>> {
+  if (!ticker || !config.fmpApiKey) return { ok: false };
+  const result = await fetchFirstObjectResult(
+    `ratios-ttm?symbol=${encodeURIComponent(ticker)}`
+  );
+  if (!result.ok) return { ok: false };
+  const r = result.item;
+  if (!r) return { ok: true, data: null };
   return {
-    peTtm: num(r.priceToEarningsRatioTTM),
-    epsTtm: num(r.netIncomePerShareTTM),
-    divYieldTtm: num(r.dividendYieldTTM),
-    psTtm: num(r.priceToSalesRatioTTM),
-    pbTtm: num(r.priceToBookRatioTTM),
-    pfcfTtm: num(r.priceToFreeCashFlowRatioTTM),
-    evEbitdaTtm: num(r.enterpriseValueMultipleTTM),
-    netMarginTtm: num(r.netProfitMarginTTM),
-    debtToEquityTtm: num(r.debtToEquityRatioTTM),
+    ok: true,
+    data: {
+      peTtm: num(r.priceToEarningsRatioTTM),
+      epsTtm: num(r.netIncomePerShareTTM),
+      divYieldTtm: num(r.dividendYieldTTM),
+      psTtm: num(r.priceToSalesRatioTTM),
+      pbTtm: num(r.priceToBookRatioTTM),
+      pfcfTtm: num(r.priceToFreeCashFlowRatioTTM),
+      evEbitdaTtm: num(r.enterpriseValueMultipleTTM),
+      netMarginTtm: num(r.netProfitMarginTTM),
+      debtToEquityTtm: num(r.debtToEquityRatioTTM),
+    },
   };
 }
 
-/** Fetch return-on-equity TTM (FMP /key-metrics-ttm). */
-export async function fetchRoeTtm(ticker: string): Promise<number | null> {
-  if (!ticker || !config.fmpApiKey) return null;
-  const m = await fetchFirstObject(`key-metrics-ttm?symbol=${encodeURIComponent(ticker)}`);
-  return m ? num(m.returnOnEquityTTM) : null;
+/** Fetch ROE / ROIC / income quality TTM (FMP /key-metrics-ttm, one call). */
+export async function fetchKeyMetricsTtm(
+  ticker: string
+): Promise<FmpResult<FmpKeyMetricsTtm>> {
+  if (!ticker || !config.fmpApiKey) return { ok: false };
+  const result = await fetchFirstObjectResult(
+    `key-metrics-ttm?symbol=${encodeURIComponent(ticker)}`
+  );
+  if (!result.ok) return { ok: false };
+  const m = result.item;
+  if (!m) return { ok: true, data: null };
+  return {
+    ok: true,
+    data: {
+      roeTtm: num(m.returnOnEquityTTM),
+      roicTtm: num(m.returnOnInvestedCapitalTTM),
+      incomeQualityTtm: num(m.incomeQualityTTM),
+    },
+  };
 }
 
 /**
- * Pick the nearest UPCOMING fiscal-year EPS estimate: the entry with the
- * smallest date strictly after `todayIso`. Pure — exported for testing.
+ * Pick FY1 (nearest fiscal-year end strictly after `todayIso`) and build the
+ * NTM (next-twelve-months) EPS by time-weighting FY1 with FY2: FY1 covers the
+ * next `w` fraction of the year, FY2 the remainder. Without FY2, FY1 stands
+ * alone. This keeps the growth horizon CONSTANT across companies whose fiscal
+ * years end 1 vs 11 months out. Pure — exported for testing.
  */
 export function selectForwardEps(
   items: { date: string | null; epsAvg: number | null }[],
@@ -326,32 +408,44 @@ export function selectForwardEps(
 ): FmpForwardEps | null {
   const future = items
     .filter(
-      (d): d is FmpForwardEps =>
+      (d): d is { date: string; epsAvg: number } =>
         d.date !== null && d.epsAvg !== null && d.date > todayIso
     )
     .sort((a, b) => (a.date < b.date ? -1 : 1));
-  return future[0] ?? null;
+  const fy1 = future[0];
+  if (!fy1) return null;
+  const fy2 = future[1];
+
+  const daysToFy1 = differenceInCalendarDays(
+    parseISO(fy1.date),
+    parseISO(todayIso)
+  );
+  const w = Math.min(1, Math.max(0, daysToFy1 / 365));
+  const ntmEpsAvg =
+    fy2 === undefined ? fy1.epsAvg : w * fy1.epsAvg + (1 - w) * fy2.epsAvg;
+
+  return { date: fy1.date, epsAvg: fy1.epsAvg, ntmEpsAvg };
 }
 
 /** Fetch the nearest upcoming fiscal-year EPS estimate (FMP /analyst-estimates). */
 export async function fetchForwardEps(
   ticker: string,
   todayIso: string
-): Promise<FmpForwardEps | null> {
-  if (!ticker || !config.fmpApiKey) return null;
+): Promise<FmpResult<FmpForwardEps>> {
+  if (!ticker || !config.fmpApiKey) return { ok: false };
   try {
     const url = `${FMP_BASE_URL}/analyst-estimates?symbol=${encodeURIComponent(ticker)}&period=annual&limit=20&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
-    if (!response.ok) return null;
+    const response = await fmpFetch(url);
+    if (!response.ok) return { ok: false };
     const data = await response.json();
-    if (!Array.isArray(data)) return null;
+    if (!Array.isArray(data)) return { ok: false };
     const items = data.map((d) => {
       const o = d as Record<string, unknown>;
       return { date: str(o.date), epsAvg: num(o.epsAvg) };
     });
-    return selectForwardEps(items, todayIso);
+    return { ok: true, data: selectForwardEps(items, todayIso) };
   } catch {
-    return null;
+    return { ok: false };
   }
 }
 
@@ -384,6 +478,99 @@ export async function fetchRatingSnapshot(
   return { rating: str(r.rating), overallScore: num(r.overallScore) };
 }
 
+// ---------------------------------------------------------------------------
+// Screening (Engine 2)
+// ---------------------------------------------------------------------------
+
+export interface ScreenerCriteria {
+  marketCapMoreThan: number;
+  /** Optional mcap ceiling (FMP `marketCapLowerThan`); null = no ceiling. */
+  marketCapLowerThan: number | null;
+  volumeMoreThan: number;
+  /** Optional single-sector filter (FMP taxonomy string); null = all sectors. */
+  sector: string | null;
+  limit: number;
+}
+
+/**
+ * Fetch the screened universe (FMP /company-screener): US-listed incl. ADRs,
+ * actively trading, non-ETF/non-fund, inside the market-cap band and above the
+ * volume floor. FMP sorts by market cap descending, so when `limit` binds it
+ * cuts the SMALLEST names above the floor — callers should treat
+ * result.length >= limit as a truncated universe.
+ */
+export async function fetchScreenerCompanies(
+  criteria: ScreenerCriteria
+): Promise<FmpScreenerCompany[]> {
+  if (!config.fmpApiKey) return [];
+  try {
+    const params = new URLSearchParams({
+      marketCapMoreThan: String(criteria.marketCapMoreThan),
+      volumeMoreThan: String(criteria.volumeMoreThan),
+      country: "US",
+      exchange: "NYSE,NASDAQ,AMEX",
+      isActivelyTrading: "true",
+      isEtf: "false",
+      isFund: "false",
+      limit: String(criteria.limit),
+    });
+    if (criteria.marketCapLowerThan !== null) {
+      params.set("marketCapLowerThan", String(criteria.marketCapLowerThan));
+    }
+    if (criteria.sector !== null) {
+      params.set("sector", criteria.sector);
+    }
+    const url = `${FMP_BASE_URL}/company-screener?${params.toString()}&apikey=${config.fmpApiKey}`;
+    const response = await fmpFetch(url);
+    if (!response.ok) return [];
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+    const out: FmpScreenerCompany[] = [];
+    for (const item of data) {
+      const o = item as Record<string, unknown>;
+      if (typeof o.symbol !== "string" || o.symbol.length === 0) continue;
+      out.push({
+        symbol: o.symbol,
+        companyName: str(o.companyName),
+        marketCap: num(o.marketCap),
+        sector: str(o.sector),
+        industry: str(o.industry),
+        price: num(o.price),
+        volume: num(o.volume),
+        exchangeShortName: str(o.exchangeShortName),
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch percent price changes over standard windows (FMP /stock-price-change —
+ * 1M/3M/6M/1Y in one call; keys are literally "1M", "3M", …).
+ */
+export async function fetchPriceChange(
+  ticker: string
+): Promise<FmpResult<FmpPriceChange>> {
+  if (!ticker || !config.fmpApiKey) return { ok: false };
+  const result = await fetchFirstObjectResult(
+    `stock-price-change?symbol=${encodeURIComponent(ticker)}`
+  );
+  if (!result.ok) return { ok: false };
+  const p = result.item;
+  if (!p) return { ok: true, data: null };
+  return {
+    ok: true,
+    data: {
+      change1m: num(p["1M"]),
+      change3m: num(p["3M"]),
+      change6m: num(p["6M"]),
+      change1y: num(p["1Y"]),
+    },
+  };
+}
+
 /** Fetch recent dividend events (FMP /dividends), newest first. */
 export async function fetchDividendHistory(
   ticker: string,
@@ -392,7 +579,7 @@ export async function fetchDividendHistory(
   if (!ticker || !config.fmpApiKey) return [];
   try {
     const url = `${FMP_BASE_URL}/dividends?symbol=${encodeURIComponent(ticker)}&limit=${limit}&apikey=${config.fmpApiKey}`;
-    const response = await fetch(url);
+    const response = await fmpFetch(url);
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];

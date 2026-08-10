@@ -6,6 +6,8 @@ import {
   fetchTickerProfileFull,
   fetchRatiosTtm,
   selectForwardEps,
+  fetchScreenerCompanies,
+  fetchPriceChange,
 } from "./fmp";
 
 // Mock config to control API key
@@ -272,25 +274,27 @@ describe("selectForwardEps", () => {
     { date: "2025-09-27", epsAvg: 7.3 },
   ];
 
-  it("picks the nearest upcoming fiscal year (smallest future date)", () => {
-    expect(selectForwardEps(items, "2026-06-17")).toEqual({
-      date: "2026-09-27",
-      epsAvg: 8.7,
-    });
+  it("picks FY1 and time-weights FY1/FY2 into a constant NTM horizon", () => {
+    const r = selectForwardEps(items, "2026-06-17");
+    expect(r?.date).toBe("2026-09-27");
+    expect(r?.epsAvg).toBe(8.7);
+    // 102 days to FY1 end → w = 102/365; NTM = w·8.7 + (1−w)·9.6.
+    expect(r?.ntmEpsAvg).toBeCloseTo(9.3485, 3);
   });
 
   it("ignores past-dated entries", () => {
-    expect(selectForwardEps(items, "2027-01-01")).toEqual({
-      date: "2027-09-27",
-      epsAvg: 9.6,
-    });
+    const r = selectForwardEps(items, "2027-01-01");
+    expect(r?.date).toBe("2027-09-27");
+    expect(r?.epsAvg).toBe(9.6);
+    // 269 days to FY1 end → mostly FY1, tail from FY2.
+    expect(r?.ntmEpsAvg).toBeCloseTo(9.863, 3);
   });
 
   it("returns null when all entries are historical", () => {
     expect(selectForwardEps(items, "2030-01-01")).toBeNull();
   });
 
-  it("skips entries with null date or epsAvg", () => {
+  it("skips null entries and falls back to FY1 alone when FY2 is absent", () => {
     const mixed = [
       { date: null, epsAvg: 99 },
       { date: "2027-09-27", epsAvg: null },
@@ -299,6 +303,7 @@ describe("selectForwardEps", () => {
     expect(selectForwardEps(mixed, "2026-01-01")).toEqual({
       date: "2026-09-27",
       epsAvg: 8.7,
+      ntmEpsAvg: 8.7,
     });
   });
 
@@ -380,21 +385,28 @@ describe("fetchRatiosTtm", () => {
     ]);
     const result = await fetchRatiosTtm("AAPL");
     expect(result).toEqual({
-      peTtm: 35.9,
-      epsTtm: 8.33,
-      divYieldTtm: 0.0035,
-      psTtm: 9.7,
-      pbTtm: 41.3,
-      pfcfTtm: 34.0,
-      evEbitdaTtm: 27.7,
-      netMarginTtm: 0.2715,
-      debtToEquityTtm: 0.795,
+      ok: true,
+      data: {
+        peTtm: 35.9,
+        epsTtm: 8.33,
+        divYieldTtm: 0.0035,
+        psTtm: 9.7,
+        pbTtm: 41.3,
+        pfcfTtm: 34.0,
+        evEbitdaTtm: 27.7,
+        netMarginTtm: 0.2715,
+        debtToEquityTtm: 0.795,
+      },
     });
   });
 
-  it("returns null on non-200 response", async () => {
+  it("distinguishes transport failure from an empty payload", async () => {
     vi.spyOn(global, "fetch").mockResolvedValue(new Response("err", { status: 500 }));
-    expect(await fetchRatiosTtm("AAPL")).toBeNull();
+    expect(await fetchRatiosTtm("AAPL")).toEqual({ ok: false });
+
+    vi.restoreAllMocks();
+    mockFetchResponse([]);
+    expect(await fetchRatiosTtm("AAPL")).toEqual({ ok: true, data: null });
   });
 });
 
@@ -406,5 +418,119 @@ describe("fmp.ts purity", () => {
     expect(source).not.toContain("@/server/db");
     expect(source).not.toContain("next/cache");
     expect(source).not.toContain("revalidatePath");
+  });
+});
+
+describe("fetchScreenerCompanies", () => {
+  const criteria = {
+    marketCapMoreThan: 2_000_000_000,
+    marketCapLowerThan: null,
+    volumeMoreThan: 500_000,
+    sector: null,
+    limit: 300,
+  };
+
+  it("maps screener rows and passes the US floors in the query", async () => {
+    mockFetchResponse([
+      {
+        symbol: "NVDA",
+        companyName: "NVIDIA Corporation",
+        marketCap: 5005027440000,
+        sector: "Technology",
+        industry: "Semiconductors",
+        price: 206.64,
+        volume: 127547828,
+        exchange: "NASDAQ Global Select",
+        exchangeShortName: "NASDAQ",
+        country: "US",
+        isEtf: false,
+      },
+      { companyName: "No symbol — dropped" },
+    ]);
+
+    const result = await fetchScreenerCompanies(criteria);
+    expect(result).toEqual([
+      {
+        symbol: "NVDA",
+        companyName: "NVIDIA Corporation",
+        marketCap: 5005027440000,
+        sector: "Technology",
+        industry: "Semiconductors",
+        price: 206.64,
+        volume: 127547828,
+        exchangeShortName: "NASDAQ",
+      },
+    ]);
+    const url = vi.mocked(global.fetch).mock.calls[0][0] as string;
+    expect(url).toContain("/company-screener?");
+    expect(url).toContain("marketCapMoreThan=2000000000");
+    expect(url).toContain("volumeMoreThan=500000");
+    expect(url).toContain("country=US");
+    expect(url).toContain("isActivelyTrading=true");
+    expect(url).toContain("isEtf=false");
+    expect(url).toContain("limit=300");
+    // Band ceiling and sector are omitted when null.
+    expect(url).not.toContain("marketCapLowerThan");
+    expect(url).not.toContain("sector=");
+  });
+
+  it("passes the mcap ceiling and sector when set", async () => {
+    mockFetchResponse([]);
+    await fetchScreenerCompanies({
+      ...criteria,
+      marketCapLowerThan: 30_000_000_000,
+      sector: "Financial Services",
+    });
+    const url = vi.mocked(global.fetch).mock.calls[0][0] as string;
+    expect(url).toContain("marketCapLowerThan=30000000000");
+    expect(url).toContain("sector=Financial+Services");
+  });
+
+  it("returns empty array on failure or non-array payload", async () => {
+    mockFetchResponse({ error: "nope" });
+    expect(await fetchScreenerCompanies(criteria)).toEqual([]);
+
+    vi.restoreAllMocks();
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("boom"));
+    expect(await fetchScreenerCompanies(criteria)).toEqual([]);
+  });
+});
+
+describe("fetchPriceChange", () => {
+  it("maps the numeric-keyed windows", async () => {
+    mockFetchResponse([
+      { symbol: "AAPL", "1D": -1.77, "1M": -2.95, "3M": 9.6, "6M": 9.73, "1Y": 49.21 },
+    ]);
+    const result = await fetchPriceChange("AAPL");
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        change1m: -2.95,
+        change3m: 9.6,
+        change6m: 9.73,
+        change1y: 49.21,
+      },
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/stock-price-change?symbol=AAPL")
+    );
+  });
+
+  it("nulls missing windows and reports empty payloads as ok-but-absent", async () => {
+    mockFetchResponse([{ symbol: "NEWIPO", "1M": 4.2 }]);
+    const partial = await fetchPriceChange("NEWIPO");
+    expect(partial).toEqual({
+      ok: true,
+      data: {
+        change1m: 4.2,
+        change3m: null,
+        change6m: null,
+        change1y: null,
+      },
+    });
+
+    vi.restoreAllMocks();
+    mockFetchResponse([]);
+    expect(await fetchPriceChange("AAPL")).toEqual({ ok: true, data: null });
   });
 });
