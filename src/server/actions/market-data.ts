@@ -28,6 +28,10 @@ import {
   BENCHMARK_TICKERS,
 } from "@/server/services/fmp";
 import {
+  RISK_PROXY_TICKERS,
+  RISK_HISTORY_START,
+} from "@/server/services/risk/constants";
+import {
   getEarliestTransactionDate,
   getCurrentlyHeldTickers,
   OPTION_MARK_SUFFIX,
@@ -65,7 +69,9 @@ export async function refreshPrices(): Promise<ActionResult<RefreshResult>> {
       .where(eq(transactions.instrument, "stock"))
       .all();
     const heldTickers = new Set(rows.map((r) => r.ticker));
-    const allTickers = [...new Set([...heldTickers, ...BENCHMARK_TICKERS])];
+    const allTickers = [
+      ...new Set([...heldTickers, ...BENCHMARK_TICKERS, ...RISK_PROXY_TICKERS]),
+    ];
 
     if (allTickers.length === 0) {
       return { success: true, data: { updated: 0, skipped: 0 } };
@@ -208,16 +214,23 @@ export async function backfillHistory(): Promise<ActionResult<BackfillResult>> {
     const heldTickers = new Set(
       txRows.filter((r) => r.instrument === "stock").map((r) => r.ticker)
     );
-    const tickerSymbols = [...new Set([...heldTickers, ...BENCHMARK_TICKERS])];
+    const tickerSymbols = [
+      ...new Set([...heldTickers, ...BENCHMARK_TICKERS, ...RISK_PROXY_TICKERS]),
+    ];
     const fxCurrencies = [...new Set(txRows.map((r) => r.currency))].filter(
       (c) => c !== "USD"
     );
+
+    // Prices reach back to the risk-module floor (scenario replay needs
+    // pre-ledger history); FX only needs to cover actual transactions.
+    const priceFromDate =
+      earliestDate < RISK_HISTORY_START ? earliestDate : RISK_HISTORY_START;
 
     const fetchedAt = new Date().toISOString();
 
     const stockResult = await fetchInChunks(
       tickerSymbols,
-      (ticker) => fetchStockPrices([ticker], earliestDate),
+      (ticker) => fetchStockPrices([ticker], priceFromDate),
       BACKFILL_CONCURRENCY
     );
 
