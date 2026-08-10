@@ -6,6 +6,10 @@ interface SparklineProps {
   fill?: boolean;
   strokeWidth?: number;
   className?: string;
+  /** Dashed reference line at the first data value, so up/down vs the window start is readable. */
+  baseline?: boolean;
+  /** Marker on the last data point. */
+  endDot?: boolean;
 }
 
 export function Sparkline({
@@ -16,6 +20,8 @@ export function Sparkline({
   fill = true,
   strokeWidth = 1.6,
   className,
+  baseline = false,
+  endDot = false,
 }: SparklineProps) {
   if (!data || data.length < 2) {
     return (
@@ -56,6 +62,18 @@ export function Sparkline({
       aria-hidden
     >
       {fill && <path d={area} fill={color} opacity={0.12} />}
+      {baseline && (
+        <line
+          x1={0}
+          x2={width}
+          y1={pts[0][1]}
+          y2={pts[0][1]}
+          stroke="var(--muted-foreground)"
+          strokeWidth={1}
+          strokeDasharray="2 3"
+          opacity={0.45}
+        />
+      )}
       <path
         d={stroke}
         fill="none"
@@ -64,6 +82,16 @@ export function Sparkline({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      {endDot && (
+        <circle
+          cx={pts[pts.length - 1][0]}
+          cy={pts[pts.length - 1][1]}
+          r={3}
+          fill={color}
+          stroke="var(--background)"
+          strokeWidth={1.5}
+        />
+      )}
     </svg>
   );
 }

@@ -115,6 +115,7 @@ export default async function PositionDetailPage({
         currency={detail.currency}
         dayChange={detail.dayChange}
         sparkData={detail.sparkData}
+        spark30dPct={detail.spark30dPct}
         range52w={detail.range52w}
       />
 
@@ -152,7 +153,7 @@ export default async function PositionDetailPage({
               currency={detail.currency}
               height={300}
             />
-            <div className="mt-3 flex flex-wrap gap-5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="mt-3 flex flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 bg-pos" /> Buy
               </span>
@@ -162,6 +163,9 @@ export default async function PositionDetailPage({
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-[1px] w-3 bg-muted-foreground" />
                 Avg entry
+              </span>
+              <span className="ml-auto normal-case tracking-[0.12em] opacity-70">
+                ×n = clustered trades · hover for detail
               </span>
             </div>
           </div>

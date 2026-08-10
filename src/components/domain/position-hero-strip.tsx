@@ -9,6 +9,7 @@ interface PositionHeroStripProps {
   currency: string;
   dayChange: { abs: number | null; pct: number | null };
   sparkData: number[];
+  spark30dPct: number | null;
   range52w: { low: number | null; high: number | null };
 }
 
@@ -44,11 +45,14 @@ export function PositionHeroStrip({
   currency,
   dayChange,
   sparkData,
+  spark30dPct,
   range52w,
 }: PositionHeroStripProps) {
   const dayTone = pnlColorClass(dayChange.abs);
   const sparkColor =
-    dayChange.abs !== null && dayChange.abs < 0 ? "var(--neg)" : "var(--pos)";
+    spark30dPct !== null && spark30dPct < 0 ? "var(--neg)" : "var(--pos)";
+  const sparkTone = pnlColorClass(spark30dPct);
+  const sparkStart = sparkData.length >= 2 ? sparkData[0] : null;
 
   return (
     <div className="grid grid-cols-1 border border-line bg-panel md:grid-cols-[1.1fr_1fr_1.2fr]">
@@ -77,15 +81,42 @@ export function PositionHeroStrip({
 
       <div className="flex flex-col gap-3 border-line p-5 md:border-r">
         <HeroCellLabel>30-day trend</HeroCellLabel>
-        <div className="flex flex-1 items-center">
-          {sparkData.length >= 2 ? (
-            <Sparkline data={sparkData} width={220} height={50} color={sparkColor} />
-          ) : (
+        {sparkData.length >= 2 ? (
+          <div className="flex flex-1 items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <Sparkline
+                data={sparkData}
+                width={200}
+                height={54}
+                color={sparkColor}
+                baseline
+                endDot
+              />
+            </div>
+            <div className="shrink-0 text-right">
+              <div
+                className={cn(
+                  "font-mono text-[20px] font-medium leading-none tabular-nums",
+                  sparkTone,
+                )}
+              >
+                {spark30dPct !== null && spark30dPct > 0 ? "+" : ""}
+                {formatPercentDetailed(
+                  spark30dPct !== null ? spark30dPct * 100 : null,
+                )}
+              </div>
+              <div className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                from {formatPrice(sparkStart)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center">
             <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
               Not enough history
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 p-5">

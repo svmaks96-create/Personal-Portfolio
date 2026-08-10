@@ -52,6 +52,7 @@ export interface PositionDetail {
   dayChange: { abs: number | null; pct: number | null };
   range52w: { low: number | null; high: number | null };
   sparkData: number[];
+  spark30dPct: number | null;
 
   priceHistory: PriceHistoryPoint[];
 
@@ -104,6 +105,14 @@ function deriveRange52w(
 function deriveSpark(history: MarketDataInput[], days = 30): number[] {
   if (history.length === 0) return [];
   return history.slice(-days).map((p) => p.value);
+}
+
+function deriveSparkPct(sparkData: number[]): number | null {
+  if (sparkData.length < 2) return null;
+  const first = sparkData[0];
+  const last = sparkData[sparkData.length - 1];
+  if (first <= 0) return null;
+  return new Decimal(last).div(first).minus(1).toNumber();
 }
 
 function deriveAnnualIncome(
@@ -258,6 +267,7 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
   const dayChange = deriveDayChange(history);
   const range52w = deriveRange52w(history, today);
   const sparkData = deriveSpark(history, 30);
+  const spark30dPct = deriveSparkPct(sparkData);
 
   const yieldOnCost =
     position.totalDividends !== null && position.costBasis !== null && position.costBasis > 0
@@ -306,6 +316,7 @@ export const getPositionDetail = cache((ticker: string): PositionDetail | null =
     dayChange,
     range52w,
     sparkData,
+    spark30dPct,
     priceHistory,
     trades,
     concentration,
