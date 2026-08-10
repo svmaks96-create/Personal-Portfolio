@@ -10,7 +10,6 @@ import {
   tickerProfiles,
   tickerFundamentals,
   tickerDividends,
-  watchlist,
 } from "@/server/db/schema";
 import { upsertMarketDataRows } from "@/server/db/market-data-writer";
 import {
@@ -43,7 +42,7 @@ import {
   getTickerProfileFetchedAtMap,
 } from "@/server/queries/ticker-profiles";
 import { getTickerFundamentalsFetchedAtMap } from "@/server/queries/ticker-fundamentals";
-import { eq, inArray, notInArray } from "drizzle-orm";
+import { eq, notInArray } from "drizzle-orm";
 import type { ActionResult } from "@/server/types/action-result";
 import type {
   RefreshResult,
@@ -549,26 +548,12 @@ export async function refreshTickerFundamentals(): Promise<ActionResult<RefreshR
     // All stock tickers ever transacted — including CLOSED positions, whose
     // detail pages still surface fundamentals (unlike ETF holdings, which are
     // only read for currently-held names). Mirrors refreshTickerProfiles.
-    // Plus live watchlist names, whose theses/triggers need a price + sector.
     const rows = db
       .select({ ticker: transactions.ticker })
       .from(transactions)
       .where(eq(transactions.instrument, "stock"))
       .all();
-    const watchRows = db
-      .select({ ticker: watchlist.ticker })
-      .from(watchlist)
-      .where(
-        inArray(watchlist.status, [
-          "flagged_for_research",
-          "researched",
-          "watchlisted",
-        ]),
-      )
-      .all();
-    const allTickers = [
-      ...new Set([...rows.map((r) => r.ticker), ...watchRows.map((r) => r.ticker)]),
-    ];
+    const allTickers = [...new Set(rows.map((r) => r.ticker))];
     if (allTickers.length === 0) {
       return { success: true, data: { updated: 0, skipped: 0 } };
     }

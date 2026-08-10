@@ -12,11 +12,8 @@ import { PositionProfilePanel } from "@/components/domain/position-profile-panel
 import { PositionDividendSchedulePanel } from "@/components/domain/position-dividend-schedule-panel";
 import { PositionConcentrationPanel } from "@/components/domain/position-concentration-panel";
 import { PositionTradeHistoryTable } from "@/components/domain/position-trade-history-table";
-import { PositionThesisPanel } from "@/components/domain/position-thesis-panel";
-import { PositionLevelsPanel } from "@/components/domain/position-levels-panel";
 import { PositionSwitcher } from "@/components/domain/position-switcher";
 import { getPositionDetail } from "@/server/queries/position-detail";
-import { getThesisForTicker } from "@/server/queries/theses";
 import { getStalestMarketDate } from "@/server/queries/market-data";
 
 interface PageProps {
@@ -50,8 +47,6 @@ export default async function PositionDetailPage({
   }
 
   const timestamp = getStalestMarketDate();
-  const thesisData = getThesisForTicker(ticker);
-  const currentThesis = thesisData.current;
 
   const breadcrumbHref = portfolioFilter
     ? `/positions?portfolio=${encodeURIComponent(portfolioFilter)}`
@@ -230,34 +225,6 @@ export default async function PositionDetailPage({
         trades={detail.trades}
         currency={detail.currency}
       />
-
-      <div className="grid grid-cols-[2fr_1fr] gap-4">
-        <PositionThesisPanel
-          ticker={detail.ticker}
-          current={currentThesis}
-          hasDraft={thesisData.draft !== null}
-          history={thesisData.history}
-        />
-        {currentThesis && currentThesis.bucket === "active" && (
-          <PositionLevelsPanel
-            ticker={detail.ticker}
-            levels={{
-              entryZoneLow: currentThesis.entryZoneLow,
-              entryZoneHigh: currentThesis.entryZoneHigh,
-              entryNote: currentThesis.entryNote,
-              addLevel: currentThesis.addLevel,
-              addMaxSizePct: currentThesis.addMaxSizePct,
-              addNote: currentThesis.addNote,
-              technicalBackstop: currentThesis.technicalBackstop,
-              backstopNote: currentThesis.backstopNote,
-            }}
-            addDownState={currentThesis.addDownState}
-            technicalContext={currentThesis.technicalContext}
-            range52w={detail.range52w}
-            currentPrice={currentPrice}
-          />
-        )}
-      </div>
     </div>
   );
 }

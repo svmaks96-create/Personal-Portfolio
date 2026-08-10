@@ -11,10 +11,6 @@ import type {
   FmpRatingSnapshot,
   FmpDividendEvent,
 } from "@/server/types/fundamentals";
-import type {
-  FmpScreenerCompany,
-  FmpPriceChange,
-} from "@/server/types/screening";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 const EOD_LOOKBACK_DAYS = 7;
@@ -476,99 +472,6 @@ export async function fetchRatingSnapshot(
   );
   if (!r) return null;
   return { rating: str(r.rating), overallScore: num(r.overallScore) };
-}
-
-// ---------------------------------------------------------------------------
-// Screening (Engine 2)
-// ---------------------------------------------------------------------------
-
-export interface ScreenerCriteria {
-  marketCapMoreThan: number;
-  /** Optional mcap ceiling (FMP `marketCapLowerThan`); null = no ceiling. */
-  marketCapLowerThan: number | null;
-  volumeMoreThan: number;
-  /** Optional single-sector filter (FMP taxonomy string); null = all sectors. */
-  sector: string | null;
-  limit: number;
-}
-
-/**
- * Fetch the screened universe (FMP /company-screener): US-listed incl. ADRs,
- * actively trading, non-ETF/non-fund, inside the market-cap band and above the
- * volume floor. FMP sorts by market cap descending, so when `limit` binds it
- * cuts the SMALLEST names above the floor — callers should treat
- * result.length >= limit as a truncated universe.
- */
-export async function fetchScreenerCompanies(
-  criteria: ScreenerCriteria
-): Promise<FmpScreenerCompany[]> {
-  if (!config.fmpApiKey) return [];
-  try {
-    const params = new URLSearchParams({
-      marketCapMoreThan: String(criteria.marketCapMoreThan),
-      volumeMoreThan: String(criteria.volumeMoreThan),
-      country: "US",
-      exchange: "NYSE,NASDAQ,AMEX",
-      isActivelyTrading: "true",
-      isEtf: "false",
-      isFund: "false",
-      limit: String(criteria.limit),
-    });
-    if (criteria.marketCapLowerThan !== null) {
-      params.set("marketCapLowerThan", String(criteria.marketCapLowerThan));
-    }
-    if (criteria.sector !== null) {
-      params.set("sector", criteria.sector);
-    }
-    const url = `${FMP_BASE_URL}/company-screener?${params.toString()}&apikey=${config.fmpApiKey}`;
-    const response = await fmpFetch(url);
-    if (!response.ok) return [];
-    const data = await response.json();
-    if (!Array.isArray(data)) return [];
-    const out: FmpScreenerCompany[] = [];
-    for (const item of data) {
-      const o = item as Record<string, unknown>;
-      if (typeof o.symbol !== "string" || o.symbol.length === 0) continue;
-      out.push({
-        symbol: o.symbol,
-        companyName: str(o.companyName),
-        marketCap: num(o.marketCap),
-        sector: str(o.sector),
-        industry: str(o.industry),
-        price: num(o.price),
-        volume: num(o.volume),
-        exchangeShortName: str(o.exchangeShortName),
-      });
-    }
-    return out;
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Fetch percent price changes over standard windows (FMP /stock-price-change —
- * 1M/3M/6M/1Y in one call; keys are literally "1M", "3M", …).
- */
-export async function fetchPriceChange(
-  ticker: string
-): Promise<FmpResult<FmpPriceChange>> {
-  if (!ticker || !config.fmpApiKey) return { ok: false };
-  const result = await fetchFirstObjectResult(
-    `stock-price-change?symbol=${encodeURIComponent(ticker)}`
-  );
-  if (!result.ok) return { ok: false };
-  const p = result.item;
-  if (!p) return { ok: true, data: null };
-  return {
-    ok: true,
-    data: {
-      change1m: num(p["1M"]),
-      change3m: num(p["3M"]),
-      change6m: num(p["6M"]),
-      change1y: num(p["1Y"]),
-    },
-  };
 }
 
 /** Fetch recent dividend events (FMP /dividends), newest first. */
