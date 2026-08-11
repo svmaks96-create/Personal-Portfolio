@@ -7,15 +7,22 @@ import {
   CASH_TARGET_WEIGHT,
   CRASH_DEFINITIONS,
   CRASH_PROTOCOL,
+  ENGINE_SPLIT,
+  EXPECTED_WORST_CASE,
+  HIGH_VOL_ENTRY,
   NAME_COUNTS,
   NAME_WEIGHT_LIMITS,
   OPTIONS_BUDGET_PCT,
   OPTIONS_SPEC,
   POLICY_BUCKETS,
   REBALANCE_BANDS,
+  SECTOR_CAP_CLUSTER_MIN_CORRELATION,
   SECTOR_CAP_PTS_OF_BOOK,
   SIZING_LADDER,
+  SLEEVE_RISK_GUARDRAIL,
+  SLEEVE_UNWIND_REVIEW,
   THESIS_HORIZON_YEARS,
+  VPU_SATELLITE,
   deriveTargetWeight,
   reconcileActiveTargets,
 } from "./policy";
@@ -93,6 +100,71 @@ describe("policy constants (v3)", () => {
     expect(CRASH_DEFINITIONS.recoveredWithinPctOfHigh).toBe(10);
   });
 
+  it("engine split sums to the core target with VPU capped at its satellite weight (v3.3)", () => {
+    expect(ENGINE_SPLIT).toEqual({ VTI: 28, VXUS: 19, VPU: 10 });
+    const sum = Object.values(ENGINE_SPLIT).reduce((a, w) => a + w, 0);
+    expect(sum).toBe(BUCKET_TARGETS.core);
+    // VTI:VXUS at the global market-cap ratio, ~60:40
+    const ratio = ENGINE_SPLIT.VTI / (ENGINE_SPLIT.VTI + ENGINE_SPLIT.VXUS);
+    expect(ratio).toBeGreaterThan(0.55);
+    expect(ratio).toBeLessThan(0.65);
+  });
+
+  it("VPU satellite band brackets its target and stays below the active sector cap (v3.3)", () => {
+    expect(VPU_SATELLITE.bandPts).toEqual({ min: 8, max: 12 });
+    expect(ENGINE_SPLIT.VPU).toBeGreaterThanOrEqual(VPU_SATELLITE.bandPts.min);
+    expect(ENGINE_SPLIT.VPU).toBeLessThanOrEqual(VPU_SATELLITE.bandPts.max);
+    // an ununderwritten sector bet must earn less room than an underwritten one
+    expect(VPU_SATELLITE.bandPts.max).toBeLessThan(SECTOR_CAP_PTS_OF_BOOK);
+    expect(VPU_SATELLITE.maxCorrelationToActiveSleeve).toBe(0.4);
+  });
+
+  it("pins both written-down worst cases, sleeve deeper than book (v3.3)", () => {
+    expect(EXPECTED_WORST_CASE).toEqual({
+      bookPct: -35,
+      sleeveFloorPct: -60,
+      sleeveTypicalPct: -50,
+    });
+    expect(EXPECTED_WORST_CASE.sleeveFloorPct).toBeLessThan(
+      EXPECTED_WORST_CASE.sleeveTypicalPct,
+    );
+    expect(EXPECTED_WORST_CASE.sleeveTypicalPct).toBeLessThan(
+      EXPECTED_WORST_CASE.bookPct,
+    );
+  });
+
+  it("pins the sleeve risk guardrail (v3.3)", () => {
+    expect(SLEEVE_RISK_GUARDRAIL).toEqual({
+      maxBetaVsSpy: 1.4,
+      maxVolVsSpyRatio: 1.75,
+    });
+  });
+
+  it("pins the high-vol entry rung-down (v3.3)", () => {
+    expect(HIGH_VOL_ENTRY).toEqual({
+      standaloneVolVsSpyRatio: 2,
+      rungsBelowConviction: 1,
+      graduationMinListedMonths: 12,
+      graduationMaxRiskShareVsWeight: 2,
+    });
+  });
+
+  it("pins the sector-cap cluster threshold (v3.3)", () => {
+    expect(SECTOR_CAP_CLUSTER_MIN_CORRELATION).toBe(0.5);
+  });
+
+  it("sleeve unwind review fires below its own high while the SPY protocol is silent (v3.3)", () => {
+    expect(SLEEVE_UNWIND_REVIEW).toEqual({
+      sleeveDrawdownPct: -35,
+      reviewWithinDays: 7,
+    });
+    // The sleeve trigger must be deeper than the SPY activation level —
+    // otherwise an ordinary market crash would double-fire both protocols.
+    expect(SLEEVE_UNWIND_REVIEW.sleeveDrawdownPct).toBeLessThan(
+      CRASH_DEFINITIONS.activationDrawdownPct,
+    );
+  });
+
   it("pins the active kill switch", () => {
     expect(ACTIVE_KILL_SWITCH).toEqual({
       benchmark: "VT",
@@ -128,6 +200,17 @@ describe("deriveTargetWeight — active ladder", () => {
   it("every rung clears the 3% minimum", () => {
     // a fresh ladder-sized position must never spawn an immediate below-min violation
     expect(SIZING_LADDER.active[3]).toBeGreaterThanOrEqual(NAME_WEIGHT_LIMITS.minPct);
+  });
+
+  it("high-vol entry sizes one rung below conviction (v3.3)", () => {
+    expect(deriveTargetWeight("active", 5, { highVolEntry: true })).toBe(4.5);
+    expect(deriveTargetWeight("active", 4, { highVolEntry: true })).toBe(3.5);
+    // conviction 3 high-vol: the rung below 3 does not exist — no slot
+    expect(deriveTargetWeight("active", 3, { highVolEntry: true })).toBeNull();
+    // a cut still overrides everything
+    expect(
+      deriveTargetWeight("active", 5, { keepDecision: "cut", highVolEntry: true }),
+    ).toBe(0);
   });
 });
 

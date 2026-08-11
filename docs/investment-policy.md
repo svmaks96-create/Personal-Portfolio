@@ -9,6 +9,23 @@ asserts the two agree on every number. Underwriting rubrics in
 `.claude/skills/*/SKILL.md` defer to this document wherever they conflict.
 
 **Changelog**
+- v3.3 (2026-08-11, effective 2026-08-18 after the 7-day cooling period): risk
+  amendments derived from the app's new `/risk` measurement module. Rationale:
+  the module showed (a) sleeve market beta drifted 1.02→1.43 across the 2024+
+  window with no rule able to see it, (b) the conviction ladder allocates risk
+  by accident when standalone vols differ 3× across names (two names held ~12%
+  of sleeve capital but ~21% of sleeve risk), (c) the crash protocol is keyed
+  entirely to SPY and cannot see a sector-specific unwind (2022 replay: sleeve
+  −52% floor; DeepSeek session: sleeve −19% with SPY quiet), and (d) VPU (~10%
+  of book, the strongest measured diversifier) existed outside the Part III
+  structure entirely. Changes: sleeve risk guardrail + high-vol entry rung-down
+  + cluster-based sector-cap evidence (Part IV), marginal-risk contribution
+  tie-breaker (Part VI), sleeve-specific unwind review (Part VII), both
+  worst-case numbers written down (Part II), VPU formalized inside the
+  unchanged 57-pt Engine as a capped structural satellite (target 10, band
+  8–12, retention tests; Part III — cap derived from sector-bet discipline,
+  not the risk optimum, which would hold more). No bucket target moved; no
+  new trim trigger was added.
 - v3.2 (2026-08-04): added the one-time transition provision (the initial
   rebuild selects from the full universe; throughput cap and displacement rule
   don't apply to that single event). Owner decision during v3 adoption.
@@ -55,8 +72,14 @@ by a rule, resolve it by these principles in order.
 - **Contributions:** ~$75k+/year. Until the book is several times larger, the
   savings rate is the dominant driver and the true dry powder.
 - **Risk posture:** 100% equity. **Expected worst case** (not a cap — no mechanism
-  in this policy limits drawdown): roughly −35% peak-to-trough in a normal bad
-  market, materially worse in a 2008-class crash. The written intention is to keep
+  in this policy limits drawdown): roughly −35% peak-to-trough at book level in a
+  normal bad market, materially worse in a 2008-class crash. The **active sleeve
+  alone** should be expected to draw down **−50% to −60%** in a growth-tech
+  unwind (the app's 2022 replay: −52% on 76% coverage — an understated floor,
+  since the excluded recent listings are the sleeve's most volatile names).
+  Holding the sleeve through such an episode is the plan, provided break
+  conditions are intact; these numbers are written here so the stressed decision
+  is made now, not at the trough. The written intention is to keep
   buying through it (demonstrated 2021–22: bought $96k in deep drawdowns, sold
   $298). No bonds/gold ballast — the 2021–24 ballast sleeves cost −3.2 pts of
   contribution for zero protection used.
@@ -73,13 +96,53 @@ by a rule, resolve it by these principles in order.
 
 | Role | Bucket | Target | Contents |
 |---|---|--:|---|
-| Engine | Passive Core | **57%** | VTI + VXUS ≈ 34/23. Band-rebalanced. No price levels, no opinions, never traded tactically. This target is a **floor that can only ratchet up** (Part VII). |
+| Engine | Passive Core | **57%** | VTI + VXUS + VPU ≈ 28/19/10. Band-rebalanced. No price levels, no opinions, never traded tactically. This target is a **floor that can only ratchet up** (Part VII). |
 | Alpha | Active Stocks | **35%** | 6–8 names, one tier, every name underwritten to the same standard (Part IV). |
 | Convexity | Options | **3%** | Annual premium budget, tightly specified (Part V). |
 | Liquidity | Cash | **5%** | Operating buffer. Contributions deploy monthly by default — cash is not a market view. |
 
 Total basis = invested holdings + all investable cash (Wio AED savings is
 investable; the external emergency buffer is excluded).
+
+**Internal balance.** VTI:VXUS is held at the global market-cap ratio (≈60:40)
+— the only opinion-free anchor, making the Engine a two-part VT. VPU sits
+inside the Engine as a **capped structural satellite**: target **10 pts of
+book, band 8–12**.
+
+**Why 10 (v3.3, derived 2026-08-11).** Measured across every window (ITD incl.
+the 2022 bear, 2023+, trailing 24m, 2025+), VPU runs VTI-like volatility with
+~0.35 correlation to VTI and **~0.1 to the active sleeve** — the most stable
+diversification relationship in the book. The risk data alone would hold
+*more*: book vol falls ~0.5pp per 5 pts moved from VTI/VXUS into VPU, with the
+minimum-variance point beyond 30% of book. The cap is therefore **not** a risk
+result — it is sector-bet discipline: an underwritten active sector earns at
+most 14 pts (Part IV); an *ununderwritten* sector opinion in an index wrapper
+must sit below that.
+
+**The return side, priced without a forecast (v3.3).** Sample mean returns are
+not estimable at useful precision (leadership between VTI/VXUS/VPU flips
+window to window while correlations hold; SE of a 5-year mean at 16% vol is
+~7pp/yr) — so VPU is sized by **breakeven**, not by expected return: the
+variance-drag saving of the 10-pt tilt covers VPU lagging broad equities by up
+to **≈1.9%/yr** in price terms (≈3.4%/yr total-return, given VPU's ~1.5pp
+dividend advantage). Long-run utilities lag ≈0.5–1%/yr — inside the hurdle.
+The 2021–26 sample lag was far outside it — incurred precisely in the AI-bull
+regime the rest of the book profits from. **VPU is therefore held as
+insurance, not as free diversification**: it is expected to cost a premium
+while the AI trade works (~0.1–0.2%/yr on the whole book at 10 pts) and to pay
+in the regime where the sleeve and VTI's tech weight fall together. The band
+reads: 8 = leaning "AI regime persists", 12 = leaning regime-caution — never
+more, since the premium scales with size and the insurance need does not. The
+annual review recomputes the breakeven alongside the retention tests below.
+
+**Rules.** VPU never grows beyond its band; transition funding comes from
+VTI/VXUS, never VPU; each annual review confirms on `/risk` that (a) its risk
+share remains well below its capital weight and (b) its correlation to the
+active sleeve remains below **0.4** — sustained breach of either (the
+AI-electricity theme fusing it to the AI bet) folds VPU into VTI/VXUS per
+Principle 4. Underwriting the electricity thesis properly would move VPU to
+the active sleeve under the ladder and sector cap; until that thesis exists
+with break conditions, it stays passive and capped.
 
 ## Part IV — Active sleeve
 
@@ -131,10 +194,29 @@ steady-state admission rules above bind.
   it, regardless of view.
 - **Minimum:** a held name below 3% real weight is a decision demand: top up to
   target or exit. No lingering remnants.
-- **Sector cap:** at most **14 pts of book** (40% of the sleeve) in any one GICS
-  sector, counted at target weights. Names whose theses rise and fall together
-  count as one sector regardless of classification (judgment call, made at
-  underwriting and recorded in the thesis).
+- **Sector cap:** at most **14 pts of book** (40% of the sleeve) in any one
+  sector, counted at target weights. **"One sector" is defined by the app's
+  `/risk` correlation clusters** (average pairwise shrunk correlation ≥ 0.5) as
+  the default evidence, overriding GICS where they disagree — names whose
+  returns say they are one bet count as one sector regardless of
+  classification. Judgment may *split* a measured cluster with written
+  rationale in the thesis; it may not merge past what the data shows.
+- **High-volatility entry rung-down (v3.3):** a name whose standalone
+  volatility exceeds **2× SPY's** (per `/risk`, at underwriting) enters **one
+  conviction rung below** its ladder weight (5 → 4.5% · 4 → 3.5% · 3 → no
+  slot). It graduates to its full rung at a scheduled review once it has
+  **12 months** of listed history *and* its risk share no longer exceeds
+  **2× its capital weight**. Rationale: at equal conviction, a 90%-vol name is
+  a materially larger bet than a 35%-vol name at the same dollar size; the
+  ladder must price that.
+- **Sleeve risk guardrail (v3.3):** at each quarterly review, record the active
+  sleeve's beta to SPY and model volatility from `/risk`. While sleeve beta
+  exceeds **1.4** or model vol exceeds **1.75× SPY's** (same window): (a) a new
+  name may be admitted only if its `+$10k → Δvol` marginal-risk figure is below
+  the sleeve median — high-octane candidates wait, they are not banned; (b)
+  contributions routed to the active sleeve obey the same constraint. **No
+  existing position is trimmed on this rule** — it gates what comes in, so
+  re-levering the sleeve is always a decision, never a drift.
 - **Two scores per name:** `conviction` (1–5) = business quality → drives weight
   via the ladder. `promiseRank` (1–5) = entry attractiveness today → drives
   timing only, never weight. Conviction may only be re-scored at a scheduled
@@ -195,6 +277,10 @@ budgeted, not extrapolated. Spec:
   still-valid pre-committed add-down. If none applies, the money overflows to the
   Engine — an underweight active sleeve is never, by itself, a buy signal on its
   fallen names.
+- **Marginal-risk tie-breaker (v3.3):** when contributions are eligible for
+  several active names under the rules above, prefer the name with the lowest
+  `+$10k → Δvol` on `/risk`. Correlation-aware sizing for free; never overrides
+  eligibility, only orders it.
 - **Bands:** rebalance a bucket when >±5 absolute points off target.
 - **Cadence:** monthly drift glance · quarterly full review · event-driven per
   name (earnings, hit level, thesis-break headline).
@@ -221,6 +307,17 @@ modified — nothing else changes:
 
 **After recovery:** the first contributions rebuild cash to its 5% target before
 normal routing resumes.
+
+**Sleeve-specific unwind (v3.3).** The triggers above are keyed to SPY and
+cannot see a sector-specific crash — the most likely disaster for a
+growth-tech-concentrated sleeve (2022 shape: SPY −25%, this sleeve's replay
+−52%; DeepSeek session: sleeve −19% with SPY nearly flat). Therefore: **if the
+active sleeve closes ≥−35% below its own high while SPY remains above −20%**
+(crash protocol not active), run the full break-condition review on all active
+names within **7 days**. That is the entire action — no contribution rerouting,
+no add-down suspension, nothing sold on price. One trigger, one review;
+anything more would multiply the rules needing interpretation mid-panic
+(Principle 2).
 
 ## Part VIII — Governance
 
@@ -267,8 +364,12 @@ is the scheduled test — not a mid-cycle rewrite.
 - `src/shared/policy.ts` must be updated in the same change; `policy.test.ts`
   pins every number in this document and fails on drift.
 - **Annual review checklist:** run the kill-switch test · revisit the no-trim
-  rule against the year's data · confirm sector caps still bind sensibly ·
-  confirm the options budget was respected · re-affirm or amend Part I.
+  rule against the year's data · confirm sector caps still bind sensibly
+  (against the `/risk` clusters, per Part IV) · confirm the options budget was
+  respected · confirm VPU still diversifies (risk share well below capital
+  weight on `/risk`; if not, fold into VTI/VXUS per Part III) · review the
+  sleeve risk guardrail readings recorded at the quarterly reviews ·
+  re-affirm or amend Part I.
 
 ## Part IX — Process ownership
 

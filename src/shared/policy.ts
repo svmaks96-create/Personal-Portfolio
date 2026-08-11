@@ -1,5 +1,6 @@
 /**
- * Machine-readable investment policy — the construction rulebook (v3, 2026-08-04).
+ * Machine-readable investment policy — the construction rulebook
+ * (v3.3, 2026-08-11, effective 2026-08-18 after the cooling period).
  *
  * Prose source of truth: docs/investment-policy.md — policy.test.ts pins every
  * number here against that document; change them together.
@@ -28,6 +29,34 @@ export const BUCKET_TARGETS: Record<PolicyBucket, number> = {
 };
 
 export const CASH_TARGET_WEIGHT = 5;
+
+/**
+ * Engine internal split (% of total portfolio); must sum to the core target.
+ * VTI:VXUS at the global market-cap ratio (≈60:40) — opinion-free. VPU is a
+ * capped structural satellite (v3.3): its 10-pt target is sector-bet
+ * discipline, not a risk optimum (min-variance would hold >30%); it must stay
+ * below the 14-pt cap an underwritten active sector earns. Never grown past
+ * its band, never the funding source for the active-sleeve transition.
+ */
+export const ENGINE_SPLIT = { VTI: 28, VXUS: 19, VPU: 10 } as const;
+
+/** VPU satellite band and annual retention tests (IPS Part III). */
+export const VPU_SATELLITE = {
+  bandPts: { min: 8, max: 12 },
+  /** Fold into VTI/VXUS if sleeve correlation sustains above this. */
+  maxCorrelationToActiveSleeve: 0.4,
+} as const;
+
+/**
+ * Expected worst-case drawdowns (Part II), written down so the stressed
+ * decision is made in advance. Sleeve numbers from the /risk 2022 replay
+ * (−52% on 76% coverage — an understated floor).
+ */
+export const EXPECTED_WORST_CASE = {
+  bookPct: -35,
+  sleeveFloorPct: -60,
+  sleeveTypicalPct: -50,
+} as const;
 
 /** Annual option premium budget AT COST, % of book (Part V of the IPS). */
 export const OPTIONS_BUDGET_PCT = 3;
@@ -62,10 +91,51 @@ export const NAME_COUNTS = {
 } as const;
 
 /**
- * Max points of book in one GICS sector (target weights; correlated theses
- * count as one sector) — 40% of the active bucket.
+ * Max points of book in one sector (target weights) — 40% of the active
+ * bucket. "One sector" is defined by the /risk correlation clusters as the
+ * default evidence (v3.3), overriding GICS where they disagree; judgment may
+ * split a cluster with written rationale, never merge past the data.
  */
 export const SECTOR_CAP_PTS_OF_BOOK = 14;
+
+/** Cluster threshold defining "one sector" for the cap (avg pairwise shrunk ρ). */
+export const SECTOR_CAP_CLUSTER_MIN_CORRELATION = 0.5;
+
+/**
+ * High-volatility entry rung-down (v3.3, Part IV): names above the standalone
+ * vol threshold enter one conviction rung below the ladder, graduating after
+ * both conditions are met at a scheduled review.
+ */
+export const HIGH_VOL_ENTRY = {
+  /** Standalone vol > this multiple of SPY's → rung-down applies. */
+  standaloneVolVsSpyRatio: 2,
+  rungsBelowConviction: 1,
+  graduationMinListedMonths: 12,
+  /** Risk share must be ≤ this multiple of capital weight to graduate. */
+  graduationMaxRiskShareVsWeight: 2,
+} as const;
+
+/**
+ * Sleeve risk guardrail (v3.3, Part IV): recorded quarterly from /risk. While
+ * breached, admissions and active-sleeve contributions must have a marginal
+ * risk (+$10k → Δvol) below the sleeve median. Gates inflows only — no
+ * existing position is ever trimmed on this rule.
+ */
+export const SLEEVE_RISK_GUARDRAIL = {
+  maxBetaVsSpy: 1.4,
+  maxVolVsSpyRatio: 1.75,
+} as const;
+
+/**
+ * Sleeve-specific unwind review (v3.3, Part VII): the crash protocol is keyed
+ * to SPY and cannot see a sector-specific crash. Sleeve ≤ −35% from its own
+ * high while SPY is above the crash-activation level → full break-condition
+ * review within 7 days. Review only; nothing is sold on price.
+ */
+export const SLEEVE_UNWIND_REVIEW = {
+  sleeveDrawdownPct: -35,
+  reviewWithinDays: 7,
+} as const;
 
 /** Admission rules for new active names (Part IV of the IPS). */
 export const ADMISSION_RULES = {
@@ -144,13 +214,19 @@ export const ACTIVE_KILL_SWITCH = {
 
 export interface DeriveTargetWeightOptions {
   keepDecision?: KeepDecision;
+  /**
+   * v3.3 rung-down: the name's standalone vol exceeds the HIGH_VOL_ENTRY
+   * threshold and it has not yet graduated — size one conviction rung below.
+   */
+  highVolEntry?: boolean;
 }
 
 /**
  * Sizing-ladder lookup: bucket + conviction → target weight (% of total portfolio).
  *
  * Returns null when the ladder has no rung: the passive core (band-rebalanced,
- * no per-name ladder) and conviction below 3 (no slot — cut or never enter).
+ * no per-name ladder), conviction below 3 (no slot — cut or never enter), and
+ * a high-vol conviction-3 name (the rung below 3 does not exist).
  */
 export function deriveTargetWeight(
   bucket: PolicyBucket,
@@ -160,9 +236,14 @@ export function deriveTargetWeight(
   if (opts.keepDecision === "cut") return 0;
   if (bucket === "core") return null;
 
-  if (conviction === 5) return SIZING_LADDER.active[5];
-  if (conviction === 4) return SIZING_LADDER.active[4];
-  if (conviction === 3) return SIZING_LADDER.active[3];
+  const effective = opts.highVolEntry
+    ? conviction - HIGH_VOL_ENTRY.rungsBelowConviction
+    : conviction;
+
+  if (conviction < 3 || conviction > 5) return null;
+  if (effective === 5) return SIZING_LADDER.active[5];
+  if (effective === 4) return SIZING_LADDER.active[4];
+  if (effective === 3) return SIZING_LADDER.active[3];
   return null;
 }
 
