@@ -103,8 +103,15 @@ seven Wio ETF dividends by 30% before it was caught and corrected on 2026-08-03.
 2. **Facts:** `mcp__fmp__calendar` endpoint `dividends-company` per ticker. Fields
    used: `date` (= ex-date), `paymentDate`, `dividend` (DPS). Non-payers return empty.
 3. **Entitlement:** shares held at ex-date, per portfolio, by replaying
-   buy/sell quantities (stock instrument only) up to and including the ex-date.
-   Skip if < 0.01 shares.
+   buy/sell quantities (stock instrument only) **strictly before** the ex-date
+   (`date < exDate`) — NOT through it. Entitlement is settled at the open on the
+   ex-date: a sale ON the ex-date still collects the dividend, and a purchase ON
+   the ex-date does not. Replaying through the ex-date silently drops a real
+   entitlement whenever a position is closed on that exact day — it nets to zero
+   and never reaches the covered-check, so it cannot even flag itself.
+   Skip if < 0.01 shares. (Precedent: MRVL ex 2026-04-10, the same day the whole
+   68-share position was sold — correctly booked 2026-04-30 as gross 4.08 /
+   withholding -1.22, which the through-the-ex-date replay would have missed.)
 4. **Expected ledger rows** (date = `paymentDate`, qty 0, fees 0, currency USD,
    instrument stock), following the ledger's per-ticker conventions:
    - **Wio:** one **NET** row: round2(DPS × shares × 0.70) for US payers — Wio nets
