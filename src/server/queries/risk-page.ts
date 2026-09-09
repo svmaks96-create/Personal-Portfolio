@@ -580,7 +580,7 @@ export const getScenarioPageData = cache(
         "Trough",
         "Recovery",
         "End to end",
-        "Bets in window",
+        "Bets: window vs calm",
       ],
       rows: report.scenarios.map((scenario) => ({
         label: scenario.label,
@@ -616,11 +616,17 @@ export const getScenarioPageData = cache(
             scenario.windowEnb,
             scenario.windowEnb === null
               ? "N/A"
-              : `${scenario.windowEnb.toFixed(1)} (${scenario.windowEnbObservations}d)`,
+              : scenario.calmEnb === null
+                ? `${scenario.windowEnb.toFixed(1)} (${scenario.windowEnbObservations}d)`
+                : `${scenario.windowEnb.toFixed(1)} vs ${scenario.calmEnb.toFixed(1)} (${scenario.windowEnbObservations}d)`,
             scenario.windowEnbObservations !== null &&
             scenario.windowEnbObservations < 60
               ? "warn"
-              : "muted"
+              : scenario.windowEnb !== null &&
+                  scenario.calmEnb !== null &&
+                  scenario.windowEnb < 0.8 * scenario.calmEnb
+                ? "neg"
+                : "muted"
           ),
         ],
       })),
@@ -648,6 +654,7 @@ export const getScenarioPageData = cache(
 
     const notes: string[] = [
       "Current weights, bought at each window's first prices and held — weights drift as they would have in reality. Names listed after a window's start are excluded, never proxied.",
+      "Bets: window vs calm — the entropy bet count on the window's own correlations vs the trailing year, both over the same covered names at current weights. A window figure well below calm is correlation tightening under stress, not a sizing change; red marks a drop past 20%.",
       ...report.unreplayable.map(
         (u) => `${u.label} (${month(u.from)} → ${month(u.to)}): no coverable names.`
       ),

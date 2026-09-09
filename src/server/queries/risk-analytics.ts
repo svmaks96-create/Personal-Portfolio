@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { format, parseISO, subDays } from "date-fns";
 import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
 import { getTickerProfilesMap } from "@/server/queries/ticker-profiles";
 import {
@@ -214,6 +215,13 @@ export interface ScenarioResult extends ScenarioReplay {
   /** Effective bets estimated on the window's own returns; null if too thin. */
   windowEnb: number | null;
   windowEnbObservations: number | null;
+  /**
+   * Effective bets over the trailing year on the *same covered names* at the
+   * same weights — the fair baseline for the window number. Comparing the
+   * window ENB against the page's headline ENB would confound regime change
+   * with coverage change (old windows exclude recently listed names).
+   */
+  calmEnb: number | null;
 }
 
 /** Observation floor for in-window covariance — crash windows are short. */
@@ -244,6 +252,12 @@ export const getScenarioAnalytics = cache(
     const scenarios: ScenarioResult[] = [];
     const unreplayable: ScenarioAnalyticsReport["unreplayable"] = [];
 
+    // Trailing-year window for the calm-regime ENB baseline.
+    const latestDate = calendar[calendar.length - 1];
+    const calmFrom = latestDate
+      ? format(subDays(parseISO(latestDate), 365), "yyyy-MM-dd")
+      : undefined;
+
     for (const window of windows) {
       const replay = replayScenario(weights.weights, priceHistory, window, calendar);
       if (replay === null) {
@@ -270,10 +284,27 @@ export const getScenarioAnalytics = cache(
         ? computeEffectiveBets(windowCovariance, weights.weights)
         : null;
 
+      // Calm baseline: same covered names, same weights, trailing year.
+      let calmBets: EffectiveBets | null = null;
+      if (calmFrom !== undefined && latestDate !== undefined) {
+        const calmReturns = buildReturnsForWindow(
+          priceHistory,
+          coveredTickers,
+          calendar,
+          calmFrom,
+          latestDate
+        );
+        const calmCovariance = estimateCovariance(calmReturns);
+        calmBets = calmCovariance
+          ? computeEffectiveBets(calmCovariance, weights.weights)
+          : null;
+      }
+
       scenarios.push({
         ...replay,
         windowEnb: windowBets?.enb ?? null,
         windowEnbObservations: windowCovariance?.observationCount ?? null,
+        calmEnb: calmBets?.enb ?? null,
       });
     }
 
