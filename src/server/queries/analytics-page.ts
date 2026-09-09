@@ -468,7 +468,7 @@ export const getAnalyticsPageData = cache(
     );
 
     const alternatives: Table = {
-      columns: ["Deposited", "Value today", "TWRR", "Ann.", "XIRR"],
+      columns: ["Committed", "Value today", "TWRR", "Ann.", "XIRR"],
       rows: [
         ...r.counterfactual.depositsOnly.map((d) => ({
           label: d.label,
@@ -494,9 +494,14 @@ export const getAnalyticsPageData = cache(
             ],
           })),
         {
+          // Quoted on the alternatives' commitment basis, not on net-of-sales
+          // flows: the alternatives are seeded with the opening book and their
+          // schedule never follows the investor into cash, so
+          // `netInvestedUsd` would understate the same capital by the opening
+          // NAV plus every dollar sold and left uninvested.
           label: "Actual portfolio",
           cells: [
-            usd(r.attribution.itdBySleeve.total.netInvestedUsd),
+            usd(r.counterfactual.committedCapitalUsd),
             usd(itd?.endNavUsd ?? null),
             pct(itd?.portfolioReturnPct ?? null, true),
             pct(itd?.portfolioAnnualizedPct ?? null, true),

@@ -80,11 +80,13 @@ export async function AnalyticsCounterfactualPanel({
           highlightLastRow
         />
         <p className="mt-3 border-t border-line-soft pt-2.5 font-mono text-[10px] leading-relaxed text-muted-foreground">
-          Deposits are taken from the high-water mark of cumulative net
-          invested, so the alternative only ever adds and never follows the
-          investor into cash. The 60/40 row assumes a bond distribution yield
-          rather than measuring one — a price-only bond leg would understate it
-          by double digits.
+          Committed capital is the book carried into the window plus the
+          high-water mark of cumulative net invested, so the schedule only ever
+          adds and never follows the investor into cash. Every row is quoted on
+          that basis, the actual portfolio included — which is why the column
+          is identical down its length. The 60/40 row assumes a bond
+          distribution yield rather than measuring one; a price-only bond leg
+          would understate it by double digits.
         </p>
       </TerminalPanel>
     </div>

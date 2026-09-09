@@ -25,6 +25,7 @@ import { computeAttribution, type AttributionResult } from "@/server/services/at
 import {
   computeFrozenBook,
   computeDepositsOnlyBenchmark,
+  computeNetInvestedSeries,
   type FrozenBookResult,
   type SyntheticResult,
 } from "@/server/services/counterfactual";
@@ -200,6 +201,14 @@ export interface BehaviorAnalyticsReport {
     frozenBooks: FrozenBookResult[];
     primaryFreezeDate: string;
     depositsOnly: SyntheticResult[];
+    /**
+     * Capital the alternatives were handed, on their own basis: the window's
+     * opening book plus the high-water mark of cumulative net invested. The
+     * actual portfolio has to be quoted this way to sit in the same column —
+     * its net-of-sales figure is smaller by the opening book plus every dollar
+     * sold and not redeployed, and reads as an error when it is a definition.
+     */
+    committedCapitalUsd: number;
     alternativeSchedules: SyntheticPortfolioResult[];
     actualPostPivotReturnPct: number | null;
   };
@@ -398,6 +407,13 @@ export function getBehaviorAnalytics(
       seedValueUsd: openingNav,
     })
   );
+
+  // Same schedule the alternatives consume, totalled: seed plus the high-water
+  // mark of cumulative net invested. Reported so the actual portfolio can be
+  // shown on the alternatives' basis rather than on net-of-sales flows.
+  const netInvestedSeries = computeNetInvestedSeries(windowPoints);
+  const committedCapitalUsd =
+    openingNav + (netInvestedSeries[netInvestedSeries.length - 1]?.highWaterUsd ?? 0);
 
   const alternativeSchedules: SyntheticPortfolioResult[] = [
     ...(["raw-daily", "monthly-netted"] as const).map((schedule) =>
@@ -673,6 +689,7 @@ export function getBehaviorAnalytics(
       frozenBooks,
       primaryFreezeDate: "2024-12-31",
       depositsOnly,
+      committedCapitalUsd,
       alternativeSchedules,
       actualPostPivotReturnPct: postPivot?.portfolioReturnPct ?? null,
     },
@@ -789,7 +806,19 @@ function buildScopePerformance(
     asOf,
     latestMarkMap(optionMarkHistory)
   );
-  const flows = buildScopeFlows(txs);
+
+  // Money-weighted over the *window*, not the whole ledger. On a windowed run
+  // the book already exists on day one, so the NAV carried in enters as the
+  // opening outlay and only in-window transactions follow it. An
+  // inception-to-date XIRR quoted beside a windowed TWRR measures a different
+  // period, which is exactly the comparison the analytics page invites.
+  const openingNavUsd = isWindowed
+    ? (points.filter((p) => p.date < inception).pop()?.totalMarketValueUsd ?? 0)
+    : 0;
+  const flows = buildScopeFlows(
+    isWindowed ? txs.filter((t) => t.date >= inception) : txs
+  );
+  if (openingNavUsd > 0) flows.unshift({ date: inception, amount: -openingNavUsd });
   const terminal = positions.reduce((a, p) => a + (p.marketValue ?? 0), 0);
   if (terminal > 0) flows.push({ date: asOf, amount: terminal });
 
