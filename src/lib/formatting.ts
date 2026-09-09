@@ -136,6 +136,17 @@ export function formatMultiple(value: number | null): string {
   return `${multipleFormatter.format(value)}x`;
 }
 
+const moicFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** Multiple on invested capital, e.g. "1.25x", "0.80x". */
+export function formatMoic(value: number | null): string {
+  if (value === null) return "N/A";
+  return `${moicFormatter.format(value)}x`;
+}
+
 /** Whole-number count with thousands separators, e.g. "164,000". */
 export function formatInteger(value: number | null): string {
   if (value === null) return "N/A";

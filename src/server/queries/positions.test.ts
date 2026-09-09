@@ -106,7 +106,26 @@ describe("getActivePositions", () => {
     expect(row.pnl).toEqual({ value: 300, display: "+$300" });
     expect(row.realizedPnl).toEqual({ value: 50, display: "+$50" });
     expect(row.unrealizedPnl).toEqual({ value: 250, display: "+$250" });
+    // MOIC = (totalInvested + totalPnl) / totalInvested = 1800 / 1500
+    expect(row.moic).toEqual({ value: 1.2, display: "1.20x" });
     expect(row.weight).toEqual({ value: 57.3, display: "57.3%" });
+  });
+
+  it("MOIC is N/A when nothing was ever invested", () => {
+    const freebie = makePosition({ totalInvested: 0, totalPnl: 50 });
+    mockComputePositions.mockReturnValue([freebie]);
+    mockComputeAggregates.mockReturnValue({
+      totalValue: 50,
+      totalCostBasis: 0,
+      totalRealizedPnl: 50,
+      totalUnrealizedPnl: 0,
+      irr: null,
+      positions: [{ ...freebie, weight: 100 }],
+    });
+
+    const { rows, totals } = getActivePositions();
+    expect(rows[0].moic).toEqual({ value: null, display: "N/A" });
+    expect(totals!.moic).toEqual({ value: null, display: "N/A" });
   });
 
   it("excludes closed positions before computing aggregates", () => {
@@ -157,6 +176,7 @@ describe("getActivePositions", () => {
     expect(result.rows[0].pnl).toEqual({ value: null, display: "N/A" });
     expect(result.rows[0].realizedPnl).toEqual({ value: null, display: "N/A" });
     expect(result.rows[0].unrealizedPnl).toEqual({ value: null, display: "N/A" });
+    expect(result.rows[0].moic).toEqual({ value: null, display: "N/A" });
     expect(result.rows[0].weight).toEqual({ value: null, display: "N/A" });
   });
 
@@ -190,6 +210,11 @@ describe("getActivePositions", () => {
     // the other, this assertion stays green but the KPI labels do not.
     expect(totals!.realizedPnl.value! + totals!.unrealizedPnl.value!).toBe(totals!.pnl.value);
     expect(totals!.irr).toEqual({ value: 12.5, display: "+13%" });
+    // Totals MOIC is a ratio of sums: (3000 invested + 800 pnl) / 3000, not
+    // the mean of the per-row multiples (1.4x and 1.13x → 1.27x either way
+    // here only by coincidence of equal invested amounts, so pin the value).
+    expect(totals!.moic.value).toBeCloseTo(3800 / 3000, 10);
+    expect(totals!.moic.display).toBe("1.27x");
     // Weight total is the actual sum — deviation from 100% is a bug signal.
     expect(totals!.weight).toEqual({ value: 100, display: "100.0%" });
   });
@@ -319,6 +344,10 @@ describe("getClosedPositions", () => {
     expect(row.totalProceeds).toEqual({ value: 2400, display: "$2,400" });
     expect(row.dividends).toEqual({ value: 30, display: "$30" });
     expect(row.realizedPnl).toEqual({ value: 280, display: "+$280" });
+    // Closed MOIC reads realizedPnl (280), not the divergent totalPnl (999):
+    // (2150 + 280) / 2150
+    expect(row.moic.value).toBeCloseTo(2430 / 2150, 10);
+    expect(row.moic.display).toBe("1.13x");
   });
 
   it("excludes active positions", () => {
@@ -394,6 +423,9 @@ describe("getClosedPositions", () => {
     expect(totals!.totalProceeds).toEqual({ value: 3400, display: "$3,400" });
     expect(totals!.dividends).toEqual({ value: 40, display: "$40" });
     expect(totals!.realizedPnl).toEqual({ value: 440, display: "+$440" });
+    // (3000 invested + 440 realized) / 3000
+    expect(totals!.moic.value).toBeCloseTo(3440 / 3000, 10);
+    expect(totals!.moic.display).toBe("1.15x");
     expect(totals!.irr).toEqual({ value: 15.4, display: "+15%" });
   });
 

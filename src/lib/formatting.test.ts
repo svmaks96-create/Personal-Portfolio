@@ -11,6 +11,7 @@ import {
   formatIRR,
   formatMarketCap,
   formatMultiple,
+  formatMoic,
   formatInteger,
 } from "./formatting";
 
@@ -232,6 +233,24 @@ describe("formatMarketCap", () => {
 
   it("returns N/A for null", () => {
     expect(formatMarketCap(null)).toBe("N/A");
+  });
+});
+
+describe("formatMoic", () => {
+  it("formats a gain multiple with x suffix and 2dp", () => {
+    expect(formatMoic(1.2533)).toBe("1.25x");
+  });
+
+  it("formats a sub-1 multiple (capital loss)", () => {
+    expect(formatMoic(0.8)).toBe("0.80x");
+  });
+
+  it("formats break-even as 1.00x", () => {
+    expect(formatMoic(1)).toBe("1.00x");
+  });
+
+  it("returns N/A for null", () => {
+    expect(formatMoic(null)).toBe("N/A");
   });
 });
 

@@ -16,6 +16,11 @@ import { pnlColorClass } from "@/lib/pnl";
 
 const DASH = "—";
 
+/** MOIC is centred on 1.0x, not zero: above 1x is a gain, below is a loss. */
+function moicColorClass(value: number | null): string {
+  return pnlColorClass(value === null ? null : value - 1);
+}
+
 function TickerNameCell({
   ticker,
   companyName,
@@ -172,6 +177,18 @@ export const activePositionsColumns: ColumnDef<ActivePositionRow>[] = [
     meta: { align: "center" as const },
   },
   {
+    accessorKey: "moic",
+    header: "MOIC",
+    accessorFn: (row) => row.moic.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => (
+      <span className={`tabular-nums ${moicColorClass(row.original.moic.value)}`}>
+        {row.original.moic.display}
+      </span>
+    ),
+    meta: { align: "center" as const },
+  },
+  {
     accessorKey: "irr",
     header: "IRR",
     accessorFn: (row) => row.irr.value ?? undefined,
@@ -281,6 +298,18 @@ export const closedPositionsColumns: ColumnDef<ClosedPositionRow>[] = [
     meta: { align: "center" as const },
   },
   {
+    accessorKey: "moic",
+    header: "MOIC",
+    accessorFn: (row) => row.moic.value ?? undefined,
+    sortUndefined: "last",
+    cell: ({ row }) => (
+      <span className={`tabular-nums ${moicColorClass(row.original.moic.value)}`}>
+        {row.original.moic.display}
+      </span>
+    ),
+    meta: { align: "center" as const },
+  },
+  {
     accessorKey: "irr",
     header: "IRR",
     accessorFn: (row) => row.irr.value ?? undefined,
@@ -338,6 +367,11 @@ export function ActivePositionsTotalsRow({ totals: t }: { totals: ActivePosition
         </Private>
       </TableCell>
       <TableCell className={totalNumCls}>
+        <span className={`tabular-nums ${moicColorClass(t.moic.value)}`}>
+          {t.moic.display}
+        </span>
+      </TableCell>
+      <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>
           {t.irr.display}
         </span>
@@ -377,6 +411,11 @@ export function ClosedPositionsTotalsRow({ totals: t }: { totals: ClosedPosition
             {t.realizedPnl.display}
           </span>
         </Private>
+      </TableCell>
+      <TableCell className={totalNumCls}>
+        <span className={`tabular-nums ${moicColorClass(t.moic.value)}`}>
+          {t.moic.display}
+        </span>
       </TableCell>
       <TableCell className={totalNumCls}>
         <span className={`tabular-nums ${pnlColorClass(t.irr.value)}`}>

@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { computeAggregates, computePortfolioIRR, mergePositionsByTicker } from "@/server/services/computation";
 import {
   formatCurrency,
@@ -6,6 +7,7 @@ import {
   formatPercent,
   formatPnLRounded,
   formatIRRRounded,
+  formatMoic,
   formatPriceDate,
 } from "@/lib/formatting";
 import { fetchPositionInputs } from "@/server/queries/shared-position-inputs";
@@ -32,6 +34,7 @@ export interface ActivePositionRow {
   pnl: MoneyCell;
   realizedPnl: MoneyCell;
   unrealizedPnl: MoneyCell;
+  moic: { value: number | null; display: string };
   irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
@@ -47,6 +50,7 @@ export interface ClosedPositionRow {
   totalProceeds: MoneyCell;
   dividends: MoneyCell;
   realizedPnl: MoneyCell;
+  moic: { value: number | null; display: string };
   irr: { value: number | null; display: string };
 }
 
@@ -58,6 +62,7 @@ export interface ActivePositionsTotals {
   pnl: MoneyCell;
   realizedPnl: MoneyCell;
   unrealizedPnl: MoneyCell;
+  moic: { value: number | null; display: string };
   irr: { value: number | null; display: string };
   weight: { value: number | null; display: string };
 }
@@ -67,6 +72,7 @@ export interface ClosedPositionsTotals {
   totalProceeds: MoneyCell;
   dividends: MoneyCell;
   realizedPnl: MoneyCell;
+  moic: { value: number | null; display: string };
   irr: { value: number | null; display: string };
 }
 
@@ -94,6 +100,23 @@ function sumOrNull<T>(rows: T[], pick: (r: T) => number | null): number | null {
     total += v;
   }
   return total;
+}
+
+/**
+ * Multiple on invested capital: total value returned (market value +
+ * dividends + sell proceeds) over total capital invested, i.e.
+ * `(totalInvested + totalPnl) / totalInvested`. Returns `null` when P&L is
+ * unknown (no price / FX) or nothing was ever invested.
+ */
+function moicOrNull(totalInvested: number | null, totalPnl: number | null): number | null {
+  if (totalInvested === null || totalPnl === null || totalInvested <= 0) return null;
+  const invested = new Decimal(totalInvested);
+  return invested.plus(totalPnl).div(invested).toNumber();
+}
+
+function moicCell(totalInvested: number | null, totalPnl: number | null) {
+  const value = moicOrNull(totalInvested, totalPnl);
+  return { value, display: formatMoic(value) };
 }
 
 export function getActivePositions(portfolio?: string): ActivePositionsResult {
@@ -137,6 +160,7 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
     pnl: { value: p.totalPnl, display: formatPnLRounded(p.totalPnl) },
     realizedPnl: { value: p.realizedPnl, display: formatPnLRounded(p.realizedPnl) },
     unrealizedPnl: { value: p.unrealizedPnl, display: formatPnLRounded(p.unrealizedPnl) },
+    moic: moicCell(p.totalInvested, p.totalPnl),
     irr: { value: p.irr, display: formatIRRRounded(p.irr) },
     weight: { value: p.weight, display: formatPercent(p.weight) },
   }));
@@ -153,6 +177,9 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
   const realizedPnlTotal = sumOrNull(rows, (r) => r.realizedPnl.value);
   const unrealizedPnlTotal = sumOrNull(rows, (r) => r.unrealizedPnl.value);
   const weightTotal = sumOrNull(rows, (r) => r.weight.value);
+  // Totals MOIC is a ratio of sums, not a sum of ratios. Total invested is
+  // not surfaced on active rows, so recover it from the source positions.
+  const investedTotal = sumOrNull(aggregates.positions, (p) => p.totalInvested);
 
   // Totals IRR is a fresh XIRR over the slice — per-row IRRs can't be summed.
   // Key by ticker + instrument so e.g. a closed stock position's cash flows
@@ -173,6 +200,7 @@ export function getActivePositions(portfolio?: string): ActivePositionsResult {
     pnl: { value: pnlTotal, display: formatPnLRounded(pnlTotal) },
     realizedPnl: { value: realizedPnlTotal, display: formatPnLRounded(realizedPnlTotal) },
     unrealizedPnl: { value: unrealizedPnlTotal, display: formatPnLRounded(unrealizedPnlTotal) },
+    moic: moicCell(investedTotal, pnlTotal),
     irr: { value: irrTotal, display: formatIRRRounded(irrTotal) },
     weight: { value: weightTotal, display: formatPercent(weightTotal) },
   };
@@ -203,6 +231,7 @@ export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
     totalProceeds: { value: p.totalSellProceeds, display: formatCurrencyRounded(p.totalSellProceeds) },
     dividends: { value: p.totalDividends, display: formatCurrencyRounded(p.totalDividends) },
     realizedPnl: { value: p.realizedPnl, display: formatPnLRounded(p.realizedPnl) },
+    moic: moicCell(p.totalInvested, p.realizedPnl),
     irr: { value: p.irr, display: formatIRRRounded(p.irr) },
   }));
 
@@ -230,6 +259,7 @@ export function getClosedPositions(portfolio?: string): ClosedPositionsResult {
     totalProceeds: { value: totalProceedsSum, display: formatCurrencyRounded(totalProceedsSum) },
     dividends: { value: dividendsSum, display: formatCurrencyRounded(dividendsSum) },
     realizedPnl: { value: realizedPnlSum, display: formatPnLRounded(realizedPnlSum) },
+    moic: moicCell(totalInvestedSum, realizedPnlSum),
     irr: { value: irrTotal, display: formatIRRRounded(irrTotal) },
   };
 
