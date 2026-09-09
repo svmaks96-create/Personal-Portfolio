@@ -40,7 +40,15 @@ Apply these conventions (portfolio `Interactive Brokers`, currency `USD`):
 | `sec_type: OPT` | Instrument `option`, ticker = underlying. **Net ALL option executions per (underlying, day)** into one row: gross = \|Σ buy net_amounts − Σ sell net_amounts\|; action = `buy` if net debit, `sell` if net credit; quantity = max(Σ bought contracts, Σ sold contracts); fees = Σ commissions rounded to 2dp. |
 
 - Negative fee totals (commission rebates) violate Zod (`fees >= 0`): fold the rebate
-  into gross (gross += negative fees, fees = 0) so net cost is preserved.
+  into gross and set `fees = 0`, so the net cash is preserved. **The sign depends on
+  the side**, because `computation.ts` uses cost = gross + fees for a buy but
+  proceeds = gross − fees for a sell:
+  - **buy** (net debit): `gross += fees` — the rebate lowers the cost.
+  - **sell** (net credit): `gross -= fees` — i.e. gross rises; the rebate raises proceeds.
+
+  Check the result against IBKR's summed `realized_pnl` for the executions before
+  inserting. (Precedent 2026-09-01, MNDY close: gross 5300 credit, fees −1.05 →
+  gross 5301.05 / fees 0 → realized +1971.45, matching IBKR exactly.)
 - Anything that doesn't fit these rules (new sec_type, sell-to-open credit combo while
   no option position is held, etc.): do NOT guess — show the raw trades to the user
   and ask.
