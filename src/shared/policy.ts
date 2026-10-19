@@ -58,20 +58,25 @@ export const EXPECTED_WORST_CASE = {
   sleeveTypicalPct: -50,
 } as const;
 
-/** Annual option premium budget AT COST, % of book (Part V of the IPS). */
+/** Annual option premium budget AT COST, % of current book (Part V of the IPS). */
 export const OPTIONS_BUDGET_PCT = 3;
 
 /**
  * Options sleeve spec — long calls / call debit spreads only, ≥12-month tenor,
- * ≤1% of book premium per position, calendar-year budget with no recycling of
- * realized gains. Underlyings: underwritten active names (+ SPY/VTI while a
- * crash protocol is active).
+ * ≤1% of book premium per position. Annual budget check at each open:
+ * open premium at cost + max(0, −net YTD realized options P&L) ≤ 3% of current
+ * book. Closes refund their cost basis; realized P&L is netted across all
+ * option trades, so a net loss shrinks the budget and a net profit never grows
+ * it past 3%. Underlyings: underwritten active names (+ SPY/VTI while a crash
+ * protocol is active).
  */
 export const OPTIONS_SPEC = {
   instruments: ["long_call", "call_debit_spread"],
   minTenorMonths: 12,
   maxPremiumPerPositionPct: 1,
   annualPremiumBudgetPct: OPTIONS_BUDGET_PCT,
+  costBasisRefundedOnClose: true,
+  netRealizedLossShrinksBudget: true,
   realizedGainsRecycle: false,
 } as const;
 

@@ -9,6 +9,16 @@ asserts the two agree on every number. Underwriting rubrics in
 `.claude/skills/*/SKILL.md` defer to this document wherever they conflict.
 
 **Changelog**
+- v3.4 (2026-10-19, effective 2026-10-26 after the 7-day cooling period):
+  options budget made refillable. It is still 3% of book per calendar year, and
+  is now measured as open premium at cost + any net realized options loss
+  year-to-date, against the current book. Closes return their cost basis.
+  Realized results are netted across all option trades. A net profit never
+  raises the budget above 3%, and a net loss shrinks it. Rationale: the old
+  rule locked the sleeve for the rest of the year after one successful round
+  trip, even though the cash at risk had come back. The annual cap on net
+  option losses is unchanged. Owner decision. Per-position (≤1%), tenor and
+  instrument rules unchanged.
 - v3.3 (2026-08-11, effective 2026-08-18 after the 7-day cooling period): risk
   amendments derived from the app's new `/risk` measurement module. Rationale:
   the module showed (a) sleeve market beta drifted 1.02→1.43 across the 2024+
@@ -98,7 +108,7 @@ by a rule, resolve it by these principles in order.
 |---|---|--:|---|
 | Engine | Passive Core | **57%** | VTI + VXUS + VPU ≈ 28/19/10. Band-rebalanced. No price levels, no opinions, never traded tactically. This target is a **floor that can only ratchet up** (Part VII). |
 | Alpha | Active Stocks | **35%** | 6–8 names, one tier, every name underwritten to the same standard (Part IV). |
-| Convexity | Options | **3%** | Annual premium budget, tightly specified (Part V). |
+| Convexity | Options | **3%** | Annual premium budget (refills on profitable closes), tightly specified (Part V). |
 | Liquidity | Cash | **5%** | Operating buffer. Contributions deploy monthly by default — cash is not a market view. |
 
 Total basis = invested holdings + all investable cash (Wio AED savings is
@@ -262,9 +272,21 @@ budgeted, not extrapolated. Spec:
 - **Underlyings:** names currently underwritten in the active sleeve; SPY/VTI
   additionally allowed while a crash protocol is active.
 - **Per-position cap:** ≤1% of book in premium at cost.
-- **Budget:** 3% of book in premium **per calendar year**, at cost. Realized
-  gains do not recycle into new premium within the year; total loss of all open
-  premium is an accepted, budgeted cost.
+- **Annual budget:** **3% of current book** per calendar year, at cost, checked
+  at each new open:
+  *open premium at cost + max(0, −net realized options P&L year-to-date) ≤ 3%
+  of book*.
+  - Every close, of any option position, returns its cost basis to the budget.
+  - Realized results are summed across **all** option trades closed in the
+    year. While that total is ≥ 0, the budget stays at the full 3%. Profits
+    never raise it above 3%.
+  - If the total goes **negative**, the budget shrinks by that net loss. Later
+    profits restore it, up to the full 3% again.
+  - The total resets on 1 January.
+
+  So at most 3% of book can be lost, net, on options in a calendar year, and a
+  profitable round trip doesn't use up the year. Total loss of all open premium
+  is an accepted, budgeted cost.
 - **Management:** roll/harvest decisions happen at quarterly reviews only.
   Expiring worthless is a budgeted outcome, not a failure requiring response.
 
@@ -366,7 +388,7 @@ is the scheduled test — not a mid-cycle rewrite.
 - **Annual review checklist:** run the kill-switch test · revisit the no-trim
   rule against the year's data · confirm sector caps still bind sensibly
   (against the `/risk` clusters, per Part IV) · confirm the options budget was
-  respected · confirm VPU still diversifies (risk share well below capital
+  respected at every open · confirm VPU still diversifies (risk share well below capital
   weight on `/risk`; if not, fold into VTI/VXUS per Part III) · review the
   sleeve risk guardrail readings recorded at the quarterly reviews ·
   re-affirm or amend Part I.

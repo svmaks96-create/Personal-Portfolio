@@ -87,6 +87,8 @@ describe("policy constants (v3)", () => {
     expect(OPTIONS_SPEC.minTenorMonths).toBe(12);
     expect(OPTIONS_SPEC.maxPremiumPerPositionPct).toBe(1);
     expect(OPTIONS_SPEC.annualPremiumBudgetPct).toBe(OPTIONS_BUDGET_PCT);
+    expect(OPTIONS_SPEC.costBasisRefundedOnClose).toBe(true);
+    expect(OPTIONS_SPEC.netRealizedLossShrinksBudget).toBe(true);
     expect(OPTIONS_SPEC.realizedGainsRecycle).toBe(false);
   });
 
